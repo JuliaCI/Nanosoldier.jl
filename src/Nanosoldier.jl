@@ -338,11 +338,12 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           println("FILTERING GROUPS...");
           benchmarks = GROUPS[@tagged($(job.tagpredstr))];
           println("WARMING UP...");
-          ntrials(benchmarks, 1, 1.0e-6; verbose = true);
+          warmup(benchmarks; verbose = true);
           println("RUNNING TRIALS...");
-          result = minimum(ntrials(benchmarks, 2, NaN; verbose = true));
+          result1 = execute(benchmarks; verbose = true);
+          result2 = execute(benchmarks; verbose = true);
           println("SAVING RESULT...");
-          JLD.save(\"$(benchresult)\", "result", result);
+          JLD.save(\"$(benchresult)\", "result", min(result1, result2));
           println("DONE!");
           close(benchout); close(bencherr);
           """
