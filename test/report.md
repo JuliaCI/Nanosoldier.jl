@@ -11,26 +11,26 @@
 ## Results
 
 Below is a table of this job's results. If available, the data used to generate this
-table can be found in the JSON file in this directory.
+table can be found in the JLD file in this directory.
 
 Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
 
 The ratio values in the below table equal `primary_result / comparison_result` for each corresponding
 metric. Thus, `x < 1.0` would denote an improvement, while `x > 1.0` would denote a regression.
-Note that a default tolerance of `0.2` is applied to account for the variance of our test
+Note that a default tolerance of `0.05` is applied to account for the variance of our test
 hardware.
 
 Regressions are marked with :x:, while improvements are marked with :white_check_mark:. GC
-measurements are [not considered when determining regression status](https://github.com/JuliaCI/BenchmarkTrackers.jl/issues/5).
+measurements are not considered when determining regression status.
 
 Only benchmarks with significant results - results that indicate regressions or improvements - are
 shown below (an empty table means that all benchmark results remained invariant between builds).
 
-| Group ID | Benchmark ID | time | time spent in GC | bytes allocated | number of allocations |
-|----------|--------------|------|------------------|-----------------|-----------------------|
-| `mygroup` | `x` | 1.01 | 1.1 | **0.12** :white_check_mark: | **0.52** :white_check_mark: |
-| `mygroup` | `y` | **1.21** :x: | 1.05 | 1.11 | **0.73** :white_check_mark: |
-| `mygroup` | `z` | 1.11 | 3.03 | **1.76** :x: | **0.32** :white_check_mark: |
+| Group ID | Benchmark ID | time | GC time | memory allocated | number of allocations |
+|----------|--------------|------|---------|------------------|-----------------------|
+| `"g"` | `("y",1)` | **2.00** :x: | 1.00 | **0.00** :white_check_mark: | 1.00 |
+| `"g"` | `("y",2)` | **0.50** :white_check_mark: | 1.00 | 1.00 | 1.00 |
+| `"g"` | `"z"` | 1.00 | 1.00 | **5.00** :x: | 1.00 |
 
 ## Version Info
 
@@ -92,4 +92,4 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 Here's a list of all the benchmark groups executed by this job:
 
-- `mygroup`
+- `"g"`
