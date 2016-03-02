@@ -331,10 +331,10 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     bencherr = joinpath(config.logdir,  string(benchname, ".err"))
     benchresult = joinpath(config.resultdir, string(benchname, ".jld"))
     cmd = """
-          using BaseBenchmarks;
-          using JLD;
           benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
           bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
+          using BaseBenchmarks;
+          using JLD;
           println("FILTERING GROUPS...");
           benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
           println("WARMING UP...");
