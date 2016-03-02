@@ -351,7 +351,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     run(`./julia -e $(cmd)`)
 
     # deserialize the result, and only take the minimum of each set of trials
-    result = minimum(JLD.load(file, "result"))
+    result = JLD.load(file, "result")
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
