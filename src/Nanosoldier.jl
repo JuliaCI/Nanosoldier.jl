@@ -336,7 +336,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
           bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
           println("FILTERING GROUPS...");
-          benchmarks = GROUPS[@tagged($(job.tagpredstr))];
+          benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
           println("WARMING UP...");
           warmup(benchmarks; verbose = true);
           println("RUNNING TRIALS...");
