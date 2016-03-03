@@ -405,7 +405,7 @@ function report_results(config::ServerConfig, job::BenchmarkJob, worker, results
         if !(isnull(job.against))
             judged = BenchmarkTools.judge(results["primary"], results["against"])
             results["judged"] = judged
-            issuccess = !(BenchmarkTools.hasregressions(judged))
+            issuccess = !(BenchmarkTools.hasregression(judged))
             state = issuccess ? "success" : "failure"
             statusmessage = issuccess ? "no performance regressions were detected" : "possible performance regressions were detected"
         else
