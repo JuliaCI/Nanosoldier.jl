@@ -337,8 +337,6 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           using JLD;
           println("FILTERING GROUPS...");
           benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
-          println("WARMING UP...");
-          warmup(benchmarks; verbose = true);
           println("RUNNING TRIALS...");
           result1 = execute(benchmarks; verbose = true);
           result2 = execute(benchmarks; verbose = true);
