@@ -415,7 +415,7 @@ function report_results(config::ServerConfig, job::BenchmarkJob, worker, results
 
         # upload markdown report to the report repository
         try
-            reportpath = joinpath(reportpath, "$(filename).md")
+            reportpath = joinpath(filepath, "$(filename).md")
             reportmarkdown = base64encode(sprint(io -> printreport(io, job, results)))
             message = "add markdown report for job: $(jobsummary)"
             url = upload_report_file(config, reportpath, reportmarkdown, message)
@@ -464,11 +464,14 @@ function upload_report_file(config, path, content, message)
     params = Dict("content" => content, "message" => message)
     priorfile = GitHub.file(config.reportrepo, path; auth = config.auth, handle_error = false)
     if isnull(priorfile.sha)
+        workerlog(1, config, "about to call GitHub.create_file with no sha")
         results = GitHub.create_file(config.reportrepo, path; auth = config.auth, params = params)
     else
         params["sha"] = get(priorfile.sha)
+        workerlog(1, config, "about to call GitHub.update_file with sha $(repr(params["sha"]))")
         results = GitHub.update_file(config.reportrepo, path; auth = config.auth, params = params)
     end
+    workerlog(1, config, "about to call GitHub.permalink")
     return string(GitHub.permalink(results["content"], results["commit"]))
 end
 
@@ -637,7 +640,7 @@ end
 
 function workerlog(worker, config, message)
     persistdir!(config.workdir)
-    path = joinpath(config.workdir, "benchmark_worker_$(worker).log")
+    path = joinpath(config.workdir, "worker$(worker).log")
     open(path, "a") do file
         println(file, now(), " | ", worker, " | ", message)
     end
