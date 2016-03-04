@@ -462,16 +462,13 @@ end
 
 function upload_report_file(config, path, content, message)
     params = Dict("content" => content, "message" => message)
-    priorfile = GitHub.file(config.reportrepo, path; auth = config.auth, handle_error = false)
+    priorfile = GitHub.file(config.reportrepo, path; auth = config.auth)
     if isnull(priorfile.sha)
-        workerlog(1, config, "about to call GitHub.create_file with no sha")
         results = GitHub.create_file(config.reportrepo, path; auth = config.auth, params = params)
     else
         params["sha"] = get(priorfile.sha)
-        workerlog(1, config, "about to call GitHub.update_file with sha $(repr(params["sha"]))")
         results = GitHub.update_file(config.reportrepo, path; auth = config.auth, params = params)
     end
-    workerlog(1, config, "about to call GitHub.permalink")
     return string(GitHub.permalink(results["content"], results["commit"]))
 end
 
