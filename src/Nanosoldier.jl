@@ -333,6 +333,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     cmd = """
           benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
           bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
+          blas_set_num_threads(1);
           using BaseBenchmarks;
           using JLD;
           println("FILTERING GROUPS...");
