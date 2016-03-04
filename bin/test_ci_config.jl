@@ -9,4 +9,4 @@ config = Nanosoldier.ServerConfig(Nanosoldier.persistdir!(joinpath(homedir(), "w
                                   auth = GitHub.authenticate(ENV["GITHUB_AUTH"]),
                                   buildrepo = "jrevels/julia",
                                   reportrepo = "jrevels/BaseBenchmarkReports",
-                                  makejobs = 1)
+                                  makejobs = 7)
