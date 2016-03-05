@@ -3,8 +3,6 @@
 
 workers = addprocs(["nanosoldier5"])
 
-@everywhere blas_set_num_threads(1)
-
 import Nanosoldier, GitHub
 
 config = Nanosoldier.ServerConfig(Nanosoldier.persistdir!(joinpath(homedir(), "workdir"));
