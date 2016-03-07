@@ -270,9 +270,13 @@ function is_valid_tagpred(tagpred::Expr)
         return false
     else
         for item in tagpred.args
-            isa(item, Expr) && !(is_valid_tagpred(item)) && return false
-            isa(item, Symbol) && !(in(item, VALID_TAG_PRED_SYMS)) && return false
-            !(isa(item, AbstractString)) && return false
+            if isa(item, Expr)
+                !(is_valid_tagpred(item)) && return false
+            elseif isa(item, Symbol)
+                !(in(item, VALID_TAG_PRED_SYMS)) && return false
+            elseif !(isa(item, AbstractString))
+                return false
+            end
         end
     end
     return true
