@@ -294,38 +294,37 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     cd(buildpath)
 
     # clone/fetch the appropriate Julia version
-    # juliapath = joinpath(buildpath, "julia_$(build.sha)")
+    juliapath = joinpath(buildpath, "julia_$(build.sha)")
 
-    # if buildsym == :primary && job.fromkind == :pr
-    #     pr = get(job.prnumber)
-    #     run(`git clone --quiet https://github.com/$(config.buildrepo) $(juliapath)`)
-    #     cd(juliapath)
-    #     try
-    #         run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)
-    #     catch
-    #         # if there's not a merge commit on the remote (likely due to
-    #         # merge conflicts) then fetch the head commit instead.
-    #         run(`git fetch --quiet origin +refs/pull/$(pr)/head:`)
-    #     end
-    #     run(`git checkout --quiet --force FETCH_HEAD`)
-    #     build.sha = readchomp(`git rev-parse HEAD`)
-    # else
-    #     run(`git clone --quiet https://github.com/$(build.repo) $(juliapath)`)
-    #     cd(juliapath)
-    #     run(`git checkout --quiet $(build.sha)`)
-    # end
+    if buildsym == :primary && job.fromkind == :pr
+        pr = get(job.prnumber)
+        run(`git clone --quiet https://github.com/$(config.buildrepo) $(juliapath)`)
+        cd(juliapath)
+        try
+            run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)
+        catch
+            # if there's not a merge commit on the remote (likely due to
+            # merge conflicts) then fetch the head commit instead.
+            run(`git fetch --quiet origin +refs/pull/$(pr)/head:`)
+        end
+        run(`git checkout --quiet --force FETCH_HEAD`)
+        build.sha = readchomp(`git rev-parse HEAD`)
+    else
+        run(`git clone --quiet https://github.com/$(build.repo) $(juliapath)`)
+        cd(juliapath)
+        run(`git checkout --quiet $(build.sha)`)
+    end
+
+    ENV["JULIA_THREADS"] = 1 # enable threading, if possible
+
+    run(`make --silent -j $(config.makejobs)`)
+
+    # Execute benchmarks in a new julia process using the fresh build, splicing the tag
+    # predicate string into the command. The result is serialized so that we can retrieve it
+    # from outside of the new process.
     #
-    # ENV["JULIA_THREADS"] = 1 # enable threading, if possible
-
-    # run(`make --silent -j $(config.makejobs)`)
-
-    # Call `BaseBenchmarks.execute` in a new julia process using the fresh
-    # build, splicing the tagpredicate string into the command. The resulting
-    # record is serialized to the buildspace so that we can retrieve it from
-    # outside of the new process.
-    #
-    # This command assumes that all packages are available in the working
-    # process's Pkg directory.
+    # This command assumes that all packages are available in the working process's Pkg
+    # directory.
     benchname = string(snipsha(build.sha), "_", buildsym)
     benchout = joinpath(config.logdir,  string(benchname, ".out"))
     bencherr = joinpath(config.logdir,  string(benchname, ".err"))
@@ -346,8 +345,8 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           println("DONE!");
           close(benchout); close(bencherr);
           """
-    # cd(juliapath)
-    # run(`./julia -e $(cmd)`)
+    cd(juliapath)
+    run(`./julia -e $(cmd)`)
     run(`/mirror/revels/julia-dev/julia-0.5/julia -e $(cmd)`)
 
     result = JLD.load(benchresult, "result")
@@ -355,8 +354,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
     try
-        # build.vinfo = first(split(readstring(`./julia -e 'versioninfo(true)'`), "Environment"))
-        build.vinfo = first(split(readstring(`/mirror/revels/julia-dev/julia-0.5/julia -e 'versioninfo(true)'`), "Environment"))
+        build.vinfo = first(split(readstring(`./julia -e 'versioninfo(true)'`), "Environment"))
     end
 
     cd(config.workdir)
