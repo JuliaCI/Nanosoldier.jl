@@ -45,7 +45,7 @@ results = Dict(
                     ("y", 1) => Trial(2.0, 1.0, 0.0, 1.0),  # regression/improvement
                     ("y", 2) => Trial(0.5, 1.0, 1.0, 1.0),  # improvement
                     "z"      => Trial(1.0, 1.0, 5.0, 1.0),  # regression
-                    "∅"      => Trial(1.0, 1.0, 1.0, 1.0)   # not in "against" group
+                    # "∅"      => Trial(1.0, 1.0, 1.0, 1.0)   # not in "against" group
                 )
             )
         )
@@ -66,7 +66,7 @@ results = Dict(
     )
 )
 
-results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
+results["judged"] = BenchmarkTools.judge(results["primary"], results["against"], 0.2)
 
 @test begin
     mdpath = joinpath(Pkg.dir("Nanosoldier"), "test", "report.md")

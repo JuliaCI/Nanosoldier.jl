@@ -17,7 +17,7 @@ Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github
 
 The ratio values in the below table equal `primary_result / comparison_result` for each corresponding
 metric. Thus, `x < 1.0` would denote an improvement, while `x > 1.0` would denote a regression.
-Note that a default tolerance of `0.05` is applied to account for the variance of our test
+Note that a default tolerance of `0.20` is applied to account for the variance of our test
 hardware.
 
 Regressions are marked with :x:, while improvements are marked with :white_check_mark:. GC

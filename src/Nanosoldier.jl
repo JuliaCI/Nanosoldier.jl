@@ -402,7 +402,7 @@ function report_results(config::ServerConfig, job::BenchmarkJob, worker, results
 
         # judge the results and generate the corresponding status messages
         if !(isnull(job.against))
-            judged = BenchmarkTools.judge(results["primary"], results["against"])
+            judged = BenchmarkTools.judge(results["primary"], results["against"], .2)
             results["judged"] = judged
             issuccess = !(BenchmarkTools.hasregression(judged))
             state = issuccess ? "success" : "failure"
@@ -514,7 +514,7 @@ function printreport(io, job, results)
         println(io, """
                     The ratio values in the below table equal `primary_result / comparison_result` for each corresponding
                     metric. Thus, `x < 1.0` would denote an improvement, while `x > 1.0` would denote a regression.
-                    Note that a default tolerance of `0.05` is applied to account for the variance of our test
+                    Note that a default tolerance of `0.20` is applied to account for the variance of our test
                     hardware.
 
                     Regressions are marked with $(REGRESS_MARK), while improvements are marked with $(IMPROVE_MARK). GC
