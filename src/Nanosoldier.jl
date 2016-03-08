@@ -162,7 +162,7 @@ function Base.summary(job::BenchmarkJob)
     return result
 end
 
-Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
+Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, build.sha)
 
 ##################################
 # Running a server from a config #
@@ -476,14 +476,14 @@ function upload_report_file(config, path, content, message)
 end
 
 function printreport(io, job, results)
-    primaryref = string(job.primary.repo, SHA_SEPARATOR, snipsha(job.primary.sha))
+    primaryref = string(job.primary.repo, SHA_SEPARATOR, job.primary.sha)
     primarylink = "https://github.com/$(job.primary.repo)/commit/$(job.primary.sha)"
     jobsummary = "[$(primaryref)]($(primarylink))"
     iscomparisonjob = !(isnull(job.against))
 
     if iscomparisonjob
         againstbuild = get(job.against)
-        againstref = string(againstbuild.repo, SHA_SEPARATOR, snipsha(againstbuild.sha))
+        againstref = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         jobsummary = "$(jobsummary) vs [$(againstref)]($(againstlink))"
         table = results["judged"]
