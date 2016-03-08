@@ -465,7 +465,7 @@ end
 
 function upload_report_file(config, path, content, message)
     params = Dict("content" => content, "message" => message)
-    priorfile = GitHub.file(config.reportrepo, path; auth = config.auth)
+    priorfile = GitHub.file(config.reportrepo, path; auth = config.auth, handle_error = false)
     if isnull(priorfile.sha)
         results = GitHub.create_file(config.reportrepo, path; auth = config.auth, params = params)
     else
