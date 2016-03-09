@@ -352,7 +352,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     run(`./julia -e $(cmd)`)
     run(`/mirror/revels/julia-dev/julia-0.5/julia -e $(cmd)`)
 
-    result = BenchmarkJLD.load(benchresult, "result")
+    result = JLD.load(benchresult, "result")
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
