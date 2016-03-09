@@ -1,6 +1,6 @@
 using Nanosoldier, Base.Test, Compat
 using Nanosoldier: BuildRef, BenchmarkJob
-using BenchmarkTools: GroupCollection, BenchmarkGroup, Tag, Trial
+using BenchmarkTools: GroupCollection, BenchmarkGroup, Tag, TrialEstimate
 
 ##############################
 # Markdown Report Generation #
@@ -41,10 +41,10 @@ results = Dict(
                 "g",
                 Tag[],
                 Dict(
-                    "x"      => Trial(1.0, 3.5, 1.0, 1.0),  # invariant
-                    ("y", 1) => Trial(2.0, 1.0, 0.0, 1.0),  # regression/improvement
-                    ("y", 2) => Trial(0.5, 1.0, 1.0, 1.0),  # improvement
-                    "z"      => Trial(1.0, 1.0, 5.0, 1.0),  # regression
+                    "x"      => TrialEstimate(1.0, 3.5, 1.0, 1.0),  # invariant
+                    ("y", 1) => TrialEstimate(2.0, 1.0, 0.0, 1.0),  # regression/improvement
+                    ("y", 2) => TrialEstimate(0.5, 1.0, 1.0, 1.0),  # improvement
+                    "z"      => TrialEstimate(1.0, 1.0, 5.0, 1.0),  # regression
                     # "∅"      => Trial(1.0, 1.0, 1.0, 1.0)   # not in "against" group
                 )
             )
@@ -56,10 +56,10 @@ results = Dict(
                 "g",
                 Tag[],
                 Dict(
-                    "x"      => Trial(1.0, 1.0, 1.0, 1.0),
-                    ("y", 1) => Trial(1.0, 1.0, 1.0, 1.0),
-                    ("y", 2) => Trial(1.0, 1.0, 1.0, 1.0),
-                    "z"      => Trial(1.0, 1.0, 1.0, 1.0)
+                    "x"      => TrialEstimate(1.0, 1.0, 1.0, 1.0),
+                    ("y", 1) => TrialEstimate(1.0, 1.0, 1.0, 1.0),
+                    ("y", 2) => TrialEstimate(1.0, 1.0, 1.0, 1.0),
+                    "z"      => TrialEstimate(1.0, 1.0, 1.0, 1.0)
                 )
             )
         )

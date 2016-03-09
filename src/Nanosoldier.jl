@@ -342,10 +342,9 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           println("FILTERING GROUPS...");
           benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
           println("RUNNING TRIALS...");
-          result1 = execute(benchmarks; verbose = true);
-          result2 = execute(benchmarks; verbose = true);
+          result = ideal(execute(benchmarks; verbose = true));
           println("SAVING RESULT...");
-          JLD.save(\"$(benchresult)\", "result", min(result1, result2));
+          JLD.save(\"$(benchresult)\", "result", result);
           println("DONE!");
           close(benchout); close(bencherr);
           """
@@ -353,7 +352,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     run(`./julia -e $(cmd)`)
     run(`/mirror/revels/julia-dev/julia-0.5/julia -e $(cmd)`)
 
-    result = JLD.load(benchresult, "result")
+    result = BenchmarkJLD.load(benchresult, "result")
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
@@ -619,7 +618,7 @@ function resultstr(f, trial::BenchmarkTools.TrialJudgement)
     end
 end
 
-resultstr(f, trial::BenchmarkTools.Trial) = @sprintf("%.2f", f(trial))
+resultstr(f, trial::BenchmarkTools.TrialEstimate) = @sprintf("%.2f", f(trial))
 
 #############
 # Utilities #
