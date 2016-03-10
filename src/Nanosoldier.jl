@@ -337,6 +337,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
           bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
           blas_set_num_threads(1);
+          addprocs(1); # add worker that can be used by parallel benchmarks
           using BaseBenchmarks;
           using JLD;
           println("FILTERING GROUPS...");
