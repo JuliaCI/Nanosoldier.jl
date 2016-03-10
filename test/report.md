@@ -11,7 +11,7 @@
 ## Results
 
 Below is a table of this job's results. If available, the data used to generate this
-table can be found in the JLD file in this directory.
+table can be found in the JSON file in this directory.
 
 Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
 

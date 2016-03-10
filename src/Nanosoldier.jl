@@ -4,7 +4,7 @@ module Nanosoldier
 # import/using #
 ################
 
-import GitHub, BenchmarkTools, JLD, HttpCommon
+import GitHub, BenchmarkTools, JLD, JSON, HttpCommon
 
 using Compat
 
@@ -390,12 +390,8 @@ function report_results(config::ServerConfig, job::BenchmarkJob, worker, results
     else
         # upload raw result data to the report repository
         try
-            resultpath = joinpath(filepath, "$(filename).jld")
-            JLD.save("$(filename).jld", results)
-            resultdata = open("$(filename).jld", "r") do file
-                return base64encode(readstring(file))
-            end
-            rm("$(filename).jld")
+            resultpath = joinpath(filepath, "$(filename).json")
+            resultdata = base64encode(JSON.json(results))
             message = "add result data for job: $(jobsummary)"
             url = upload_report_file(config, resultpath, resultdata, message)
             workerlog(worker, config, "committed result data to $(config.reportrepo) at $(resultpath)")
@@ -506,7 +502,7 @@ function printreport(io, job, results)
                 ## Results
 
                 Below is a table of this job's results. If available, the data used to generate this
-                table can be found in the JLD file in this directory.
+                table can be found in the JSON file in this directory.
 
                 Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
                 """)

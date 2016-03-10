@@ -1,6 +1,7 @@
 julia 0.4
 BenchmarkTools
 GitHub
+JSON
 JLD
 HttpCommon
 Compat
