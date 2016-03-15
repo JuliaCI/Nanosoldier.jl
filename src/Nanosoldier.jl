@@ -343,7 +343,10 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           println("FILTERING GROUPS...");
           benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
           println("RUNNING TRIALS...");
-          result = minimum(execute(benchmarks; verbose = true));
+          # first execution is mainly for warmup purposes
+          result1 = minimum(execute(benchmarks, 1e-3, false; verbose = true));
+          result2 = minimum(execute(benchmarks; verbose = true));
+          result = min(result1, result2);
           println("SAVING RESULT...");
           JLD.save(\"$(benchresult)\", "result", result);
           println("DONE!");
