@@ -319,7 +319,8 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
         run(`git checkout --quiet $(build.sha)`)
     end
 
-    ENV["JULIA_THREADS"] = 1 # enable threading, if possible
+    # don't enable this yet, since threading is still often broken
+    # ENV["JULIA_THREADS"] = 1 # enable threading, if possible
 
     run(`make --silent -j $(config.makejobs)`)
 
