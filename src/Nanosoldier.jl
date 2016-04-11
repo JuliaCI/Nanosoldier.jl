@@ -340,14 +340,14 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           blas_set_num_threads(1);
           addprocs(1); # add worker that can be used by parallel benchmarks
           using BaseBenchmarks;
+          using BenchmarkTools;
           using JLD;
-          println("FILTERING GROUPS...");
-          benchmarks = BaseBenchmarks.GROUPS[@tagged($(job.tagpredstr))];
-          println("RUNNING TRIALS...");
-          # first execution is mainly for warmup purposes
-          result1 = minimum(execute(benchmarks, 1e-3, false; verbose = true));
-          result2 = minimum(execute(benchmarks; verbose = true));
-          result = min(result1, result2);
+          println("FILTERING SUITE...");
+          benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpredstr))];
+          println("RUNNING WARMUP...");
+          @warmup(benchmarks);
+          println("RUNNING BENCHMARKS...");
+          result = minimum(run(benchmarks; verbose = true));
           println("SAVING RESULT...");
           JLD.save(\"$(benchresult)\", "result", result);
           println("DONE!");
@@ -355,7 +355,6 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           """
     cd(juliapath)
     run(`./julia -e $(cmd)`)
-    run(`/mirror/revels/julia-dev/julia-0.5/julia -e $(cmd)`)
 
     result = JLD.load(benchresult, "result")
 
@@ -406,9 +405,9 @@ function report_results(config::ServerConfig, job::BenchmarkJob, worker, results
 
         # judge the results and generate the corresponding status messages
         if !(isnull(job.against))
-            judged = BenchmarkTools.judge(results["primary"], results["against"], .2)
+            judged = BenchmarkTools.judge(results["primary"], results["against"])
             results["judged"] = judged
-            issuccess = !(BenchmarkTools.hasregression(judged))
+            issuccess = !(BenchmarkTools.isregression(judged))
             state = issuccess ? "success" : "failure"
             statusmessage = issuccess ? "no performance regressions were detected" : "possible performance regressions were detected"
         else
@@ -510,29 +509,30 @@ function printreport(io, job, results)
                 table can be found in the JSON file in this directory.
 
                 Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
+
+                The percentages accompanying time and memory values in the below table are noise tolerances. The "true"
+                time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
                 """)
 
     # print benchmark results
 
     if iscomparisonjob
         println(io, """
-                    The ratio values in the below table equal `primary_result / comparison_result` for each corresponding
-                    metric. Thus, `x < 1.0` would denote an improvement, while `x > 1.0` would denote a regression.
-                    Note that a default tolerance of `0.20` is applied to account for the variance of our test
-                    hardware.
+                    The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
+                    `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less than `1.0` denotes
+                    a possible improvement (marked with $(IMPROVE_MARK)).
 
-                    Regressions are marked with $(REGRESS_MARK), while improvements are marked with $(IMPROVE_MARK). GC
-                    measurements are not considered when determining regression status.
+                    Only significant results - results that indicate possible regressions or improvements - are shown below
+                    (thus, an empty table means that all benchmark results remained invariant between builds).
 
-                    Only benchmarks with significant results - results that indicate regressions or improvements - are
-                    shown below (an empty table means that all benchmark results remained invariant between builds).
+                    | Group ID | Benchmark ID | time ratio | memory ratio |
+                    |----------|--------------|------------|--------------|
                     """)
-    end
-
-    print(io, """
-              | Group ID | Benchmark ID | time | GC time | memory allocated | number of allocations |
-              |----------|--------------|------|---------|------------------|-----------------------|
-              """)
+    else
+        println(io, """
+                    | Group ID | Benchmark ID | time | GC time | memory | allocations |
+                    |----------|--------------|------|---------|--------|-------------|
+                    """)
 
     groupids = collect(keys(table))
 
@@ -547,9 +547,9 @@ function printreport(io, job, results)
             sort!(benchids; lt = idlessthan)
         end
         for bid in benchids
-            trial = group[bid]
-            if !(iscomparisonjob) || BenchmarkTools.hasregression(trial) || BenchmarkTools.hasimprovement(trial)
-                println(io, resultrow(gid, bid, trial))
+            t = group[bid]
+            if !(iscomparisonjob) || BenchmarkTools.isregression(t) || BenchmarkTools.isimprovement(t)
+                println(io, resultrow(gid, bid, t))
             end
         end
     end
@@ -596,30 +596,29 @@ idlessthan(a, b::Tuple) = false
 idlessthan(a::Tuple, b) = true
 idlessthan(a, b) = isless(a, b)
 
-function resultrow(groupid, benchid, trial)
-    timestr = resultstr(BenchmarkTools.time, trial)
-    gcstr = resultstr(BenchmarkTools.gctime, trial)
-    memorystr = resultstr(BenchmarkTools.memory, trial)
-    allocstr = resultstr(BenchmarkTools.allocs, trial)
-    return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(gcstr) | $(memorystr) | $(allocstr) |"
+function resultrow(groupid, benchid, t::BenchmarkTools.TrialEstimate)
+    t_tol = BenchmarkTools.prettypercent(params(t).time_tolerance)
+    m_tol = BenchmarkTools.prettypercent(params(t).memory_tolerance)
+    timestr = string(BenchmarkTools.prettytime(time(t)), " (", t_tol, ")")
+    memstr = string(BenchmarkTools.prettymemory(memory(t)), " (", m_tol, ")")
+    gcstr = BenchmarkTools.prettytime(gctime(t))
+    allocstr = string(allocs(t))
+    return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
-function resultstr(f, trial::BenchmarkTools.TrialJudgement)
-    if f == BenchmarkTools.gctime
-        return @sprintf("%.2f", BenchmarkTools.gctime(BenchmarkTools.ratio(trial)))
-    else
-        state, r = f(trial), f(BenchmarkTools.ratio(trial))
-        str = @sprintf("%.2f", r)
-        if state == :regression
-            str = "**$(str)** $(REGRESS_MARK)"
-        elseif state == :improvement
-            str = "**$(str)** $(IMPROVE_MARK)"
-        end
-        return str
-    end
+function resultrow(groupid, benchid, t::BenchmarkTools.TrialJudgement)
+    t_ratio = @sprintf("%.2f", time(ratio(t)))
+    m_ratio =  @sprintf("%.2f", memory(ratio(t)))
+    t_tol = BenchmarkTools.prettypercent(params(t).time_tolerance)
+    m_tol = BenchmarkTools.prettypercent(params(t).memory_tolerance)
+    t_mark = resultmark(time(t))
+    m_mark = resultmark(memory(t))
+    timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
+    memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
+    return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(memstr) |"
 end
 
-resultstr(f, trial::BenchmarkTools.TrialEstimate) = @sprintf("%.2f", f(trial))
+resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")
 
 #############
 # Utilities #
