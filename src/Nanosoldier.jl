@@ -115,14 +115,20 @@ function BenchmarkJob(config::ServerConfig, event::GitHub.WebhookEvent, argstr::
             against = Nullable(BuildRef(split(againstref, SHA_SEPARATOR)...))
         elseif in(BRANCH_SEPARATOR, againstref)
             againstrepo, againstbranch = split(againstref, BRANCH_SEPARATOR)
-            againstsha = get(get(GitHub.branch(againstrepo, againstbranch; auth = config.auth).commit).sha)
-            against = Nullable(BuildRef(againstrepo, againstsha))
-        else
+            against = branchref(config, againstrepo, againstbranch)
+        elseif in('/', againstref) # e.g. againstref == jrevels/julia
+            against = branchref(config, againstref, "master")
+        else # e.g. againstref == e83b7559df94b3050603847dbd6f3674058027e6
             against = Nullable(BuildRef(primaryrepo, againstref))
         end
     end
 
     return BenchmarkJob(primary, against, tagpredstr, primarysha, triggerurl, fromkind, prnumber)
+end
+
+function branchref(config::ServerConfig, reponame::AbstractString, branchname::AbstractString)
+    shastr = get(get(GitHub.branch(reponame, branchname; auth = config.auth).commit).sha)
+    return Nullable(BuildRef(reponame, shastr))
 end
 
 function parsetrigger(argstr::AbstractString)
