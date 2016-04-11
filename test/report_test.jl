@@ -1,6 +1,7 @@
 using Nanosoldier, Base.Test, Compat
 using Nanosoldier: BuildRef, BenchmarkJob
-using BenchmarkTools: GroupCollection, BenchmarkGroup, Tag, TrialEstimate
+using BenchmarkTools
+using BenchmarkTools: TrialEstimate, Parameters
 
 ##############################
 # Markdown Report Generation #
@@ -35,38 +36,34 @@ against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3
 job = BenchmarkJob(primary, against, "\"arrays\"", primary.sha, "www.example.com", :commit, Nullable{Int}())
 
 results = Dict(
-    "primary" => GroupCollection(
-        Dict{Tag, BenchmarkGroup}(
-            "g" => BenchmarkGroup(
-                "g",
-                Tag[],
+    "primary" => BenchmarkGroup(UTF8String[],
+        Dict(
+            "g" => BenchmarkGroup(UTF8String[],
                 Dict(
-                    "x"      => TrialEstimate(1.0, 3.5, 1.0, 1.0),  # invariant
-                    ("y", 1) => TrialEstimate(2.0, 1.0, 0.0, 1.0),  # regression/improvement
-                    ("y", 2) => TrialEstimate(0.5, 1.0, 1.0, 1.0),  # improvement
-                    "z"      => TrialEstimate(1.0, 1.0, 5.0, 1.0),  # regression
-                    # "∅"      => Trial(1.0, 1.0, 1.0, 1.0)   # not in "against" group
+                    "x"      => TrialEstimate(Parameters(), 1.0, 3.5, 1.0, 1.0),  # invariant
+                    ("y", 1) => TrialEstimate(Parameters(memory_tolerance = 0.03), 2.0, 1.0, 0.0, 1.0),  # regression/improvement
+                    ("y", 2) => TrialEstimate(Parameters(time_tolerance = 0.04), 0.5, 1.0, 1.0, 1.0),  # improvement
+                    "z"      => TrialEstimate(Parameters(memory_tolerance = 0.27, time_tolerance = 0.6), 1.0, 1.0, 5.0, 1.0),  # regression
+                    "∅"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0) # not in "against" group
                 )
             )
         )
     ),
-    "against" => GroupCollection(
-        Dict{Tag, BenchmarkGroup}(
-            "g" => BenchmarkGroup(
-                "g",
-                Tag[],
+    "against" => BenchmarkGroup(UTF8String[],
+        Dict(
+            "g" => BenchmarkGroup(UTF8String[],
                 Dict(
-                    "x"      => TrialEstimate(1.0, 1.0, 1.0, 1.0),
-                    ("y", 1) => TrialEstimate(1.0, 1.0, 1.0, 1.0),
-                    ("y", 2) => TrialEstimate(1.0, 1.0, 1.0, 1.0),
-                    "z"      => TrialEstimate(1.0, 1.0, 1.0, 1.0)
+                    "x"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                    ("y", 1) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                    ("y", 2) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                    "z"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0)
                 )
             )
         )
     )
 )
 
-results["judged"] = BenchmarkTools.judge(results["primary"], results["against"], 0.2)
+results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(Pkg.dir("Nanosoldier"), "test", "report.md")

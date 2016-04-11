@@ -517,22 +517,23 @@ function printreport(io, job, results)
     # print benchmark results
 
     if iscomparisonjob
-        println(io, """
-                    The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
-                    `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less than `1.0` denotes
-                    a possible improvement (marked with $(IMPROVE_MARK)).
+        print(io, """
+                  The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
+                  `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less than `1.0` denotes
+                  a possible improvement (marked with $(IMPROVE_MARK)).
 
-                    Only significant results - results that indicate possible regressions or improvements - are shown below
-                    (thus, an empty table means that all benchmark results remained invariant between builds).
+                  Only significant results - results that indicate possible regressions or improvements - are shown below
+                  (thus, an empty table means that all benchmark results remained invariant between builds).
 
-                    | Group ID | Benchmark ID | time ratio | memory ratio |
-                    |----------|--------------|------------|--------------|
-                    """)
+                  | Group ID | Benchmark ID | time ratio | memory ratio |
+                  |----------|--------------|------------|--------------|
+                  """)
     else
-        println(io, """
-                    | Group ID | Benchmark ID | time | GC time | memory | allocations |
-                    |----------|--------------|------|---------|--------|-------------|
-                    """)
+        print(io, """
+                  | Group ID | Benchmark ID | time | GC time | memory | allocations |
+                  |----------|--------------|------|---------|--------|-------------|
+                  """)
+    end
 
     groupids = collect(keys(table))
 
@@ -597,22 +598,22 @@ idlessthan(a::Tuple, b) = true
 idlessthan(a, b) = isless(a, b)
 
 function resultrow(groupid, benchid, t::BenchmarkTools.TrialEstimate)
-    t_tol = BenchmarkTools.prettypercent(params(t).time_tolerance)
-    m_tol = BenchmarkTools.prettypercent(params(t).memory_tolerance)
-    timestr = string(BenchmarkTools.prettytime(time(t)), " (", t_tol, ")")
-    memstr = string(BenchmarkTools.prettymemory(memory(t)), " (", m_tol, ")")
-    gcstr = BenchmarkTools.prettytime(gctime(t))
-    allocstr = string(allocs(t))
+    t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
+    m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
+    timestr = string(BenchmarkTools.prettytime(BenchmarkTools.time(t)), " (", t_tol, ")")
+    memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
+    gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
+    allocstr = string(BenchmarkTools.allocs(t))
     return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
 function resultrow(groupid, benchid, t::BenchmarkTools.TrialJudgement)
-    t_ratio = @sprintf("%.2f", time(ratio(t)))
-    m_ratio =  @sprintf("%.2f", memory(ratio(t)))
-    t_tol = BenchmarkTools.prettypercent(params(t).time_tolerance)
-    m_tol = BenchmarkTools.prettypercent(params(t).memory_tolerance)
-    t_mark = resultmark(time(t))
-    m_mark = resultmark(memory(t))
+    t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
+    m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
+    t_ratio = @sprintf("%.2f", BenchmarkTools.time(BenchmarkTools.ratio(t)))
+    m_ratio =  @sprintf("%.2f", BenchmarkTools.memory(BenchmarkTools.ratio(t)))
+    t_mark = resultmark(BenchmarkTools.time(t))
+    m_mark = resultmark(BenchmarkTools.memory(t))
     timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
     return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(memstr) |"

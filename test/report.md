@@ -15,22 +15,21 @@ table can be found in the JSON file in this directory.
 
 Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
 
-The ratio values in the below table equal `primary_result / comparison_result` for each corresponding
-metric. Thus, `x < 1.0` would denote an improvement, while `x > 1.0` would denote a regression.
-Note that a default tolerance of `0.20` is applied to account for the variance of our test
-hardware.
+The percentages accompanying time and memory values in the below table are noise tolerances. The "true"
+time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
 
-Regressions are marked with :x:, while improvements are marked with :white_check_mark:. GC
-measurements are not considered when determining regression status.
+The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
+`1.0` denotes a possible regression (marked with :x:), while a ratio less than `1.0` denotes
+a possible improvement (marked with :white_check_mark:).
 
-Only benchmarks with significant results - results that indicate regressions or improvements - are
-shown below (an empty table means that all benchmark results remained invariant between builds).
+Only significant results - results that indicate possible regressions or improvements - are shown below
+(thus, an empty table means that all benchmark results remained invariant between builds).
 
-| Group ID | Benchmark ID | time | GC time | memory allocated | number of allocations |
-|----------|--------------|------|---------|------------------|-----------------------|
-| `"g"` | `("y",1)` | **2.00** :x: | 1.00 | **0.00** :white_check_mark: | 1.00 |
-| `"g"` | `("y",2)` | **0.50** :white_check_mark: | 1.00 | 1.00 | 1.00 |
-| `"g"` | `"z"` | 1.00 | 1.00 | **5.00** :x: | 1.00 |
+| Group ID | Benchmark ID | time ratio | memory ratio |
+|----------|--------------|------------|--------------|
+| `"g"` | `("y",1)` | 2.00 (5.0%) :x: | 0.00 (5.0%) :white_check_mark: |
+| `"g"` | `("y",2)` | 0.50 (5.0%) :white_check_mark: | 1.00 (5.0%)  |
+| `"g"` | `"z"` | 1.00 (60.0%)  | 5.00 (27.0%) :x: |
 
 ## Version Info
 
