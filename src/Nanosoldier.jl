@@ -355,7 +355,7 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           println("RUNNING WARMUP...");
           @warmup(benchmarks);
           println("RUNNING BENCHMARKS...");
-          result = median(run(benchmarks; verbose = true));
+          result = minimum(run(benchmarks; verbose = true));
           println("SAVING RESULT...");
           JLD.save(\"$(benchresult)\", "result", result);
           println("DONE!");
