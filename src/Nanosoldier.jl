@@ -348,12 +348,14 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
           using BaseBenchmarks;
           using BenchmarkTools;
           using JLD;
+          println("LOADING SUITE...");
+          BaseBenchmarks.loadall!();
           println("FILTERING SUITE...");
           benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpredstr))];
           println("RUNNING WARMUP...");
           @warmup(benchmarks);
           println("RUNNING BENCHMARKS...");
-          result = minimum(run(benchmarks; verbose = true));
+          result = median(run(benchmarks; verbose = true));
           println("SAVING RESULT...");
           JLD.save(\"$(benchresult)\", "result", result);
           println("DONE!");
