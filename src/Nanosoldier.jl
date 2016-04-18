@@ -534,33 +534,25 @@ function printreport(io, job, results)
                   Only significant results - results that indicate possible regressions or improvements - are shown below
                   (thus, an empty table means that all benchmark results remained invariant between builds).
 
-                  | Group ID | Benchmark ID | time ratio | memory ratio |
-                  |----------|--------------|------------|--------------|
+                  | ID | time ratio | memory ratio |
+                  |----|------------|--------------|
                   """)
     else
         print(io, """
-                  | Group ID | Benchmark ID | time | GC time | memory | allocations |
-                  |----------|--------------|------|---------|--------|-------------|
+                  | ID | time | GC time | memory | allocations |
+                  |----|------|---------|--------|-------------|
                   """)
     end
 
-    groupids = collect(keys(table))
+    entries = BenchmarkTools.leaves(table)
 
     try
-        sort!(groupids)
+        sort!(entries; lt = leaflessthan)
     end
 
-    for gid in groupids
-        group = table[gid]
-        benchids = collect(keys(group))
-        try
-            sort!(benchids; lt = idlessthan)
-        end
-        for bid in benchids
-            t = group[bid]
-            if !(iscomparisonjob) || BenchmarkTools.isregression(t) || BenchmarkTools.isimprovement(t)
-                println(io, resultrow(gid, bid, t))
-            end
+    for (ids, t) in entries
+        if !(iscomparisonjob) || BenchmarkTools.isregression(t) || BenchmarkTools.isimprovement(t)
+            println(io, resultrow(ids, t))
         end
     end
 
@@ -596,27 +588,42 @@ function printreport(io, job, results)
                 Here's a list of all the benchmark groups executed by this job:
                 """)
 
-    for gid in groupids
-        println(io, "- `", repr(gid), "`")
+    for id in unique(map(pair -> pair[1][1:end-1], entries))
+        println(io, "- `", idrepr(id), "`")
     end
 end
+
+idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
 
 idlessthan(a::Tuple, b::Tuple) = isless(a, b)
 idlessthan(a, b::Tuple) = false
 idlessthan(a::Tuple, b) = true
 idlessthan(a, b) = isless(a, b)
 
-function resultrow(groupid, benchid, t::BenchmarkTools.TrialEstimate)
+function leaflessthan(kv1, kv2)
+    k1 = kv1[1]
+    k2 = kv2[1]
+    for i in eachindex(k1)
+        if idlessthan(k1[i], k2[i])
+            return true
+        elseif k1[i] != k2[i]
+            return false
+        end
+    end
+    return false
+end
+
+function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
     m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
     timestr = string(BenchmarkTools.prettytime(BenchmarkTools.time(t)), " (", t_tol, ")")
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
     allocstr = string(BenchmarkTools.allocs(t))
-    return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
+    return "| `$(idrepr(ids))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
-function resultrow(groupid, benchid, t::BenchmarkTools.TrialJudgement)
+function resultrow(ids, t::BenchmarkTools.TrialJudgement)
     t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
     m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
     t_ratio = @sprintf("%.2f", BenchmarkTools.time(BenchmarkTools.ratio(t)))
@@ -625,7 +632,7 @@ function resultrow(groupid, benchid, t::BenchmarkTools.TrialJudgement)
     m_mark = resultmark(BenchmarkTools.memory(t))
     timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
-    return "| `$(repr(groupid))` | `$(repr(benchid))` | $(timestr) | $(memstr) |"
+    return "| `$(idrepr(ids))` | $(timestr) | $(memstr) |"
 end
 
 resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")

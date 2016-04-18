@@ -36,28 +36,24 @@ against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3
 job = BenchmarkJob(primary, against, "\"arrays\"", primary.sha, "www.example.com", :commit, Nullable{Int}())
 
 results = Dict(
-    "primary" => BenchmarkGroup(UTF8String[],
-        Dict(
-            "g" => BenchmarkGroup(UTF8String[],
-                Dict(
-                    "x"      => TrialEstimate(Parameters(), 1.0, 3.5, 1.0, 1.0),  # invariant
-                    ("y", 1) => TrialEstimate(Parameters(memory_tolerance = 0.03), 2.0, 1.0, 0.0, 1.0),  # regression/improvement
-                    ("y", 2) => TrialEstimate(Parameters(time_tolerance = 0.04), 0.5, 1.0, 1.0, 1.0),  # improvement
-                    "z"      => TrialEstimate(Parameters(memory_tolerance = 0.27, time_tolerance = 0.6), 1.0, 1.0, 5.0, 1.0),  # regression
-                    "∅"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0) # not in "against" group
-                )
+    "primary" => BenchmarkGroup([],
+        "g" => BenchmarkGroup([],
+            "h" => BenchmarkGroup([],
+                "x"      => TrialEstimate(Parameters(), 1.0, 3.5, 1.0, 1.0),  # invariant
+                ("y", 1) => TrialEstimate(Parameters(memory_tolerance = 0.03), 2.0, 1.0, 0.0, 1.0),  # regression/improvement
+                ("y", 2) => TrialEstimate(Parameters(time_tolerance = 0.04), 0.5, 1.0, 1.0, 1.0),  # improvement
+                "z"      => TrialEstimate(Parameters(memory_tolerance = 0.27, time_tolerance = 0.6), 1.0, 1.0, 5.0, 1.0),  # regression
+                "∅"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0) # not in "against" group
             )
         )
     ),
-    "against" => BenchmarkGroup(UTF8String[],
-        Dict(
-            "g" => BenchmarkGroup(UTF8String[],
-                Dict(
-                    "x"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
-                    ("y", 1) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
-                    ("y", 2) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
-                    "z"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0)
-                )
+    "against" => BenchmarkGroup([],
+        "g" => BenchmarkGroup([],
+            "h" => BenchmarkGroup([],
+                "x"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                ("y", 1) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                ("y", 2) => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0),
+                "z"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0)
             )
         )
     )

@@ -25,11 +25,11 @@ a possible improvement (marked with :white_check_mark:).
 Only significant results - results that indicate possible regressions or improvements - are shown below
 (thus, an empty table means that all benchmark results remained invariant between builds).
 
-| Group ID | Benchmark ID | time ratio | memory ratio |
-|----------|--------------|------------|--------------|
-| `"g"` | `("y",1)` | 2.00 (5.0%) :x: | 0.00 (5.0%) :white_check_mark: |
-| `"g"` | `("y",2)` | 0.50 (5.0%) :white_check_mark: | 1.00 (5.0%)  |
-| `"g"` | `"z"` | 1.00 (60.0%)  | 5.00 (27.0%) :x: |
+| ID | time ratio | memory ratio |
+|----|------------|--------------|
+| `["g","h",("y",1)]` | 2.00 (5.0%) :x: | 0.00 (3.0%) :white_check_mark: |
+| `["g","h",("y",2)]` | 0.50 (5.0%) :white_check_mark: | 1.00 (1.0%)  |
+| `["g","h","z"]` | 1.00 (60.0%)  | 5.00 (27.0%) :x: |
 
 ## Version Info
 
@@ -91,4 +91,4 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 Here's a list of all the benchmark groups executed by this job:
 
-- `"g"`
+- `["g","h"]`
