@@ -10,10 +10,14 @@
 
 ## Results
 
-Below is a table of this job's results. If available, the data used to generate this
-table can be found in the JSON file in this directory.
+*Note: If Chrome is your browser, I strongly recommend installing the [Wide GitHub](https://chrome.google.com/webstore/detail/wide-github/kaalofacklcidaampbokdplbklpeldpj?hl=en)
+extension, which makes the result table easier to read.*
 
-Benchmark definitions can be found in [JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl).
+Below is a table of this job's results, obtained by running the benchmarks found in
+[JuliaCI/BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl). The values
+listed in the `ID` column have the structure `[parent_group, child_group, ..., key]`,
+and can be used to index into the BaseBenchmarks suite to retrieve the corresponding
+benchmarks.
 
 The percentages accompanying time and memory values in the below table are noise tolerances. The "true"
 time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
