@@ -325,9 +325,6 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     #     run(`git checkout --quiet $(build.sha)`)
     # end
 
-    # don't enable this yet, since threading is still often broken
-    # ENV["JULIA_THREADS"] = 1 # enable threading, if possible
-
     # run(`make --silent -j $(config.makejobs)`)
 
     # Execute benchmarks in a new julia process using the fresh build, splicing the tag
@@ -343,7 +340,6 @@ function execute_base_benchmarks!(config::ServerConfig, job::BenchmarkJob, build
     cmd = """
           benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
           bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
-          blas_set_num_threads(1);
           addprocs(1); # add worker that can be used by parallel benchmarks
           using BaseBenchmarks;
           using BenchmarkTools;
