@@ -148,55 +148,80 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         end
         juliapath = joinpath(builddir, "julia")
     else
+        builddir = mktempdir(workdir(cfg))
         juliapath = joinpath(homedir(), "julia-dev/julia-0.5/julia")
     end
 
-    # Execute benchmarks in a new julia process using the fresh build, splicing the tag
-    # predicate string into the command. The result is serialized so that we can retrieve it
-    # from outside of the new process.
-    #
-    # This command assumes that all packages are available in the working process's Pkg
-    # directory.
-    benchname = string(build.sha, "_", whichbuild)
-    benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
-    bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
-    benchresult = joinpath(resultdir(cfg), string(benchname, ".jld"))
-    cmd = """
-          benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
-          bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
-          addprocs(1); # add worker that can be used by parallel benchmarks
-          blas_set_num_threads(1); # ensure BLAS threads do not trample each other
-          using BaseBenchmarks;
-          using BenchmarkTools;
-          using JLD;
-          println("LOADING SUITE...");
-          BaseBenchmarks.loadall!();
-          println("FILTERING SUITE...");
-          benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))];
-          println("WARMING UP BENCHMARKS...");
-          warmup(benchmarks);
-          println("RUNNING BENCHMARKS...");
-          result = minimum(run(benchmarks; verbose = true));
-          println("SAVING RESULT...");
-          JLD.save(\"$(benchresult)\", "result", result);
-          println("DONE!");
-          close(benchout); close(bencherr);
-          """
+    cd(builddir)
 
-    # Shield the CPU we're working on from the OS. Note that this requires passwordless
-    # sudo for cset, which can be set by running `sudo visudo -f /etc/sudoers.d/cpus` and
-    # adding the following line:
+    # The following code sets up a CPU shield, then spins up a new julia process on the
+    # shielded CPU that runs the benchmarks. The results from this new process are
+    # then serialized to a JLD file so that we can retrieve them.
+    #
+    # CPU shielding requires passwordless sudo access to `cset`. To enable this for
+    # the server user, run `sudo visudo -f /etc/sudoers.d/cpus` and add the following
+    # line:
     #
     #   `user ALL=(ALL:ALL) NOPASSWD:/path/cset`
     #
-    # where `user` is replaced by the server's username and `path` is the full path to the
+    # where `user` is replaced by the server user and `path` is the full path to the
     # `cset` executable.
+    #
+    # Note that `cset` only allows `root` to run a process on the shielded CPU, but our
+    # benchmark julia process needs to be executed as the server user, since the server
+    # user is the only user guaranteed to have the correct write permissions for the
+    # server workspace. Thus, we start a subshell as the server user on the shielded CPU
+    # using `su`, and then call our scripts from there.
+
+    shscriptname = "benchscript.sh"
+    shscriptpath = joinpath(builddir, shscriptname)
+    jlscriptpath = joinpath(builddir, "benchscript.jl")
+
+    open(shscriptpath, "w") do file
+        println(file, """
+                      #!/bin/sh
+                      $(juliapath) $(jlscriptpath)
+                      """)
+    end
+
+    open(jlscriptpath, "w") do file
+        benchname = string(build.sha, "_", whichbuild)
+        benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
+        bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
+        benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
+        println(file, """
+                      benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
+                      bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
+                      addprocs(1); # add worker that can be used by parallel benchmarks
+                      blas_set_num_threads(1); # ensure BLAS threads do not trample each other
+                      using BaseBenchmarks;
+                      using BenchmarkTools;
+                      using JLD;
+                      println("LOADING SUITE...");
+                      BaseBenchmarks.loadall!();
+                      println("FILTERING SUITE...");
+                      benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))];
+                      println("WARMING UP BENCHMARKS...");
+                      warmup(benchmarks);
+                      println("RUNNING BENCHMARKS...");
+                      results = minimum(run(benchmarks; verbose = true));
+                      println("SAVING RESULT...");
+                      JLD.save(\"$(benchresults)\", "results", results);
+                      println("DONE!");
+                      close(benchout); close(bencherr);
+                      """)
+    end
+
+    # make shscript executable
+    run(`chmod +x $(shscriptpath)`)
+    # make jlscript executable
+    run(`chmod +x $(jlscriptpath)`)
+    # shield our CPU
     run(`sudo cset shield -c $(first(cfg.cpus))`)
+    # execute our script as the server user on the shielded CPU
+    run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
 
-    # execute our command on the shielded CPU
-    run(`sudo cset shield -e $(juliapath) -- -e $(cmd)`)
-
-    result = JLD.load(benchresult, "result")
+    results = JLD.load(benchresults, "results")
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
@@ -204,10 +229,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         build.vinfo = first(split(readstring(`$(juliapath) -e 'versioninfo(true)'`), "Environment"))
     end
 
-    # delete the builddir now that we're done with it
-    !(cfg.skipbuild) && rm(builddir, recursive = true)
+    cd(workdir(cfg))
 
-    return result
+    # delete the builddir now that we're done with it
+    rm(builddir, recursive = true)
+
+    return results
 end
 
 ##########################

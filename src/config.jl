@@ -1,5 +1,6 @@
 
 immutable Config
+    user::UTF8String           # the OS username of the user running the server
     nodes::Vector{Int}         # the pids for the nodes on the cluster
     cpus::Vector{Int}          # the indices of the cpus per node
     auth::GitHub.Authorization # the GitHub authorization used to post statuses/reports
@@ -8,14 +9,14 @@ immutable Config
     reportrepo::UTF8String     # the repo to which result reports are posted
     workdir::UTF8String        # the server's work directory
     skipbuild::Bool            # enable for testing
-    function Config(nodes, cpus, auth, secret;
+    function Config(user, nodes, cpus, auth, secret;
                     workdir = pwd(),
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/BaseBenchmarkReports",
                     skipbuild = false)
         @assert !(isempty(nodes)) "need at least one node to work on"
         @assert !(isempty(cpus)) "need at least one cpu per node to work on"
-        return new(nodes, cpus, auth, secret, trackrepo, reportrepo, workdir, skipbuild)
+        return new(user, nodes, cpus, auth, secret, trackrepo, reportrepo, workdir, skipbuild)
     end
 end
 
