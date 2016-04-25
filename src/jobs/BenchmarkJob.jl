@@ -117,14 +117,15 @@ submission(job::BenchmarkJob) = job.submission
 
 function Base.run(job::BenchmarkJob)
     node = myid()
-    nodelog(config, node, "running primary build for $(summary(job))")
+    cfg = submission(job).config
+    nodelog(cfg, node, "running primary build for $(summary(job))")
     primary_results = execute_benchmarks!(job, :primary)
-    nodelog(config, node, "finished primary build for $(summary(job))")
+    nodelog(cfg, node, "finished primary build for $(summary(job))")
     results = Dict("primary" => primary_results)
     if !(isnull(job.against))
-        nodelog(config, node, "running comparison build for $(summary(job))")
+        nodelog(cfg, node, "running comparison build for $(summary(job))")
         against_results = execute_benchmarks!(job, :against)
-        nodelog(config, node, "finished comparison build for $(summary(job))")
+        nodelog(cfg, node, "finished comparison build for $(summary(job))")
         results["against"] = against_results
         results["judged"] = BenchmarkTools.judge(primary_results, against_results)
     end
