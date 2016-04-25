@@ -136,13 +136,13 @@ end
 
 function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cfg = submission(job).config
-    build = whichbuild == :against ? get(job.against) : job.submission.build
+    build = whichbuild == :against ? get(job.against) : submission(job).build
 
     if !(cfg.skipbuild)
         # If we're doing the primary build from a PR, feed `buildjulia!` the PR number
         # so that it knows to attempt a build from the merge commit
-        if whichbuild == :primary && syjob.submission.fromkind == :pr
-            builddir = buildjulia!(cfg, build, job.submission.prnumber)
+        if whichbuild == :primary && submission(job).fromkind == :pr
+            builddir = buildjulia!(cfg, build, submission(job).prnumber)
         else
             builddir = buildjulia!(cfg, build)
         end
@@ -221,7 +221,7 @@ function report(job::BenchmarkJob, results)
     target_url = ""
     if isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(job.submission.url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
+        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
     else
         # upload raw result data to the report repository
         try
