@@ -101,7 +101,7 @@ function branchref(config::Config, reponame::AbstractString, branchname::Abstrac
 end
 
 function Base.summary(job::BenchmarkJob)
-    result = "BenchmarkJob $(summary(job.primary))"
+    result = "BenchmarkJob $(summary(submission(job).build))"
     if !(isnull(job.against))
         result = "$(result) vs. $(summary(get(job.against)))"
     end
