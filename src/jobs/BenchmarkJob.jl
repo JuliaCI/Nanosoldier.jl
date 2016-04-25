@@ -40,7 +40,7 @@ end
 # BenchmarkJob #
 ################
 
-type BenchmarkJob
+type BenchmarkJob <: AbstractJob
     submission::JobSubmission
     tagpred::UTF8String         # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
