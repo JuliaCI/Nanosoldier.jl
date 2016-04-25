@@ -11,6 +11,7 @@ immutable Server
         # job then gets added to the `jobs` queue, which is monitored and resolved by
         # the job-feeding tasks scheduled when `run` is called on the Server.
         handle = (event, phrase) -> begin
+            nodelog(config, 1, "recieved job submission with phrase $phrase")
             if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
                 return HttpCommon.Response(400, "Nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
             end
