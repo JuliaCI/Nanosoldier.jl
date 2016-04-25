@@ -5,7 +5,7 @@ workers = addprocs(["nanosoldier5"])
 
 import Nanosoldier, GitHub
 
-config = Nanosoldier.ServerConfig(Nanosoldier.persistdir!(joinpath(homedir(), "workdir"));
+config = Nanosoldier.Config(Nanosoldier.persistdir!(joinpath(homedir(), "workdir"));
                                   auth = GitHub.authenticate(ENV["GITHUB_AUTH"]),
                                   buildrepo = "jrevels/julia",
                                   reportrepo = "jrevels/BaseBenchmarkReports",
