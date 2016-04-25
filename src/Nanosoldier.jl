@@ -9,6 +9,7 @@ const SHA_SEPARATOR = '@'
 const BRANCH_SEPARATOR = ':'
 
 snip(str, len) = length(str) > len ? str[1:len] : str
+snipsha(sha) = snip(sha, 7)
 
 include("config.jl")
 include("build.jl")

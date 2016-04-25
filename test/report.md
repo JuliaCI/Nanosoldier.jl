@@ -4,9 +4,9 @@
 
 *Commit(s):* [jrevels/julia@25c3659d6cec2ebf6e6c7d16b03adac76a47b42a](https://github.com/jrevels/julia/commit/25c3659d6cec2ebf6e6c7d16b03adac76a47b42a) vs [JuliaLang/julia@bb73f3489d837e3339fce2c1aab283d3b2e97a4c](https://github.com/JuliaLang/julia/commit/bb73f3489d837e3339fce2c1aab283d3b2e97a4c)
 
-*Tag Predicate:* `"arrays"`
+*Tag Predicate:* `ALL && !("this" || "that")`
 
-*Triggered By:* [link](www.example.com)
+*Triggered By:* [link](https://www.test.com)
 
 ## Results
 
@@ -31,9 +31,15 @@ Only significant results - results that indicate possible regressions or improve
 
 | ID | time ratio | memory ratio |
 |----|------------|--------------|
-| `["g","h",("y",1)]` | 2.00 (5.0%) :x: | 0.00 (3.0%) :white_check_mark: |
-| `["g","h",("y",2)]` | 0.50 (5.0%) :white_check_mark: | 1.00 (1.0%)  |
-| `["g","h","z"]` | 1.00 (60.0%)  | 5.00 (27.0%) :x: |
+| `["g","h",("y",1)]` | 2.00 (5.00%) :x: | 0.00 (3.00%) :white_check_mark: |
+| `["g","h",("y",2)]` | 0.50 (5.00%) :white_check_mark: | 1.00 (1.00%)  |
+| `["g","h","z"]` | 1.00 (60.00%)  | 5.00 (27.00%) :x: |
+
+## Benchmark Group List
+
+Here's a list of all the benchmark groups executed by this job:
+
+- `["g","h"]`
 
 ## Version Info
 
@@ -90,9 +96,3 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LLVM: libLLVM-3.3
 
 ```
-
-## Benchmark Group List
-
-Here's a list of all the benchmark groups executed by this job:
-
-- `["g","h"]`

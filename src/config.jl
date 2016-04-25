@@ -1,20 +1,21 @@
 
 immutable Config
     nodes::Vector{Int}         # the pids for the nodes on the cluster
-    cores::Vector{Int}         # the indices of the cores per node
+    cpus::Vector{Int}          # the indices of the cpus per node
     auth::GitHub.Authorization # the GitHub authorization used to post statuses/reports
     secret::UTF8String         # the GitHub secret used to validate webhooks
-    buildrepo::UTF8String      # the main Julia repo tracked by the server
+    trackrepo::UTF8String      # the main Julia repo tracked by the server
     reportrepo::UTF8String     # the repo to which result reports are posted
     workdir::UTF8String        # the server's work directory
-    function Config(nodes, cores, auth, secret;
+    skipbuild::Bool            # enable for testing
+    function Config(nodes, cpus, auth, secret;
                     workdir = pwd(),
-                    buildrepo = "JuliaLang/julia",
+                    trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/BaseBenchmarkReports",
-                    makejobs = 1)
-        @assert !(empty(nodes)) "need at least one node to work on"
-        @assert !(empty(cores)) "need at least one core per node to work on"
-        return new(nodes, cores, auth, secret, buildrepo, reportrepo, workdir)
+                    skipbuild = false)
+        @assert !(isempty(nodes)) "need at least one node to work on"
+        @assert !(isempty(cpus)) "need at least one cpu per node to work on"
+        return new(nodes, cpus, auth, secret, trackrepo, reportrepo, workdir, skipbuild)
     end
 end
 

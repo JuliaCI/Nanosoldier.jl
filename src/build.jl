@@ -10,10 +10,10 @@ end
 
 BuildRef(repo, sha) = BuildRef(repo, sha, "?")
 
-Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snip(build.sha, 7))
+Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
 
 # if a PR number is included, attempt to build from the PR's merge commit
-function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} = Nullable{Int}())
+function buildjulia!(config::Config, build::BuildRef, prnumber::Nullable{Int} = Nullable{Int}())
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
     cd(workdir(config))
@@ -21,7 +21,8 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
     # clone/fetch the appropriate Julia version
     if !(isnull(prnumber))
         pr = get(prnumber)
-        run(`git clone --quiet https://github.com/$(build.repo) $(builddir)`)
+        # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
+        run(`git clone --quiet https://github.com/$(cfg.trackrepo) $(builddir)`)
         cd(builddir)
         try
             run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)

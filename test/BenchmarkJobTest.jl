@@ -1,5 +1,7 @@
+import GitHub
+
 using Nanosoldier, Base.Test, Compat
-using Nanosoldier: BuildRef, BenchmarkJob
+using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob
 using BenchmarkTools
 using BenchmarkTools: TrialEstimate, Parameters
 
@@ -33,7 +35,23 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 primary = BuildRef("jrevels/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
 against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo))
-job = BenchmarkJob(primary, against, "\"arrays\"", primary.sha, "www.example.com", :commit, Nullable{Int}())
+
+config = Config([1], [1], GitHub.AnonymousAuth(), "test");
+
+tagpred = "ALL && !(\"this\" || \"that\")"
+
+submission = JobSubmission(config, primary, "https://www.test.com", :commit,
+                           Nullable{Int}(), "runbenchmarks", "($(tagpred))")
+
+@test Nanosoldier.isvalid(submission, BenchmarkJob)
+
+job = BenchmarkJob(submission)
+
+@test Nanosoldier.submission(job) == submission
+@test job.tagpred == tagpred
+@test isnull(job.against)
+
+job.against = against
 
 results = Dict(
     "primary" => BenchmarkGroup([],

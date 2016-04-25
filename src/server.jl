@@ -20,12 +20,12 @@ immutable Server
                 if isvalid(submission, J)
                     job = J(submission)
                     push!(jobs, job)
-                    create_status(job, "pending", "job added to queue: $(summary(job))")
+                    reply_status(job, "pending", "job added to queue: $(summary(job))")
                     addedjob = true
                 end
             end
             if !(addedjob)
-                create_status(submission, "error", "invalid job submission")
+                reply_status(submission, "error", "invalid job submission")
                 HttpCommon.Response(400, "invalid job submission")
             end
             return HttpCommon.Response(202, "recieved job submission")
@@ -34,7 +34,7 @@ immutable Server
         listener = GitHub.CommentListener(handle, TRIGGER;
                                           auth = config.auth,
                                           secret = config.secret,
-                                          repos = [config.buildrepo])
+                                          repos = [config.trackrepo])
         return Server(config, jobs, listener)
     end
 end
@@ -55,13 +55,13 @@ function Base.run(server::Server, args...; kwargs...)
                         yield()
                     else
                         job = shift!(jobs)
-                        create_status(job, "pending", "running on node $(node): $(summary(job))")
+                        reply_status(job, "pending", "running on node $(node): $(summary(job))")
                         try
                             remotecall_fetch(run, node, job)
                         catch err
                             message = "encountered error: $(err)"
                             nodelog(config, node, message)
-                            create_status(job)
+                            reply_status(job)
                         end
                     end
                     sleep(10) # poll every 10 seconds so as not to throttle CPU

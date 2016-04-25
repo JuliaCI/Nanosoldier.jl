@@ -15,6 +15,17 @@ function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::Regex
     return JobSubmission(config, build, url, fromkind, prnumber, func, args)
 end
 
+function Base.(:(==))(a::JobSubmission, b::JobSubmission)
+    if isnull(a.prnumber) == isnull(b.prnumber)
+        same_prnumber = isnull(a.prnumber) ? true : (get(a.prnumber) == get(b.prnumber))
+        return (same_prnumber && a.config == b.config && a.build == b.build &&
+                a.url == b.url && a.fromkind == b.fromkind &&
+                a.func == b.func && a.args == b.args)
+    else
+        return false
+    end
+end
+
 function parse_event(config::Config, event::GitHub.WebhookEvent)
     if event.kind == "commit_comment"
         # A commit was commented on, and the comment contained a trigger phrase.
@@ -69,11 +80,34 @@ function parse_phrase(phrase::RegexMatch)
     end
 end
 
-function create_status(sub::JobSubmission, state, description, url=nothing)
+function reply_status(sub::JobSubmission, state, description, url=nothing)
     params = Dict("state" => state,
                   "context" => "Nanosoldier",
                   "description" => snip(description, 140))
     url != nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.config.buildrepo, sub.build.sha;
+    return GitHub.create_status(sub.config.trackrepo, sub.build.sha;
                                 auth = sub.config.auth, params = params)
+end
+
+function reply_comment(sub::JobSubmission, message::AbstractString)
+    commentplace = isnull(sub.prnumber) ? sub.build.sha : get(sub.prnumber)
+    commentkind = sub.fromkind == :review ? :pr : sub.fromkind
+    return GitHub.create_comment(sub.build.repo, commentplace, commentkind;
+                                 auth = sub.config.auth, params = Dict("body" => message))
+end
+
+function upload_report_file(sub::JobSubmission, path, content, message)
+    cfg = sub.config
+    params = Dict("content" => content, "message" => message)
+    # An HTTP response code of 400 means the file doesn't exist, which will cause the
+    # returned `GitHub.Content` object to contain a null `sha` field. We set `handle_error`
+    # to false so that GitHub.jl doesn't throw an error in the case of a 400 response code.
+    priorfile = GitHub.file(cfg.reportrepo, path; auth = cfg.auth, handle_error = false)
+    if isnull(priorfile.sha)
+        results = GitHub.create_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
+    else
+        params["sha"] = get(priorfile.sha)
+        results = GitHub.update_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
+    end
+    return string(GitHub.permalink(results["content"], results["commit"]))
 end

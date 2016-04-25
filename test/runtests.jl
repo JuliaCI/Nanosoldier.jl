@@ -1,4 +1,4 @@
-print("Testing report generation...")
+print("Testing BenchmarkJob...")
 tic()
-include("report_test.jl")
+include("BenchmarkJobTest.jl")
 println("done (took $(toq()) seconds)")
