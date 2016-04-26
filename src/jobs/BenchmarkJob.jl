@@ -193,8 +193,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         println(file, """
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
-                      addprocs(1); # add worker that can be used by parallel benchmarks
-                      blas_set_num_threads(1); # ensure BLAS threads do not trample each other
+                      # addprocs(1); # add worker that can be used by parallel benchmarks
+                      # blas_set_num_threads(1); # ensure BLAS threads do not trample each other
                       using BaseBenchmarks;
                       using BenchmarkTools;
                       using JLD;
@@ -203,7 +203,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       println("FILTERING SUITE...");
                       benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))];
                       println("WARMING UP BENCHMARKS...");
-                      warmup(benchmarks);
+                      # warmup(benchmarks);
                       println("RUNNING BENCHMARKS...");
                       results = minimum(run(benchmarks; verbose = true));
                       println("SAVING RESULT...");
