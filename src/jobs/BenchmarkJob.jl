@@ -158,14 +158,14 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JLD file so that we can retrieve them.
     #
-    # CPU shielding requires passwordless sudo access to `cset`. To enable this for
-    # the server user, run `sudo visudo -f /etc/sudoers.d/cpus` and add the following
-    # line:
+    # CPU shielding requires passwordless sudo access to `cset` and `taskset`. To enable
+    # this for the server user, run `sudo visudo -f /etc/sudoers.d/cpus` and add the
+    # following line:
     #
-    #   `user ALL=(ALL:ALL) NOPASSWD:/path/cset`
+    #   `user ALL=(ALL:ALL) NOPASSWD: /path_to_cset/cset, /path_to_taskset/taskset`
     #
-    # where `user` is replaced by the server user and `path` is the full path to the
-    # `cset` executable.
+    # where `user` is replaced by the server user and `path_to_*` is the full path to the
+    # corresponding executable.
     #
     # Note that `cset` only allows `root` to run a process on the shielded CPU, but our
     # benchmark julia process needs to be executed as the server user, since the server
@@ -193,8 +193,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         println(file, """
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
-                      # addprocs(1); # add worker that can be used by parallel benchmarks
+                      run(`sudo taskset -pc $(first(cfg.cpus)) \$(getpid())`);
                       blas_set_num_threads(1); # ensure BLAS threads do not trample each other
+                      addprocs(1); # add worker that can be used by parallel benchmarks
                       using BaseBenchmarks;
                       using BenchmarkTools;
                       using JLD;
@@ -217,8 +218,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`chmod +x $(shscriptpath)`)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
-    # shield our CPU
-    run(`sudo cset shield -c $(first(cfg.cpus)) -k on`)
+    # shield our CPUs
+    run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     # execute our script as the server user on the shielded CPU
     run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
 

@@ -2,7 +2,7 @@ nodes = addprocs(["nanosoldier5"])
 
 import Nanosoldier, GitHub
 
-cpus = [2,3]
+cpus = [1,2,3]
 auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
 secret = ENV["GITHUB_SECRET"]
 user = ENV["SERVER_USER"]
