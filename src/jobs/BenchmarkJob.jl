@@ -184,11 +184,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       """)
     end
 
+    benchname = string(build.sha, "_", whichbuild)
+    benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
+    bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
+    benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
+
     open(jlscriptpath, "w") do file
-        benchname = string(build.sha, "_", whichbuild)
-        benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
-        bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
-        benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
         println(file, """
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
