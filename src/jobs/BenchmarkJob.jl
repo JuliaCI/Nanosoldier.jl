@@ -194,7 +194,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
                       # addprocs(1); # add worker that can be used by parallel benchmarks
-                      # blas_set_num_threads(1); # ensure BLAS threads do not trample each other
+                      blas_set_num_threads(1); # ensure BLAS threads do not trample each other
                       using BaseBenchmarks;
                       using BenchmarkTools;
                       using JLD;
@@ -203,7 +203,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       println("FILTERING SUITE...");
                       benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))];
                       println("WARMING UP BENCHMARKS...");
-                      # warmup(benchmarks);
+                      warmup(benchmarks);
                       println("RUNNING BENCHMARKS...");
                       results = minimum(run(benchmarks; verbose = true));
                       println("SAVING RESULT...");
@@ -218,7 +218,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
     # shield our CPU
-    run(`sudo cset shield -c $(first(cfg.cpus))`)
+    run(`sudo cset shield -c $(first(cfg.cpus)) -k on`)
     # execute our script as the server user on the shielded CPU
     run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
 
