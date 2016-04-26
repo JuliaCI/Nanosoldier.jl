@@ -378,7 +378,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
     entries = BenchmarkTools.leaves(tablegroup)
 
     try
-        sort!(entries; lt = leaflessthan)
+        entries = entries[sortperm(map(x -> string(first(x)), entries))]
     end
 
     for (ids, t) in entries
@@ -428,24 +428,6 @@ function printreport(io::IO, job::BenchmarkJob, results)
 end
 
 idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
-
-idlessthan(a::Tuple, b::Tuple) = isless(a, b)
-idlessthan(a, b::Tuple) = false
-idlessthan(a::Tuple, b) = true
-idlessthan(a, b) = isless(a, b)
-
-function leaflessthan(kv1, kv2)
-    k1 = kv1[1]
-    k2 = kv2[1]
-    for i in eachindex(k1)
-        if idlessthan(k1[i], k2[i])
-            return true
-        elseif k1[i] != k2[i]
-            return false
-        end
-    end
-    return false
-end
 
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
