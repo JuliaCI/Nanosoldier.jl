@@ -33,23 +33,34 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 primary = BuildRef("jrevels/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo, "")
 against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against", ""))
-
 config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
 
-tagpred = "ALL && !(\"this\" || \"that\")"
-flags = "\"-j 4\""
-func, args, kwargs = Nanosoldier.parse_phrase_match("@nanosoldier `runbenchmarks($(tagpred); flags = $(flags))`")
-submission = JobSubmission(config, primary, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
+function build_test_submission(tagpred; vs = "", flags = "")
+    if isempty(flags) && isempty(vs)
+        phrase_match = "@nanosoldier `runbenchmarks($(tagpred))`"
+    elseif !(isempty(vs)) && !(isempty(flags))
+        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); flags = $(flags), vs = $(vs))`"
+    elseif !(isempty(vs))
+        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); vs = $(vs))`"
+    elseif !(isempty(flags))
+        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); flags = $(flags))`"
+    end
+    func, args, kwargs = Nanosoldier.parse_phrase_match(phrase_match)
+    submission = JobSubmission(config, primary, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
+    @test submission.build.flags == flags
+    @test Nanosoldier.isvalid(submission, BenchmarkJob)
+    return submission
+end
 
-@test submission.build.flags == flags
-@test Nanosoldier.isvalid(submission, BenchmarkJob)
+build_test_submission("ALL", vs = "\"JuliaLang/julia:master\"")
+build_test_submission("\"tag\"")
 
-job = BenchmarkJob(submission)
-
-@test Nanosoldier.submission(job) == submission
+tagpred = "ALL && !(\"tag1\" || \"tag2\")"
+sub = build_test_submission(tagpred, flags = "\"-j 4\"")
+job = BenchmarkJob(sub)
+@test Nanosoldier.submission(job) == sub
 @test job.tagpred == tagpred
 @test isnull(job.against)
-
 job.against = against
 
 results = Dict(

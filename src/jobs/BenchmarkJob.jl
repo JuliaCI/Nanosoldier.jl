@@ -8,8 +8,8 @@
 
 const VALID_TAG_PRED_SYMS = (:!, :&&, :||, :call, :ALL)
 
-function is_valid_tagpred(tagpredstr::AbstractString)
-    parsed = parse(tagpredstr)
+function is_valid_tagpred(tagpred::AbstractString)
+    parsed = parse(tagpred)
     if isa(parsed, Expr)
         return is_valid_tagpred(parsed)
     elseif parsed == :ALL
@@ -48,7 +48,7 @@ end
 
 function BenchmarkJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs)
-        againststr = submission.kwargs[:vs]
+        againststr = parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == jrevels/julia@e83b7559df94b3050603847dbd6f3674058027e6
             againstbuild = BuildRef(split(againststr, SHA_SEPARATOR)...)
         elseif in(BRANCH_SEPARATOR, againststr)
@@ -60,7 +60,7 @@ function BenchmarkJob(submission::JobSubmission)
             againstbuild = BuildRef(submission.build.repo, againststr)
         end
         againstbuild.flags = submission.build.flags
-        against = Nullable(against_build)
+        against = Nullable(againstbuild)
     else
         against = Nullable{BuildRef}()
     end

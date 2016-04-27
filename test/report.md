@@ -4,7 +4,7 @@
 
 *Commit(s):* [jrevels/julia@25c3659d6cec2ebf6e6c7d16b03adac76a47b42a](https://github.com/jrevels/julia/commit/25c3659d6cec2ebf6e6c7d16b03adac76a47b42a) vs [JuliaLang/julia@bb73f3489d837e3339fce2c1aab283d3b2e97a4c](https://github.com/JuliaLang/julia/commit/bb73f3489d837e3339fce2c1aab283d3b2e97a4c)
 
-*Tag Predicate:* `ALL && !("this" || "that")`
+*Tag Predicate:* `ALL && !("tag1" || "tag2")`
 
 *`make` flags:* `"-j 4"`
 
