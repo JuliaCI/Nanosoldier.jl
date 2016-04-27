@@ -69,7 +69,7 @@ end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
     shastr = get(get(GitHub.branch(reponame, branchname; auth = config.auth).commit).sha)
-    return Nullable(BuildRef(reponame, shastr))
+    return BuildRef(reponame, shastr)
 end
 
 function Base.summary(job::BenchmarkJob)
