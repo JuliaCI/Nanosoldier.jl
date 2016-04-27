@@ -18,13 +18,13 @@ type JobSubmission
 end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::RegexMatch)
-    build, url, fromkind, prnumber = parse_event(config, event)
     try
+        build, url, fromkind, prnumber = parse_event(config, event)
         func, args, kwargs = parse_phrase_match(phrase.match)
+        return JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
     catch err
-        error("could not parse trigger phrase: $err")
+        error("could not parse comment into job submission: $err")
     end
-    return JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
 end
 
 function Base.(:(==))(a::JobSubmission, b::JobSubmission)
