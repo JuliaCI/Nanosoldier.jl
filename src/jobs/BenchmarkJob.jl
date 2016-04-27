@@ -169,26 +169,44 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     open(jlscriptpath, "w") do file
         println(file, """
-                      benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout);
-                      bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr);
-                      run(`sudo taskset -pc $(first(cfg.cpus)) \$(getpid())`);
-                      blas_set_num_threads(1); # ensure BLAS threads do not trample each other
-                      addprocs(1); # add worker that can be used by parallel benchmarks
-                      using BaseBenchmarks;
-                      using BenchmarkTools;
-                      using JLD;
-                      println("LOADING SUITE...");
-                      BaseBenchmarks.loadall!();
-                      println("FILTERING SUITE...");
-                      benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))];
-                      println("WARMING UP BENCHMARKS...");
-                      warmup(benchmarks);
-                      println("RUNNING BENCHMARKS...");
-                      results = minimum(run(benchmarks; verbose = true));
-                      println("SAVING RESULT...");
-                      JLD.save(\"$(benchresults)\", "results", results);
-                      println("DONE!");
-                      close(benchout); close(bencherr);
+                      benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
+                      bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
+
+                      # move ourselves onto the first CPU in the shielded set
+                      run(`sudo taskset -pc $(first(cfg.cpus)) \$(getpid())`)
+
+                      blas_set_num_threads(1) # ensure BLAS threads do not trample each other
+                      addprocs(1);            # add worker that can be used by parallel benchmarks
+
+                      # update BaseBenchmarks
+                      oldpwd = pwd()
+                      cd(Pkg.dir("BaseBenchmarks"))
+                      run(`git pull --quiet`)
+                      cd(oldpwd)
+
+                      using BaseBenchmarks
+                      using BenchmarkTools
+                      using JLD
+
+                      println("LOADING SUITE...")
+                      BaseBenchmarks.loadall!()
+
+                      println("FILTERING SUITE...")
+                      benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))]
+
+                      println("WARMING UP BENCHMARKS...")
+                      warmup(benchmarks)
+
+                      println("RUNNING BENCHMARKS...")
+                      results = minimum(run(benchmarks; verbose = true))
+
+                      println("SAVING RESULT...")
+                      JLD.save(\"$(benchresults)\", "results", results)
+
+                      println("DONE!")
+
+                      close(benchout)
+                      close(bencherr)
                       """)
     end
 
