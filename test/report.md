@@ -6,6 +6,8 @@
 
 *Tag Predicate:* `ALL && !("this" || "that")`
 
+*`make` flags:* `"-j 4"`
+
 *Triggered By:* [link](https://www.test.com)
 
 ## Results
@@ -22,12 +24,10 @@ benchmarks.
 The percentages accompanying time and memory values in the below table are noise tolerances. The "true"
 time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
 
-The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
-`1.0` denotes a possible regression (marked with :x:), while a ratio less than `1.0` denotes
-a possible improvement (marked with :white_check_mark:).
-
-Only significant results - results that indicate possible regressions or improvements - are shown below
-(thus, an empty table means that all benchmark results remained invariant between builds).
+A ratio greater than `1.0` denotes a possible regression (marked with :x:), while a ratio less
+than `1.0` denotes a possible improvement (marked with :white_check_mark:). Only significant results - results
+that indicate possible regressions or improvements - are shown below (thus, an empty table means that all
+benchmark results remained invariant between builds).
 
 | ID | time ratio | memory ratio |
 |----|------------|--------------|
@@ -94,5 +94,5 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LAPACK: libopenblas64_
   LIBM: libopenlibm
   LLVM: libLLVM-3.3
-
+_against
 ```

@@ -47,52 +47,24 @@ type BenchmarkJob <: AbstractJob
 end
 
 function BenchmarkJob(submission::JobSubmission)
-    tagpred, againststr = parse_benchmark_args(submission.args)
-    if !(is_valid_tagpred(tagpred))
-        error("invalid tag predicate: $(tagpred)")
-    end
-    if isnull(againststr)
-        against = Nullable{BuildRef}()
-    else
-        againststr = get(againststr)
+    if haskey(submission.kwargs, :vs)
+        againststr = submission.kwargs[:vs]
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == jrevels/julia@e83b7559df94b3050603847dbd6f3674058027e6
-            against = Nullable(BuildRef(split(againststr, SHA_SEPARATOR)...))
+            againstbuild = BuildRef(split(againststr, SHA_SEPARATOR)...)
         elseif in(BRANCH_SEPARATOR, againststr)
             againstrepo, againstbranch = split(againststr, BRANCH_SEPARATOR)
-            against = branchref(submission.config, againstrepo, againstbranch)
+            againstbuild = branchref(submission.config, againstrepo, againstbranch)
         elseif in('/', againststr) # e.g. againststr == jrevels/julia
-            against = branchref(submission.config, againststr, "master")
+            againstbuild = branchref(submission.config, againststr, "master")
         else # e.g. againststr == e83b7559df94b3050603847dbd6f3674058027e6
-            against = Nullable(BuildRef(submission.build.repo, againststr))
+            againstbuild = BuildRef(submission.build.repo, againststr)
         end
-    end
-    return BenchmarkJob(submission, tagpred, against)
-end
-
-function parse_benchmark_args(argstr::AbstractString)
-    parsed = parse(argstr)
-    # if provided, extract a comparison ref from the trigger arguments
-    againststr = Nullable{UTF8String}()
-    if (isa(parsed, Expr) && length(parsed.args) == 2 &&
-        isa(parsed.args[2], Expr) && parsed.args[2].head == :(=))
-        vskv = parsed.args[2].args
-        tagpredexpr = parsed.args[1]
-        if length(vskv) == 2 && vskv[1] == :vs
-            againststr = Nullable(UTF8String(vskv[2]))
-        else
-            error("malformed comparison argument: $vskv")
-        end
+        againstbuild.flags = submission.build.flags
+        against = Nullable(against_build)
     else
-        tagpredexpr = parsed
+        against = Nullable{BuildRef}()
     end
-    # If `tagpredexpr` is just a single tag, it'll just be a string, in which case
-    # we'll need to wrap it in escaped quotes so that it can be interpolated later.
-    if isa(tagpredexpr, AbstractString)
-        tagpredstr = string('"', tagpredexpr, '"')
-    else
-        tagpredstr = string(tagpredexpr)
-    end
-    return tagpredstr, againststr
+    return BenchmarkJob(submission, first(submission.args), against)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -108,7 +80,13 @@ function Base.summary(job::BenchmarkJob)
     return result
 end
 
-isvalid(submission::JobSubmission, ::Type{BenchmarkJob}) = submission.func == "runbenchmarks"
+function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
+    args, kwargs = submission.args, submission.kwargs
+    return (submission.func == "runbenchmarks" &&
+            (length(args) == 1 && is_valid_tagpred(first(args))) &&
+            (isempty(kwargs) || (length(kwargs) == 1 && first(keys(kwargs)) == :vs)))
+end
+
 submission(job::BenchmarkJob) = job.submission
 
 ##########################
@@ -139,12 +117,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     build = whichbuild == :against ? get(job.against) : submission(job).build
 
     if !(cfg.skipbuild)
-        # If we're doing the primary build from a PR, feed `buildjulia!` the PR number
+        # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
-            builddir = buildjulia!(cfg, build, submission(job).prnumber)
+            builddir = build_julia!(cfg, build, submission(job).prnumber)
         else
-            builddir = buildjulia!(cfg, build)
+            builddir = build_julia!(cfg, build)
         end
         juliapath = joinpath(builddir, "julia")
     else
@@ -338,6 +316,8 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                 *Tag Predicate:* `$(job.tagpred)`
 
+                *`make` flags:* `$(submission(job).build.flags)`
+
                 *Triggered By:* [link]($(submission(job).url))
 
                 ## Results
@@ -359,12 +339,10 @@ function printreport(io::IO, job::BenchmarkJob, results)
     #--------------------#
     if iscomparisonjob
         print(io, """
-                  The values in the below table take the form `primary_result / comparison_result`. A ratio greater than
-                  `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less than `1.0` denotes
-                  a possible improvement (marked with $(IMPROVE_MARK)).
-
-                  Only significant results - results that indicate possible regressions or improvements - are shown below
-                  (thus, an empty table means that all benchmark results remained invariant between builds).
+                  A ratio greater than `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less
+                  than `1.0` denotes a possible improvement (marked with $(IMPROVE_MARK)). Only significant results - results
+                  that indicate possible regressions or improvements - are shown below (thus, an empty table means that all
+                  benchmark results remained invariant between builds).
 
                   | ID | time ratio | memory ratio |
                   |----|------------|--------------|

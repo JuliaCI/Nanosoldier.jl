@@ -6,13 +6,25 @@ type JobSubmission
     fromkind::Symbol        # `:pr`, `:review`, or `:commit`?
     prnumber::Nullable{Int} # the job's PR number, if `fromkind` is `:pr` or `:review`
     func::UTF8String
-    args::UTF8String
+    args::Vector{UTF8String}
+    kwargs::Dict{Symbol,UTF8String}
+    function JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
+        if haskey(kwargs, :flags)
+            build.flags = kwargs[:flags]
+            delete!(kwargs, :flags)
+        end
+        return new(config, build, url, fromkind, prnumber, func, args, kwargs)
+    end
 end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::RegexMatch)
     build, url, fromkind, prnumber = parse_event(config, event)
-    func, args = parse_phrase(phrase)
-    return JobSubmission(config, build, url, fromkind, prnumber, func, args)
+    try
+        func, args, kwargs = parse_phrase_match(phrase.match)
+    catch err
+        error("could not parse trigger phrase: $err")
+    end
+    return JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
 end
 
 function Base.(:(==))(a::JobSubmission, b::JobSubmission)
@@ -70,14 +82,29 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
     return BuildRef(repo, sha), url, fromkind, prnumber
 end
 
-function parse_phrase(phrase::RegexMatch)
-    try
-        fncall = match(r"`.*?`", phrase.match).match[2:end-1]
-        argind = searchindex(fncall, "(")
-        return fncall[1:(argind - 1)], fncall[argind:end]
-    catch err
-        error("could not parse trigger phrase: $err")
+function parse_phrase_match(phrase_match::AbstractString)
+    fncall = match(r"`.*?`", phrase_match).match[2:end-1]
+    argind = searchindex(fncall, "(")
+    name = fncall[1:(argind - 1)]
+    argsexpr = parse(replace(fncall[argind:end], ";", ","))
+    @assert argsexpr.head == :tuple "invalid argument format"
+    args, kwargs = Vector{UTF8String}(), Dict{Symbol,UTF8String}()
+    started_kwargs = false
+    for x in argsexpr.args
+        if isa(x, Expr)
+            if (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
+                kwargs[x.args[1]] = UTF8String(repr(x.args[2]))
+                started_kwargs = true
+            else
+                @assert !(started_kwargs) "kwargs must come after other args"
+                push!(args, UTF8String(string(x)))
+            end
+        else
+            @assert !(started_kwargs) "kwargs must come after other args"
+            push!(args, UTF8String(repr(x)))
+        end
     end
+    return name, args, kwargs
 end
 
 function reply_status(sub::JobSubmission, state, description, url=nothing)
