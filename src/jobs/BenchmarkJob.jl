@@ -214,6 +214,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`chmod +x $(shscriptpath)`)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
+    # destroy old shield, if old shield still exists
+    run(`sudo cset shield --reset`)
     # shield our CPUs
     run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     # execute our script as the server user on the shielded CPU
