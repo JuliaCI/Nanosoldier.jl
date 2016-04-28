@@ -181,7 +181,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       # update BaseBenchmarks
                       oldpwd = pwd()
                       cd(Pkg.dir("BaseBenchmarks"))
-                      run(`git pull --quiet`)
+                      run(`git fetch --all --quiet && git reset --hard --quiet origin/nanosoldier`)
                       cd(oldpwd)
 
                       using BaseBenchmarks
