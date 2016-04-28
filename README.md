@@ -17,7 +17,7 @@ Here's an example of a comment that might trigger a benchmarking job from a comm
 ```
 Let's see whether the commit I'm commenting on is faster than the master branch for the linear algebra benchmarks:
 
-@nanosoldier `runbenchmarks("linalg", vs = "JuliaLang/julia:master")`
+@nanosoldier `runbenchmarks("linalg", vs = ":master")`
 ```
 
 When a job is completed, @nanosoldier will reply to your comment to tell you how the job went and link you to any relevant results.
