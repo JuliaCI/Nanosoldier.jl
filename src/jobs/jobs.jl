@@ -1,10 +1,10 @@
-# All types J <: AbstractJob must implement
+# All types `J <: AbstractJob` must implement:
 #
-# J(submission::JobSubmission) --> create an instance of J from this submission
-# submission(::J) --> return the submission used to create J
-# isvalid(submission::JobSubmission, ::Type{J}) --> return true if J fits this submission, false otherwise
-# Base.run(::J) --> execute the job
-# Base.summary(::J) --> a short string descrubing the job
+# - `J(submission::JobSubmission)`: create an instance of `J` from `submission`
+# - `submission(job::J)`: return the `JobSubmission` used to create `job`
+# - `isvalid(submission::JobSubmission, ::Type{J})`: return true if `submission` is a valid input for `J`, false otherwise
+# - `Base.run(job::J)`: execute `job`
+# - `Base.summary(job::J)`: a short string identifying/describing `job`
 
 abstract AbstractJob
 

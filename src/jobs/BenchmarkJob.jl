@@ -50,14 +50,15 @@ function BenchmarkJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs)
         againststr = parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == jrevels/julia@e83b7559df94b3050603847dbd6f3674058027e6
-            againstbuild = BuildRef(split(againststr, SHA_SEPARATOR)...)
+            reporef, againstsha = split(againststr, SHA_SEPARATOR)
+            againstrepo = isempty(reporef) ? submission.build.repo : reporef
+            againstbuild = BuildRef(againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
-            againstrepo, againstbranch = split(againststr, BRANCH_SEPARATOR)
+            reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
+            againstrepo = isempty(reporef) ? submission.build.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
-        elseif in('/', againststr) # e.g. againststr == jrevels/julia
-            againstbuild = branchref(submission.config, againststr, "master")
-        else # e.g. againststr == e83b7559df94b3050603847dbd6f3674058027e6
-            againstbuild = BuildRef(submission.build.repo, againststr)
+        else
+            error("invalid argument to `vs` keyword")
         end
         againstbuild.flags = submission.build.flags
         against = Nullable(againstbuild)
