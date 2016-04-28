@@ -99,4 +99,4 @@ against the head commit of my fork's branch.
 
 All job types support the following keyword arguments in their trigger syntax:
 
-- `flags = "..."`: If the job build Julia, these flags will be passed to `make`.
+- `flags = "..."`: If the job builds Julia, flags in this string will be passed to the `make`.
