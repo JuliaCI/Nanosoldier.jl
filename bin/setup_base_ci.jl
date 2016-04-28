@@ -10,6 +10,6 @@ config = Nanosoldier.Config(ENV["USER"], nodes, cpus, auth, secret;
                             workdir = joinpath(homedir(), "workdir"),
                             trackrepo = "JuliaLang/julia",
                             reportrepo = "JuliaCI/BaseBenchmarkReports",
-                            skipbuild = true)
+                            testmode = false)
 
 server = Nanosoldier.Server(config)

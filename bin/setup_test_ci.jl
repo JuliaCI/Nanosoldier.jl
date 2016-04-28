@@ -10,6 +10,6 @@ config = Nanosoldier.Config(ENV["USER"], nodes, cpus, auth, secret;
                             workdir = joinpath(homedir(), "workdir"),
                             trackrepo = "jrevels/julia",
                             reportrepo = "jrevels/BaseBenchmarkReports",
-                            skipbuild = true)
+                            testmode = true)
 
 server = Nanosoldier.Server(config)

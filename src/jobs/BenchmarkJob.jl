@@ -116,7 +116,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cfg = submission(job).config
     build = whichbuild == :against ? get(job.against) : submission(job).build
 
-    if !(cfg.skipbuild)
+    if !(cfg.testmode)
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
@@ -166,6 +166,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
     bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
     benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
+    branchname = cfg.testmode ? "master" : "nanosoldier"
 
     open(jlscriptpath, "w") do file
         println(file, """
@@ -181,7 +182,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       # update BaseBenchmarks
                       oldpwd = pwd()
                       cd(Pkg.dir("BaseBenchmarks"))
-                      run(`git fetch --all --quiet && git reset --hard --quiet origin/nanosoldier`)
+                      run(`git fetch --all --quiet && git reset --hard --quiet origin/$(branchname)`)
                       cd(oldpwd)
 
                       using BaseBenchmarks
