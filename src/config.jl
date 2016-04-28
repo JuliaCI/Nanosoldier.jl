@@ -8,7 +8,7 @@ immutable Config
     trackrepo::UTF8String      # the main Julia repo tracked by the server
     reportrepo::UTF8String     # the repo to which result reports are posted
     workdir::UTF8String        # the server's work directory
-    testmode::Bool            # enable for testing
+    testmode::Bool             # enable for testing
     function Config(user, nodes, cpus, auth, secret;
                     workdir = pwd(),
                     trackrepo = "JuliaLang/julia",

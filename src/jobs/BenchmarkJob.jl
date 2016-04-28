@@ -167,7 +167,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
     bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
     benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
-    branchname = cfg.testmode ? "master" : "nanosoldier"
+    branchname = cfg.testmode ? "test" : "nanosoldier"
 
     open(jlscriptpath, "w") do file
         println(file, """
