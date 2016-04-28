@@ -329,6 +329,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
     # print report preface + job properties #
     #---------------------------------------#
+
     println(io, """
                 # Benchmark Report
 
@@ -336,11 +337,9 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                 *Commit(s):* $(joblink)
 
-                *Tag Predicate:* `$(job.tagpred)`
-
-                *`make` flags:* `$(submission(job).build.flags)`
-
                 *Triggered By:* [link]($(submission(job).url))
+
+                *Tag Predicate:* `$(job.tagpred)`
 
                 ## Results
 
