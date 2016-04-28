@@ -182,7 +182,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       # update BaseBenchmarks
                       oldpwd = pwd()
                       cd(Pkg.dir("BaseBenchmarks"))
-                      run(`git fetch --all --quiet && git reset --hard --quiet origin/$(branchname)`)
+                      run(`git fetch --all --quiet`)
+                      run(`git reset --hard --quiet origin/$(branchname)`)
                       cd(oldpwd)
 
                       using BaseBenchmarks
