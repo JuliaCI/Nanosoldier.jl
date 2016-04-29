@@ -170,7 +170,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     open(jlscriptpath, "w") do file
         println(file, """
-                      println(now(), " | starting benchscript.jl (STDOUT will be redirected)")
+                      println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the logs folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
 
