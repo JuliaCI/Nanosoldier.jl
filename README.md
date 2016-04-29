@@ -2,7 +2,7 @@
 
 This package contains the infrastructure powering the @nanosoldier CI bot used by the Julia language.
 
-### Submitting CI jobs via comments
+## Submitting CI jobs via comments
 
 If you're a collaborator in the JuliaLang/julia repository, you can submit CI jobs to the Julia Lab's Nanosoldier cluster at MIT by commenting on commits or pull requests. The @nanosoldier bot looks for a special "trigger phrase" in your comment, and if the trigger phrase is found, it is parsed by the bot to configure and submit a CI job.
 
@@ -24,18 +24,18 @@ When a job is completed, @nanosoldier will reply to your comment to tell you how
 
 **Note that only one job can be triggered per comment.**
 
-### Available job types
+## Available job types
 
 CI jobs are implemented in this package as subtypes of `Nanosoldier.AbstractJob`. See [here](https://github.com/JuliaCI/Nanosoldier.jl/blob/master/src/jobs/jobs.jl) for a description of the interface new job types need to implement.
 
-##### `BenchmarkJob`
+#### `BenchmarkJob`
 
 The `BenchmarkJob` type defines a CI job with the following execution cycle:
 
 1. Pull in the JuliaLang/julia repository and build the commit specified by the context of the trigger phrase.
 2. Using the new Julia build, fetch the `nanosoldier` branch of the [BaseBenchmarks](https://github.com/JuliaCI/BaseBenchmarks.jl) repository and run the benchmarks specified by the trigger phrase.
 3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
-4. Upload result data and a markdown report to the [BaseBenchmarkReport](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
+4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
 
 A `BenchmarkJob` is triggered with the following syntax:
 
@@ -95,8 +95,8 @@ against the head commit of my fork's branch.
 @nanosoldier `runbenchmarks(ALL, vs = "jrevels/julia:mybranch")`
 ```
 
-### Keyword arguments supported by all job types
+## Keyword arguments supported by all job types
 
 All job types support the following keyword arguments in their trigger syntax:
 
-- `flags = "..."`: If the job builds Julia, flags in this string will be passed to the `make`.
+- `flags = "..."`: If the job builds Julia, flags in this string will be passed to `make`.
