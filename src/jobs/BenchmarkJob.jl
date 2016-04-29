@@ -216,14 +216,14 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`chmod +x $(shscriptpath)`)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
-    # destroy old shield, if old shield still exists
-    try run(`sudo cset set -d /user/child`) end
-    try run(`sudo cset shield --reset`) end
     # shield our CPUs
     run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
     # execute our script as the server user on the shielded CPU
     run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
+    # clean up the cpusets
+    run(`sudo cset set -d /user/child`)
+    run(`sudo cset shield --reset`)
 
     results = JLD.load(benchresults, "results")
 
