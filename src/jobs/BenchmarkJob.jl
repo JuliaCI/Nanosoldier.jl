@@ -170,6 +170,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     open(jlscriptpath, "w") do file
         println(file, """
+                      println(now(), " | starting benchscript.jl (STDOUT will be redirected)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
 
@@ -216,6 +217,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`chmod +x $(shscriptpath)`)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
+    # clean up old cpusets, if they exist
+    try run(`sudo cset set -d /user/child`) end
+    try run(`sudo cset shield --reset`) end
     # shield our CPUs
     run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
