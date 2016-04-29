@@ -258,18 +258,19 @@ function report(job::BenchmarkJob, results)
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
     else
-        # upload raw result data to the report repository
-        try
-            # To upload in JLD, we'd need to use the Git Data API, which allows uploading
-            # of binary blobs. Unfortunately, GitHub.jl doesn't yet implement the Git Data
-            # API, so we have to upload a text JSON file instead.
-            datapath = joinpath(reportdir(job), "$(reportfile(job)).json")
-            datastr = base64encode(JSON.json(results))
-            target_url = upload_report_file(job, datapath, datastr, "upload result data for $(summary(job))")
-            nodelog(cfg, node, "uploaded $(datapath) to $(cfg.reportrepo)")
-        catch err
-            nodelog(cfg, node, "error when uploading result JSON file: $(err)")
-        end
+        # To upload our JLD file, we'd need to use the Git Data API, which allows uploading
+        # of large binary blobs. Unfortunately, GitHub.jl doesn't yet implement the Git Data
+        # API, so we don't yet do this. The old code here uploaded a JSON file, but
+        # unfortunately didn't work very consistently because the JSON was often over the
+        # size limit.
+        # try
+        #     datapath = joinpath(reportdir(job), "$(reportfile(job)).json")
+        #     datastr = base64encode(JSON.json(results))
+        #     target_url = upload_report_file(job, datapath, datastr, "upload result data for $(summary(job))")
+        #     nodelog(cfg, node, "uploaded $(datapath) to $(cfg.reportrepo)")
+        # catch err
+        #     nodelog(cfg, node, "error when uploading result JSON file: $(err)")
+        # end
 
         # determine the job's final status
         if !(isnull(job.against))

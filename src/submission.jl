@@ -143,13 +143,10 @@ function upload_report_file(sub::JobSubmission, path, content, message)
     # to false so that GitHub.jl doesn't throw an error in the case of a 400 response code.
     priorfile = GitHub.file(cfg.reportrepo, path; auth = cfg.auth, handle_error = false)
     if isnull(priorfile.sha)
-        nodelog(cfg, 1, "...file does not exist, creating file")
         results = GitHub.create_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
     else
         params["sha"] = get(priorfile.sha)
-        nodelog(cfg, 1, "...file exists with SHA $(get(priorfile.sha)), updating file")
         results = GitHub.update_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
     end
-    nodelog(cfg, 1, "...returning GitHub file permalink")
     return string(GitHub.permalink(results["content"], results["commit"]))
 end
