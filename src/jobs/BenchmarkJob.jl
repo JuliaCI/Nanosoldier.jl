@@ -97,10 +97,22 @@ submission(job::BenchmarkJob) = job.submission
 function Base.run(job::BenchmarkJob)
     node = myid()
     cfg = submission(job).config
+
+    # update BaseBenchmarks
+    branchname = cfg.testmode ? "test" : "nanosoldier"
+    oldpwd = pwd()
+    cd(Pkg.dir("BaseBenchmarks"))
+    run(`git fetch --all --quiet`)
+    run(`git reset --hard --quiet origin/$(branchname)`)
+    cd(oldpwd)
+
+    # run primary job
     nodelog(cfg, node, "running primary build for $(summary(job))")
     primary_results = execute_benchmarks!(job, :primary)
     nodelog(cfg, node, "finished primary build for $(summary(job))")
     results = Dict("primary" => primary_results)
+
+    # run comparison job
     if !(isnull(job.against))
         nodelog(cfg, node, "running comparison build for $(summary(job))")
         against_results = execute_benchmarks!(job, :against)
@@ -108,6 +120,8 @@ function Base.run(job::BenchmarkJob)
         results["against"] = against_results
         results["judged"] = BenchmarkTools.judge(primary_results, against_results)
     end
+
+    # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
     report(job, results)
     nodelog(cfg, node, "completed $(summary(job))")
@@ -166,7 +180,6 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
     bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
     benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
-    branchname = cfg.testmode ? "test" : "nanosoldier"
 
     open(jlscriptpath, "w") do file
         println(file, """
@@ -179,13 +192,6 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
                       blas_set_num_threads(1) # ensure BLAS threads do not trample each other
                       addprocs(1)             # add worker that can be used by parallel benchmarks
-
-                      # update BaseBenchmarks
-                      oldpwd = pwd()
-                      cd(Pkg.dir("BaseBenchmarks"))
-                      run(`git fetch --all --quiet`)
-                      run(`git reset --hard --quiet origin/$(branchname)`)
-                      cd(oldpwd)
 
                       using BaseBenchmarks
                       using BenchmarkTools
