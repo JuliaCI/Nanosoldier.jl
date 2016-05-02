@@ -98,12 +98,15 @@ function Base.run(job::BenchmarkJob)
     node = myid()
     cfg = submission(job).config
 
-    # update BaseBenchmarks
+    # update BaseBenchmarks for all Julia versions
     branchname = cfg.testmode ? "test" : "nanosoldier"
     oldpwd = pwd()
-    cd(Pkg.dir("BaseBenchmarks"))
-    run(`git fetch --all --quiet`)
-    run(`git reset --hard --quiet origin/$(branchname)`)
+    versiondirs = ("v0.4", "v0.5")
+    for v in versiondirs
+        cd(joinpath(homedir(), ".julia", v, "BaseBenchmarks"))
+        run(`git fetch --all --quiet`)
+        run(`git reset --hard --quiet origin/$(branchname)`)
+    end
     cd(oldpwd)
 
     # run primary job
