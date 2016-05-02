@@ -30,12 +30,16 @@ CI jobs are implemented in this package as subtypes of `Nanosoldier.AbstractJob`
 
 #### `BenchmarkJob`
 
-The `BenchmarkJob` type defines a CI job with the following execution cycle:
+##### Execution Cycle
+
+A `BenchmarkJob` has the following execution cycle:
 
 1. Pull in the JuliaLang/julia repository and build the commit specified by the context of the trigger phrase.
 2. Using the new Julia build, fetch the `nanosoldier` branch of the [BaseBenchmarks](https://github.com/JuliaCI/BaseBenchmarks.jl) repository and run the benchmarks specified by the trigger phrase.
 3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
 4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
+
+##### Trigger Syntax
 
 A `BenchmarkJob` is triggered with the following syntax:
 
@@ -53,6 +57,8 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 - `"@sha"`: the commit specified by `sha` in the current repository (`JuliaLang/julia`)
 - `"owner/repo:branch"`: the head commit of the branch named `branch` in the repository `owner/repo`
 - `"owner/repo@sha"`: the commit specified by `sha` in the repository `owner/repo`
+
+##### Comment Examples
 
 Here are some examples of comments that trigger a `BenchmarkJob` in various contexts:
 
