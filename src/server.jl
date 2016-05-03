@@ -65,7 +65,7 @@ function Base.run(server::Server, args...; kwargs...)
                             reply_status(job, "error", message)
                         end
                     end
-                    sleep(3) # poll only every 3 seconds so as not to throttle CPU
+                    sleep(10) # poll only every 10 seconds so as not to throttle CPU
                 end
             catch err
                 nodelog(server.config, node, "encountered task error: $(err)")
