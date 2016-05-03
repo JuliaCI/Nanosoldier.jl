@@ -60,7 +60,6 @@ function BenchmarkJob(submission::JobSubmission)
         else
             error("invalid argument to `vs` keyword")
         end
-        againstbuild.flags = submission.build.flags
         against = Nullable(againstbuild)
     else
         against = Nullable{BuildRef}()

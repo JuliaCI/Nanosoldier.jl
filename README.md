@@ -100,9 +100,3 @@ against the head commit of my fork's branch.
 
 @nanosoldier `runbenchmarks(ALL, vs = "jrevels/julia:mybranch")`
 ```
-
-## Keyword arguments supported by all job types
-
-All job types support the following keyword arguments in their trigger syntax:
-
-- `flags = "..."`: If the job builds Julia, flags in this string will be passed to `make`.

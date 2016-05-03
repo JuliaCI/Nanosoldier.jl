@@ -6,16 +6,14 @@ type BuildRef
     repo::UTF8String  # the build repo
     sha::UTF8String   # the build + status SHA
     vinfo::UTF8String # versioninfo() taken during the build
-    flags::UTF8String # arguments passed to make
 end
 
-BuildRef(repo, sha) = BuildRef(repo, sha, "?", "")
+BuildRef(repo, sha) = BuildRef(repo, sha, "?")
 
 function Base.(:(==))(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
-            a.vinfo == b.vinfo &&
-            a.flags == b.flags)
+            a.vinfo == b.vinfo)
 end
 
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
@@ -47,8 +45,7 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
         run(`git checkout --quiet $(build.sha)`)
     end
 
-    # string interpolation + parse/eval needed to thwart weird quoting behavior
-    run(eval(parse("`make --silent $(build.flags)`")))
+    run(`make --silent`)
 
     cd(workdir(config))
 

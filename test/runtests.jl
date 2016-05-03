@@ -36,18 +36,13 @@ against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3
 config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
 
 function build_test_submission(tagpred; vs = "", flags = "")
-    if isempty(flags) && isempty(vs)
+    if isempty(vs)
         phrase_match = "@nanosoldier `runbenchmarks($(tagpred))`"
-    elseif !(isempty(vs)) && !(isempty(flags))
-        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); flags = $(flags), vs = $(vs))`"
-    elseif !(isempty(vs))
+    else
         phrase_match = "@nanosoldier `runbenchmarks($(tagpred); vs = $(vs))`"
-    elseif !(isempty(flags))
-        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); flags = $(flags))`"
     end
     func, args, kwargs = Nanosoldier.parse_phrase_match(phrase_match)
     submission = JobSubmission(config, primary, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
-    @test submission.build.flags == flags
     @test Nanosoldier.isvalid(submission, BenchmarkJob)
     return submission
 end
@@ -56,7 +51,7 @@ build_test_submission("ALL", vs = "\"JuliaLang/julia:master\"")
 build_test_submission("\"tag\"")
 
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
-sub = build_test_submission(tagpred, flags = "\"-j 4\"")
+sub = build_test_submission(tagpred)
 job = BenchmarkJob(sub)
 @test Nanosoldier.submission(job) == sub
 @test job.tagpred == tagpred

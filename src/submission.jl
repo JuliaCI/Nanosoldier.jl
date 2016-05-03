@@ -8,15 +8,6 @@ type JobSubmission
     func::UTF8String
     args::Vector{UTF8String}
     kwargs::Dict{Symbol,UTF8String}
-    function JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
-        if haskey(kwargs, :flags)
-            build.flags = kwargs[:flags]
-            delete!(kwargs, :flags)
-        else
-            build.flags = ""
-        end
-        return new(config, build, url, fromkind, prnumber, func, args, kwargs)
-    end
 end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::RegexMatch)
