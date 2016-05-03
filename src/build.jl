@@ -45,9 +45,13 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
         run(`git checkout --quiet $(build.sha)`)
     end
 
-    run(`make --silent`)
+    # set up logs for STDOUT and STDERR
+    logname = string(build.sha, "_build")
+    outfile = joinpath(logdir(config), string(logname, ".out"))
+    errfile = joinpath(logdir(config), string(logname, ".err"))
 
+    # run the build
+    run(`make 1> $(outfile) 2> $(errfile)`)
     cd(workdir(config))
-
     return builddir
 end
