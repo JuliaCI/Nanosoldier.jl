@@ -154,7 +154,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # then serialized to a JLD file so that we can retrieve them.
     #
     # CPU shielding requires passwordless sudo access to `cset`. To enable this for the
-    # server user, run `sudo visudo -f /etc/sudoers.d/cpus` and add the following line:
+    # server user, run `sudo visudo` and add the following line:
     #
     #   `user ALL=(ALL:ALL) NOPASSWD: /path_to_cset/cset`
     #
