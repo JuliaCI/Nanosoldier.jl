@@ -31,11 +31,11 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LLVM: libLLVM-3.3
 """
 
-primary = BuildRef("jrevels/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo, "")
-against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against", ""))
+primary = BuildRef("jrevels/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
+against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against"))
 config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
 
-function build_test_submission(tagpred; vs = "", flags = "")
+function build_test_submission(tagpred; vs = "")
     if isempty(vs)
         phrase_match = "@nanosoldier `runbenchmarks($(tagpred))`"
     else

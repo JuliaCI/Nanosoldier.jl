@@ -1,4 +1,4 @@
-nodes = addprocs(["nanosoldier5"])
+nodes = addprocs(["nanosoldier6"])
 
 import Nanosoldier, GitHub
 
@@ -10,6 +10,6 @@ config = Nanosoldier.Config(ENV["USER"], nodes, cpus, auth, secret;
                             workdir = joinpath(homedir(), "workdir"),
                             trackrepo = "jrevels/julia",
                             reportrepo = "jrevels/BaseBenchmarkReports",
-                            testmode = true)
+                            testmode = true, skipbuild = false)
 
 server = Nanosoldier.Server(config)

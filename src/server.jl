@@ -42,9 +42,7 @@ end
 
 function Base.run(server::Server, args...; kwargs...)
     @assert myid() == 1 "Nanosoldier server must be run from the master node"
-    persistdir!(workdir(server.config))
-    persistdir!(resultdir(server.config))
-    persistdir!(logdir(server.config))
+    persistdir!(server.config)
     # Schedule a task for each node that feeds the node a job from the
     # queque once the node has completed its primary job. If the queue is
     # empty, then the task will call `yield` in order to avoid a deadlock.
@@ -58,6 +56,7 @@ function Base.run(server::Server, args...; kwargs...)
                         job = shift!(server.jobs)
                         reply_status(job, "pending", "running on node $(node): $(summary(job))")
                         try
+                            remotecall_fetch(persistdir!, node, server.config)
                             remotecall_fetch(run, node, job)
                         catch err
                             message = "encountered error: $(err)"
@@ -65,7 +64,7 @@ function Base.run(server::Server, args...; kwargs...)
                             reply_status(job, "error", message)
                         end
                     end
-                    sleep(10) # poll only every 10 seconds so as not to throttle CPU
+                    sleep(5) # poll only every 5 seconds so as not to throttle CPU
                 end
             catch err
                 nodelog(server.config, node, "encountered task error: $(err)")

@@ -133,7 +133,10 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cfg = submission(job).config
     build = whichbuild == :against ? get(job.against) : submission(job).build
 
-    if !(cfg.testmode)
+    if cfg.skipbuild
+        builddir = mktempdir(workdir(cfg))
+        juliapath = joinpath(homedir(), "julia-dev/julia-0.5/julia")
+    else
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
@@ -142,9 +145,6 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
             builddir = build_julia!(cfg, build)
         end
         juliapath = joinpath(builddir, "julia")
-    else
-        builddir = mktempdir(workdir(cfg))
-        juliapath = joinpath(homedir(), "julia-dev/julia-0.5/julia")
     end
 
     cd(builddir)

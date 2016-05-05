@@ -92,8 +92,7 @@ function parse_phrase_match(phrase_match::AbstractString)
     name = fncall[1:(argind - 1)]
     parsed_args = parse(replace(fncall[argind:end], ";", ","))
     args, kwargs = Vector{UTF8String}(), Dict{Symbol,UTF8String}()
-    if isa(parsed_args, Expr)
-        @assert parsed_args.head == :tuple "invalid argument format"
+    if isa(parsed_args, Expr) && parsed_args.head == :tuple
         started_kwargs = false
         for x in parsed_args.args
             if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
