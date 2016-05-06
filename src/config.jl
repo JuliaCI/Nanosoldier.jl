@@ -36,9 +36,9 @@ logdir(config::Config) = joinpath(workdir(config), "logs")
 persistdir!(path) = (!(isdir(path)) && mkdir(path); return path)
 
 function persistdir!(config::Config)
-    persistdir!(workdir(cfg))
-    persistdir!(resultdir(cfg))
-    persistdir!(logdir(cfg))
+    persistdir!(workdir(config))
+    persistdir!(resultdir(config))
+    persistdir!(logdir(config))
 end
 
 function nodelog(config::Config, node, message)
