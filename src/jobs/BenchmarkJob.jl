@@ -135,7 +135,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     if cfg.skipbuild
         builddir = mktempdir(workdir(cfg))
-        juliapath = joinpath(homedir(), "julia-dev/julia-0.5/julia")
+        juliapath = joinpath(homedir(), "julia5/julia")
     else
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
