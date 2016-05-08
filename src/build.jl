@@ -51,7 +51,7 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
     errfile = joinpath(logdir(config), string(logname, ".err"))
 
     # run the build
-    run(`make 1> $(outfile) 2> $(errfile)`)
+    run(pipeline(`make`, stdout = outfile, stderr = errfile))
     cd(workdir(config))
     return builddir
 end
