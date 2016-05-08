@@ -28,7 +28,7 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
     if !(isnull(prnumber))
         pr = get(prnumber)
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
-        run(`git clone --quiet https://github.com/$(cfg.trackrepo) $(builddir)`)
+        run(`git clone --quiet https://github.com/$(config.trackrepo) $(builddir)`)
         cd(builddir)
         try
             run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)
