@@ -44,6 +44,7 @@ type BenchmarkJob <: AbstractJob
     submission::JobSubmission
     tagpred::UTF8String         # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
+    skipbuild::Bool
 end
 
 function BenchmarkJob(submission::JobSubmission)
@@ -64,7 +65,12 @@ function BenchmarkJob(submission::JobSubmission)
     else
         against = Nullable{BuildRef}()
     end
-    return BenchmarkJob(submission, first(submission.args), against)
+    if haskey(submission.kwargs, :skipbuild)
+        skipbuild = submission.kwargs[:skipbuild] == "true"
+    else
+        skipbuild = false
+    end
+    return BenchmarkJob(submission, first(submission.args), against, skipbuild)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -84,7 +90,7 @@ function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
     args, kwargs = submission.args, submission.kwargs
     return (submission.func == "runbenchmarks" &&
             (length(args) == 1 && is_valid_tagpred(first(args))) &&
-            (isempty(kwargs) || (length(kwargs) == 1 && first(keys(kwargs)) == :vs)))
+            (isempty(kwargs) || (length(kwargs) < 3)))
 end
 
 submission(job::BenchmarkJob) = job.submission
@@ -133,7 +139,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cfg = submission(job).config
     build = whichbuild == :against ? get(job.against) : submission(job).build
 
-    if cfg.skipbuild
+    if job.skipbuild
         builddir = mktempdir(workdir(cfg))
         juliapath = joinpath(homedir(), "julia5/julia")
     else
