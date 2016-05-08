@@ -136,13 +136,16 @@ function Base.run(job::BenchmarkJob)
 end
 
 function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
+    node = myid()
     cfg = submission(job).config
     build = whichbuild == :against ? get(job.against) : submission(job).build
 
     if job.skipbuild
+        nodelog(cfg, node, "...skipping julia build...")
         builddir = mktempdir(workdir(cfg))
         juliapath = joinpath(homedir(), "julia5/julia")
     else
+        nodelog(cfg, node, "...building julia...")
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
@@ -152,6 +155,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         end
         juliapath = joinpath(builddir, "julia")
     end
+
+    nodelog(cfg, node, "...setting up benchmark scripts/environment...")
 
     cd(builddir)
 
@@ -237,9 +242,13 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # shield our CPUs
     run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
+
     # execute our script as the server user on the shielded CPU
+    nodelog(cfg, node, "...executing benchmarks...")
     run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
+
     # clean up the cpusets
+    nodelog(cfg, node, "...post processing/environment cleanup...")
     run(`sudo cset set -d /user/child`)
     run(`sudo cset shield --reset`)
 
