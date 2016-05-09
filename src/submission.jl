@@ -2,6 +2,7 @@
 type JobSubmission
     config::Config
     build::BuildRef
+    statussha::UTF8String   # the SHA to send statuses to (since `build` can mutate)
     url::UTF8String         # the URL linking to the triggering comment
     fromkind::Symbol        # `:pr`, `:review`, or `:commit`?
     prnumber::Nullable{Int} # the job's PR number, if `fromkind` is `:pr` or `:review`
@@ -12,9 +13,9 @@ end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::RegexMatch)
     try
-        build, url, fromkind, prnumber = parse_event(config, event)
+        build, statussha, url, fromkind, prnumber = parse_event(config, event)
         func, args, kwargs = parse_phrase_match(phrase.match)
-        return JobSubmission(config, build, url, fromkind, prnumber, func, args, kwargs)
+        return JobSubmission(config, build, statussha, url, fromkind, prnumber, func, args, kwargs)
     catch err
         error("could not parse comment into job submission: $err")
     end
@@ -24,7 +25,7 @@ function Base.(:(==))(a::JobSubmission, b::JobSubmission)
     if isnull(a.prnumber) == isnull(b.prnumber)
         same_prnumber = isnull(a.prnumber) ? true : (get(a.prnumber) == get(b.prnumber))
         return (same_prnumber && a.config == b.config && a.build == b.build &&
-                a.url == b.url && a.fromkind == b.fromkind &&
+                a.statussha == b.statussha && a.url == b.url && a.fromkind == b.fromkind &&
                 a.func == b.func && a.args == b.args)
     else
         return false
@@ -72,7 +73,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         fromkind = :pr
         prnumber = Nullable(Int(get(pr.number)))
     end
-    return BuildRef(repo, sha), url, fromkind, prnumber
+    return BuildRef(repo, sha), sha, url, fromkind, prnumber
 end
 
 # `x` can only be Expr, Symbol, QuoteNode, T<:Number, or T<:AbstractString
@@ -114,7 +115,7 @@ function reply_status(sub::JobSubmission, state, description, url=nothing)
                   "context" => "Nanosoldier",
                   "description" => snip(description, 140))
     url != nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.config.trackrepo, sub.build.sha;
+    return GitHub.create_status(sub.config.trackrepo, sub.statussha;
                                 auth = sub.config.auth, params = params)
 end
 

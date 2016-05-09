@@ -42,7 +42,7 @@ function build_test_submission(tagpred; vs = "")
         phrase_match = "@nanosoldier `runbenchmarks($(tagpred); vs = $(vs))`"
     end
     func, args, kwargs = Nanosoldier.parse_phrase_match(phrase_match)
-    submission = JobSubmission(config, primary, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
+    submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
     @test Nanosoldier.isvalid(submission, BenchmarkJob)
     return submission
 end
