@@ -13,7 +13,10 @@ immutable Server
         handle = (event, phrase) -> begin
             nodelog(config, 1, "recieved job submission with phrase $phrase")
             if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
-                return HttpCommon.Response(400, "Nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
+                return HttpCommon.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
+            end
+            if haskey(event.payload, "action") && event.payload["action"] != "created"
+                return HttpCommon.Response(204, "no action taken (submission was from an edit or delete)")
             end
             submission = JobSubmission(config, event, phrase)
             addedjob = false
