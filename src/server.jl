@@ -54,12 +54,15 @@ function Base.run(server::Server, args...; kwargs...)
                         yield()
                     else
                         job = shift!(server.jobs)
-                        reply_status(job, "pending", "running on node $(node): $(summary(job))")
+                        message = "running on node $(node): $(summary(job))"
+                        reply_status(job, "pending", message)
+                        nodelog(server.config, node, message)
                         try
                             remotecall_fetch(persistdir!, node, server.config)
                             remotecall_fetch(run, node, job)
+                            nodelog(server.config, node, "completed job: $(summary(job))")
                         catch err
-                            message = "encountered error: $(err)"
+                            message = "error on node $(node): $(err)"
                             nodelog(server.config, node, message)
                             reply_status(job, "error", message)
                         end
