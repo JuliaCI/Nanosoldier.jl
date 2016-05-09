@@ -7,7 +7,7 @@ auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
 secret = ENV["GITHUB_SECRET"]
 
 config = Nanosoldier.Config(ENV["USER"], nodes, cpus, auth, secret;
-                            workdir = joinpath(homedir(), "workdir"),
+                            workdir = joinpath(homedir(), "test_workdir"),
                             trackrepo = "jrevels/julia",
                             reportrepo = "jrevels/BaseBenchmarkReports",
                             testmode = true)
