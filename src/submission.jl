@@ -120,9 +120,9 @@ function reply_status(sub::JobSubmission, state, description, url=nothing)
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
-    commentplace = isnull(sub.prnumber) ? sub.build.sha : get(sub.prnumber)
+    commentplace = isnull(sub.prnumber) ? sub.statussha : get(sub.prnumber)
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
-    return GitHub.create_comment(sub.build.repo, commentplace, commentkind;
+    return GitHub.create_comment(sub.config.trackrepo, commentplace, commentkind;
                                  auth = sub.config.auth, params = Dict("body" => message))
 end
 
