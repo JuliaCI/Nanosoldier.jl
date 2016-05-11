@@ -15,8 +15,8 @@ immutable Server
             if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
                 return HttpCommon.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
             end
-            if haskey(event.payload, "action") && event.payload["action"] != "created"
-                return HttpCommon.Response(204, "no action taken (submission was from an edit or delete)")
+            if haskey(event.payload, "action") && (event.payload["action"] != "created" || event.payload["action"] != "opened")
+                return HttpCommon.Response(204, "no action taken (submission was from an edit, close, or delete)")
             end
             submission = JobSubmission(config, event, phrase)
             addedjob = false
