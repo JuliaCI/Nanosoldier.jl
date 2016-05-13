@@ -459,9 +459,11 @@ end
 
 idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
 
+intpercent(p) = string(ceil(Int, p * 100), "%")
+
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
-    t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
-    m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
+    t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
+    m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
     timestr = string(BenchmarkTools.prettytime(BenchmarkTools.time(t)), " (", t_tol, ")")
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
@@ -470,8 +472,8 @@ function resultrow(ids, t::BenchmarkTools.TrialEstimate)
 end
 
 function resultrow(ids, t::BenchmarkTools.TrialJudgement)
-    t_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).time_tolerance)
-    m_tol = BenchmarkTools.prettypercent(BenchmarkTools.params(t).memory_tolerance)
+    t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
+    m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
     t_ratio = @sprintf("%.2f", BenchmarkTools.time(BenchmarkTools.ratio(t)))
     m_ratio =  @sprintf("%.2f", BenchmarkTools.memory(BenchmarkTools.ratio(t)))
     t_mark = resultmark(BenchmarkTools.time(t))
