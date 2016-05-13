@@ -1,5 +1,7 @@
 # Nanosoldier.jl
 
+[![Build Status](https://travis-ci.org/JuliaCI/Nanosoldier.jl.svg?branch=master)](https://travis-ci.org/JuliaCI/Nanosoldier.jl)
+
 This package contains the infrastructure powering the @nanosoldier CI bot used by the Julia language.
 
 ## Submitting CI jobs via comments
