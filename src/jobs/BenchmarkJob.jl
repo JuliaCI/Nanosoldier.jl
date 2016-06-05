@@ -44,7 +44,8 @@ type BenchmarkJob <: AbstractJob
     submission::JobSubmission
     tagpred::UTF8String         # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
-    skipbuild::Bool
+    skipbuild::Bool             # use local v0.5 install instead of a fresh build (for testing)
+    daily::Bool                 # the submitted job is a daily build
 end
 
 function BenchmarkJob(submission::JobSubmission)
@@ -65,12 +66,20 @@ function BenchmarkJob(submission::JobSubmission)
     else
         against = Nullable{BuildRef}()
     end
+
     if haskey(submission.kwargs, :skipbuild)
         skipbuild = submission.kwargs[:skipbuild] == "true"
     else
         skipbuild = false
     end
-    return BenchmarkJob(submission, first(submission.args), against, skipbuild)
+
+    if haskey(submission.kwargs, :daily)
+        daily = submission.kwargs[:daily] == "true"
+    else
+        daily = false
+    end
+
+    return BenchmarkJob(submission, first(submission.args), against, skipbuild, daily)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -87,10 +96,12 @@ function Base.summary(job::BenchmarkJob)
 end
 
 function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
+    allowed_kwargs = (:vs, :skipbuild, :daily)
     args, kwargs = submission.args, submission.kwargs
-    return (submission.func == "runbenchmarks" &&
-            (length(args) == 1 && is_valid_tagpred(first(args))) &&
-            (isempty(kwargs) || (length(kwargs) < 3)))
+    has_valid_args = length(args) == 1 && is_valid_tagpred(first(args))
+    has_valid_kwargs = (all(key -> in(key, allowed_kwargs), keys(kwargs)) &&
+                        (length(kwargs) <= length(allowed_kwargs)))
+    return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::BenchmarkJob) = job.submission

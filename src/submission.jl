@@ -97,6 +97,7 @@ function parse_phrase_match(phrase_match::AbstractString)
         started_kwargs = false
         for x in parsed_args.args
             if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
+                @assert !(haskey(kwargs, x.args[1])) "kwargs must all be unique"
                 kwargs[x.args[1]] = phrase_argument(x.args[2])
                 started_kwargs = true
             else

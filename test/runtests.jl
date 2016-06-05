@@ -3,9 +3,9 @@ using Nanosoldier, Base.Test, Compat, BenchmarkTools
 using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob
 using BenchmarkTools: TrialEstimate, Parameters
 
-##############################
-# Markdown Report Generation #
-##############################
+#########
+# setup #
+#########
 
 vinfo = """
 Julia Version 0.4.3-pre+6
@@ -34,24 +34,40 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 primary = BuildRef("jrevels/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
 against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against"))
 config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
+tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 
-function build_test_submission(tagpred; vs = "")
-    if isempty(vs)
-        phrase_match = "@nanosoldier `runbenchmarks($(tagpred))`"
-    else
-        phrase_match = "@nanosoldier `runbenchmarks($(tagpred); vs = $(vs))`"
-    end
+#####################################
+# submission parsing and validation #
+#####################################
+
+function build_test_submission(phrase_match)
     func, args, kwargs = Nanosoldier.parse_phrase_match(phrase_match)
     submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
     @test Nanosoldier.isvalid(submission, BenchmarkJob)
     return submission
 end
 
-build_test_submission("ALL", vs = "\"JuliaLang/julia:master\"")
-build_test_submission("\"tag\"")
+build_test_submission("@nanosoldier `runbenchmarks(ALL)`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred)`")
 
-tagpred = "ALL && !(\"tag1\" || \"tag2\")"
-sub = build_test_submission(tagpred)
+build_test_submission("@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia:master\")`")
+
+build_test_submission("@nanosoldier `runbenchmarks(ALL, daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\", daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred, daily = true, vs = \"JuliaLang/julia:master\")`")
+
+build_test_submission("@nanosoldier `runbenchmarks(ALL; daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\"; daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred; daily = true, vs = \"JuliaLang/julia:master\")`")
+
+#########################
+# job report generation #
+#########################
+
+sub = build_test_submission("@nanosoldier `runbenchmarks($tagpred)`")
 job = BenchmarkJob(sub)
 @test Nanosoldier.submission(job) == sub
 @test job.tagpred == tagpred
