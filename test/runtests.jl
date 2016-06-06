@@ -55,13 +55,13 @@ build_test_submission("@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia:m
 build_test_submission("@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia:master\")`")
 build_test_submission("@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia:master\")`")
 
-build_test_submission("@nanosoldier `runbenchmarks(ALL, daily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission("@nanosoldier `runbenchmarks(\"tag\", daily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission("@nanosoldier `runbenchmarks($tagpred, daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(ALL, isdaily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
-build_test_submission("@nanosoldier `runbenchmarks(ALL; daily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission("@nanosoldier `runbenchmarks(\"tag\"; daily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission("@nanosoldier `runbenchmarks($tagpred; daily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(ALL; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+build_test_submission("@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
 #########################
 # job report generation #

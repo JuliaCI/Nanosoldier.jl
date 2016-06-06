@@ -127,18 +127,16 @@ function reply_comment(sub::JobSubmission, message::AbstractString)
                                  auth = sub.config.auth, params = Dict("body" => message))
 end
 
-function upload_report_file(sub::JobSubmission, path, content, message)
+function upload_report_repo!(sub::JobSubmission, markdownpath, message)
     cfg = sub.config
-    params = Dict("content" => content, "message" => message)
-    # An HTTP response code of 400 means the file doesn't exist, which will cause the
-    # returned `GitHub.Content` object to contain a null `sha` field. We set `handle_error`
-    # to false so that GitHub.jl doesn't throw an error in the case of a 400 response code.
-    priorfile = GitHub.file(cfg.reportrepo, path; auth = cfg.auth, handle_error = false)
-    if isnull(priorfile.sha)
-        results = GitHub.create_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
-    else
-        params["sha"] = get(priorfile.sha)
-        results = GitHub.update_file(cfg.reportrepo, path; auth = cfg.auth, params = params)
+    sha = cd(reportdir(cfg)) do
+        run(`git add -A`)
+        run(`git commit -m $message`)
+        headsha = chomp(readstring(`git rev-parse HEAD`))
+        run(`git pull -X ours`)
+        run(`git push`)
+        return headsha
     end
-    return string(GitHub.permalink(results["content"], results["commit"]))
+    reportfile = GitHub.file(reportrepo(cfg), markdownpath; auth = cfg.auth)
+    return string(GitHub.permalink(reportfile, sha))
 end

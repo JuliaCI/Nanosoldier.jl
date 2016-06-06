@@ -41,11 +41,12 @@ end
 ################
 
 type BenchmarkJob <: AbstractJob
-    submission::JobSubmission
+    submission::JobSubmission   # the original submission
     tagpred::UTF8String         # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
+    date::Dates.Date            # the date of the submitted job
+    isdaily::Bool               # is the job a daily job?
     skipbuild::Bool             # use local v0.5 install instead of a fresh build (for testing)
-    daily::Bool                 # the submitted job is a daily build
 end
 
 function BenchmarkJob(submission::JobSubmission)
@@ -73,13 +74,14 @@ function BenchmarkJob(submission::JobSubmission)
         skipbuild = false
     end
 
-    if haskey(submission.kwargs, :daily)
-        daily = submission.kwargs[:daily] == "true"
+    if haskey(submission.kwargs, :isdaily)
+        isdaily = submission.kwargs[:isdaily] == "true"
     else
-        daily = false
+        isdaily = false
     end
 
-    return BenchmarkJob(submission, first(submission.args), against, skipbuild, daily)
+    return BenchmarkJob(submission, first(submission.args), against,
+                        Dates.today(), skipbuild, isdaily)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -96,7 +98,7 @@ function Base.summary(job::BenchmarkJob)
 end
 
 function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
-    allowed_kwargs = (:vs, :skipbuild, :daily)
+    allowed_kwargs = (:vs, :skipbuild, :isdaily)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_tagpred(first(args))
     has_valid_kwargs = (all(key -> in(key, allowed_kwargs), keys(kwargs)) &&
@@ -105,6 +107,23 @@ function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
 end
 
 submission(job::BenchmarkJob) = job.submission
+
+function jobdirname(job::BenchmarkJob)
+    if job.isdaily
+        return string("daily_", year(job.date), "_", month(job.date), "_", day(job.date))
+    else
+        primarysha = snipsha(submission(job).build.sha)
+        if isnull(job.against)
+            return primarysha
+        else
+            againstsha = snipsha(get(job.against).sha)
+            return string(primarysha, "_vs_", againstsha)
+        end
+    end
+end
+
+reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+datadir(job::BenchmarkJob) = joinpath(reportdir(job), "data")
 
 ##########################
 # BenchmarkJob Execution #
@@ -125,6 +144,9 @@ function Base.run(job::BenchmarkJob)
     end
     cd(oldpwd)
 
+    # make data directory for job
+    mkdir(datadir(job))
+
     # run primary job
     nodelog(cfg, node, "running primary build for $(summary(job))")
     primary_results = execute_benchmarks!(job, :primary)
@@ -137,7 +159,7 @@ function Base.run(job::BenchmarkJob)
         against_results = execute_benchmarks!(job, :against)
         nodelog(cfg, node, "finished comparison build for $(summary(job))")
         results["against"] = against_results
-        results["judged"] = BenchmarkTools.judge(primary_results, against_results)
+        results["judged"] = BenchmarkTools.judge(minimum(primary_results), minimum(against_results))
     end
 
     # report results
@@ -201,13 +223,13 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     end
 
     benchname = string(build.sha, "_", whichbuild)
-    benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
-    bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
-    benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
+    benchout = joinpath(reportdir(job), string(benchname, ".out"))
+    bencherr = joinpath(reportdir(job), string(benchname, ".err"))
+    benchresults = joinpath(datadir(job), string(benchname, ".jld"))
 
     open(jlscriptpath, "w") do file
         println(file, """
-                      println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the logs folder)")
+                      println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
 
@@ -231,7 +253,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       warmup(benchmarks)
 
                       println("RUNNING BENCHMARKS...")
-                      results = minimum(run(benchmarks; verbose = true))
+                      results = run(benchmarks; verbose = true)
 
                       println("SAVING RESULT...")
                       JLD.save(\"$(benchresults)\", "results", results)
@@ -287,25 +309,10 @@ end
 function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
-    target_url = ""
     if isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
     else
-        # To upload our JLD file, we'd need to use the Git Data API, which allows uploading
-        # of large binary blobs. Unfortunately, GitHub.jl doesn't yet implement the Git Data
-        # API, so we don't yet do this. The old code here uploaded a JSON file, but
-        # unfortunately didn't work very consistently because the JSON was often over the
-        # size limit.
-        # try
-        #     datapath = joinpath(reportdir(job), "$(reportfile(job)).json")
-        #     datastr = base64encode(JSON.json(results))
-        #     target_url = upload_report_file(job, datapath, datastr, "upload result data for $(summary(job))")
-        #     nodelog(cfg, node, "uploaded $(datapath) to $(cfg.reportrepo)")
-        # catch err
-        #     nodelog(cfg, node, "error when uploading result JSON file: $(err)")
-        # end
-
         # determine the job's final status
         if !(isnull(job.against))
             found_regressions = BenchmarkTools.isregression(results["judged"])
@@ -316,14 +323,25 @@ function report(job::BenchmarkJob, results)
             status = "successfully executed benchmarks"
         end
 
-        # upload markdown report to the report repository
+        # push to report repo
+        target_url = ""
         try
-            reportpath = joinpath(reportdir(job), "$(reportfile(job)).md")
-            reportstr = base64encode(sprint(io -> printreport(io, job, results)))
-            target_url = upload_report_file(job, reportpath, reportstr, "upload markdown report for $(summary(job))")
-            nodelog(cfg, node, "uploaded $(reportpath) to $(cfg.reportrepo)")
+            # prepare the benchmark data for uploading
+            nodelog(cfg, node, "...preparing data...")
+            cd(reportdir(job)) do
+                run(`tar -zcvf data.tar.gz data`)
+                rm(datadir(job), recursive = true)
+            end
+            # write the markdown report
+            nodelog(cfg, node, "...generating report...")
+            reportname = "report.md"
+            open(joinpath(reportdir(job), reportname)) do file
+                printreport(file, job, results)
+            end
+            # push changes to report repo
+            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload markdown report for $(summary(job))")
         catch err
-            nodelog(cfg, node, "error when uploading markdown report: $(err)")
+            nodelog(cfg, node, "error when pushing to report repo: $(err)")
         end
 
         # reply with the job's final status
@@ -336,14 +354,6 @@ function report(job::BenchmarkJob, results)
         reply_comment(job, comment)
     end
 end
-
-reportdir(job::BenchmarkJob) = snipsha(submission(job).build.sha)
-
-function reportfile(job::BenchmarkJob)
-    dir = reportdir(job)
-    return isnull(job.against) ? dir : "$(dir)_vs_$(snipsha(get(job.against).sha))"
-end
-
 
 # Markdown Report Generation #
 #----------------------------#

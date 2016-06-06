@@ -11,6 +11,11 @@ const BRANCH_SEPARATOR = ':'
 snip(str, len) = length(str) > len ? str[1:len] : str
 snipsha(sha) = snip(sha, 7)
 
+gitclone!(repo, path) = run(`git clone https://github.com/$(repo) $(path)`)
+
+gitreset!() = run(`git fetch --all && git reset --hard origin/master`)
+gitreset!(path) = cd(gitreset!, path)
+
 include("config.jl")
 include("build.jl")
 include("submission.jl")

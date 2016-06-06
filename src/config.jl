@@ -24,19 +24,25 @@ end
 # the shared space in which child nodes can work
 workdir(config::Config) = config.workdir
 
-# the directory where results are stored
-resultdir(config::Config) = joinpath(workdir(config), "results")
+# the report repository
+reportrepo(config::Config) = config.reportrepo
+
+# the local directory of the report repository
+reportdir(config::Config) = joinpath(workdir(config), split(reportrepo(config), "/")[2])
 
 # the directory where build logs are stored
 logdir(config::Config) = joinpath(workdir(config), "logs")
 
-# ensure directories exists
 persistdir!(path) = (!(isdir(path)) && mkdir(path); return path)
 
 function persistdir!(config::Config)
     persistdir!(workdir(config))
-    persistdir!(resultdir(config))
     persistdir!(logdir(config))
+    if isdir(reportdir(config))
+        gitreset!(reportdir(config))
+    else
+        gitclone!(reportrepo(config), reportdir(config))
+    end
 end
 
 function nodelog(config::Config, node, message)
