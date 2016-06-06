@@ -81,7 +81,7 @@ function BenchmarkJob(submission::JobSubmission)
     end
 
     return BenchmarkJob(submission, first(submission.args), against,
-                        Dates.today(), skipbuild, isdaily)
+                        Dates.today(), isdaily, skipbuild)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -108,9 +108,11 @@ end
 
 submission(job::BenchmarkJob) = job.submission
 
+datedirname(date::Dates.Date) = string("daily_", Dates.year(date), "_", Dates.month(date), "_", Dates.day(date))
+
 function jobdirname(job::BenchmarkJob)
     if job.isdaily
-        return string("daily_", year(job.date), "_", month(job.date), "_", day(job.date))
+        return datedirname(job.date)
     else
         primarysha = snipsha(submission(job).build.sha)
         if isnull(job.against)
@@ -133,7 +135,8 @@ function Base.run(job::BenchmarkJob)
     node = myid()
     cfg = submission(job).config
 
-    # update BaseBenchmarks for all Julia versions
+    # update BaseBenchmarks for all supported Julia versions
+    nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "test" : "nanosoldier"
     oldpwd = pwd()
     versiondirs = ("v0.4", "v0.5")
@@ -145,6 +148,10 @@ function Base.run(job::BenchmarkJob)
     cd(oldpwd)
 
     # make data directory for job
+    nodelog(cfg, node, "creating job directories in report repository")
+    nodelog(cfg, node, "...creating $(reportdir(job))...")
+    mkdir(reportdir(job))
+    nodelog(cfg, node, "...creating $(datadir(job))...")
     mkdir(datadir(job))
 
     # run primary job
@@ -153,12 +160,47 @@ function Base.run(job::BenchmarkJob)
     nodelog(cfg, node, "finished primary build for $(summary(job))")
     results = Dict("primary" => primary_results)
 
-    # run comparison job
-    if !(isnull(job.against))
+    # gather results to compare against
+    if job.isdaily # get results from previous day (if it exists, check the past 30 days)
+        nodelog(cfg, node, "retrieving results from previous daily build")
+        found_previous_date = false
+        i = 1
+        while !(found_previous_date) && i < 31
+            check_date = job.date - Dates.Day(i)
+            if isdir(joinpath(repordir(cfg), datedirname(check_date)))
+                results["previous_date"] = check_date
+                found_previous_date = true
+            end
+            i += 1
+        end
+        if found_previous_date # untar and retrieve old data
+            try
+                previous_path = joinpath(repordir(cfg), datedirname(results["previous_date"]))
+                cd(previous_path) do
+                    run(`tar -xvzf data.tar.gz`)
+                    datapath = joinpath(previous_path, "data")
+                    try
+                        datafiles = readdir(datapath)
+                        jldfile = datafiles[findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)]
+                        results["against"] = JLD.load(joinpath(datapath, jldfile), "results")
+                    catch err
+                        throw(err)
+                    finally
+                        rm(datapath, recursive = true)
+                    end
+                end
+            catch err
+                nodelog(cfg, node, "encountered error when retrieving old daily build data: $(err)")
+            end
+        end
+    elseif !(isnull(job.against)) # run comparison build
         nodelog(cfg, node, "running comparison build for $(summary(job))")
         against_results = execute_benchmarks!(job, :against)
         nodelog(cfg, node, "finished comparison build for $(summary(job))")
         results["against"] = against_results
+    end
+
+    if haskey(results, "against")
         results["judged"] = BenchmarkTools.judge(minimum(primary_results), minimum(against_results))
     end
 
@@ -391,7 +433,23 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 *Triggered By:* [link]($(submission(job).url))
 
                 *Tag Predicate:* `$(job.tagpred)`
+                """)
 
+    if job.isdaily
+        if haskey(results, "previous_date")
+            dailystr = string(job.date, " vs ", results["previous_date"])
+        else
+            dailystr = string(job.date)
+        end
+        println(io, """
+                    *Daily Job:* $(dailystr)
+                    """)
+    end
+
+    # print result table #
+    #--------------------#
+
+    println(io, """
                 ## Results
 
                 *Note: If Chrome is your browser, I strongly recommend installing the [Wide GitHub](https://chrome.google.com/webstore/detail/wide-github/kaalofacklcidaampbokdplbklpeldpj?hl=en)
@@ -407,8 +465,6 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
                 """)
 
-    # print result table #
-    #--------------------#
     if iscomparisonjob
         print(io, """
                   A ratio greater than `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less
