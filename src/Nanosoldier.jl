@@ -13,7 +13,7 @@ snipsha(sha) = snip(sha, 7)
 
 gitclone!(repo, path) = run(`git clone git@github.com:$(repo).git $(path)`)
 
-gitreset!() = run(`git fetch --all && git reset --hard origin/master`)
+gitreset!() = (run(`git fetch --all`); run(`git reset --hard origin/master`))
 gitreset!(path) = cd(gitreset!, path)
 
 include("config.jl")
