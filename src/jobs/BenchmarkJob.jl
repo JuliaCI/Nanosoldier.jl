@@ -151,6 +151,10 @@ function Base.run(job::BenchmarkJob)
     cd(oldpwd)
 
     # make data directory for job
+    if isdir(reportdir(job))
+        nodelog(cfg, node, "removing old job directory from report repository")
+        rm(reportdir(job), recursive = true)
+    end
     nodelog(cfg, node, "creating job directories in report repository")
     nodelog(cfg, node, "...creating $(reportdir(job))...")
     mkdir(reportdir(job))
