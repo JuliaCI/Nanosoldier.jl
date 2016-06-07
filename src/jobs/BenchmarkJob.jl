@@ -127,8 +127,9 @@ function jobdirname(job::BenchmarkJob)
 end
 
 reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
-logdir(job::BenchmarkJob) = joinpath(reportdir(job), "logs")
-datadir(job::BenchmarkJob) = joinpath(reportdir(job), "data")
+tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
+tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
+tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
 ##########################
 # BenchmarkJob Execution #
@@ -150,18 +151,23 @@ function Base.run(job::BenchmarkJob)
     end
     cd(oldpwd)
 
-    # make data directory for job
-    if isdir(reportdir(job))
-        nodelog(cfg, node, "removing old job directory from report repository")
-        rm(reportdir(job), recursive = true)
+    # make temporary directory for job results
+    # Why not create the job's actual report directory now instead? The answer is that
+    # the commit SHA that currently describes the job might change if we find out that
+    # we should use a merge commit instead. To avoid confusion, we dump all the results
+    # to this temporary directory first, then move the data to the correct location
+    # in the reporting phase.
+    nodelog(cfg, node, "creating temporary directory for benchmark results")
+    if isdir(tmpdir(job))
+        nodelog(cfg, node, "...removing old temporary directory...")
+        rm(tmpdir(job), recursive = true)
     end
-    nodelog(cfg, node, "creating job directories in report repository")
-    nodelog(cfg, node, "...creating $(reportdir(job))...")
-    mkdir(reportdir(job))
-    nodelog(cfg, node, "...creating $(logdir(job))...")
-    mkdir(logdir(job))
-    nodelog(cfg, node, "...creating $(datadir(job))...")
-    mkdir(datadir(job))
+    nodelog(cfg, node, "...creating $(tmpdir(job))...")
+    mkdir(tmpdir(job))
+    nodelog(cfg, node, "...creating $(tmplogdir(job))...")
+    mkdir(tmplogdir(job))
+    nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
+    mkdir(tmpdatadir(job))
 
     # run primary job
     nodelog(cfg, node, "running primary build for $(summary(job))")
@@ -233,9 +239,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
-            builddir = build_julia!(cfg, build, logdir(job), submission(job).prnumber)
+            builddir = build_julia!(cfg, build, tmplogdir(job), submission(job).prnumber)
         else
-            builddir = build_julia!(cfg, build, logdir(job))
+            builddir = build_julia!(cfg, build, tmplogdir(job))
         end
         juliapath = joinpath(builddir, "julia")
     end
@@ -274,9 +280,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     end
 
     benchname = string(build.sha, "_", whichbuild)
-    benchout = joinpath(logdir(job), string(benchname, ".out"))
-    bencherr = joinpath(logdir(job), string(benchname, ".err"))
-    benchresults = joinpath(datadir(job), string(benchname, ".jld"))
+    benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
+    bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
+    benchresults = joinpath(tmpdatadir(job), string(benchname, ".jld"))
 
     open(jlscriptpath, "w") do file
         println(file, """
@@ -379,16 +385,18 @@ function report(job::BenchmarkJob, results)
         try
             # prepare the benchmark data for uploading
             nodelog(cfg, node, "...preparing data...")
-            cd(reportdir(job)) do
+            cd(tmpdir(job)) do
                 run(`tar -zcvf data.tar.gz data`)
-                rm(datadir(job), recursive = true)
+                rm(tmpdatadir(job), recursive = true)
             end
             # write the markdown report
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
-            open(joinpath(reportdir(job), reportname), "w") do file
+            open(joinpath(tmpdir(job), reportname), "w") do file
                 printreport(file, job, results)
             end
+            nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
+            mv(tmpdir(job), reportdir(job); remove_destination = true)
             # push changes to report repo
             target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload report for $(summary(job))")
         catch err
