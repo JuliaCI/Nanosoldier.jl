@@ -91,7 +91,9 @@ end
 
 function Base.summary(job::BenchmarkJob)
     result = "BenchmarkJob $(summary(submission(job).build))"
-    if !(isnull(job.against))
+    if job.isdaily
+        result = "$(result) [daily]"
+    elseif !(isnull(job.against))
         result = "$(result) vs. $(summary(get(job.against)))"
     end
     return result
@@ -125,6 +127,7 @@ function jobdirname(job::BenchmarkJob)
 end
 
 reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+logdir(job::BenchmarkJob) = joinpath(reportdir(job), "logs")
 datadir(job::BenchmarkJob) = joinpath(reportdir(job), "data")
 
 ##########################
@@ -151,6 +154,8 @@ function Base.run(job::BenchmarkJob)
     nodelog(cfg, node, "creating job directories in report repository")
     nodelog(cfg, node, "...creating $(reportdir(job))...")
     mkdir(reportdir(job))
+    nodelog(cfg, node, "...creating $(logdir(job))...")
+    mkdir(logdir(job))
     nodelog(cfg, node, "...creating $(datadir(job))...")
     mkdir(datadir(job))
 
@@ -167,7 +172,7 @@ function Base.run(job::BenchmarkJob)
         i = 1
         while !(found_previous_date) && i < 31
             check_date = job.date - Dates.Day(i)
-            if isdir(joinpath(repordir(cfg), datedirname(check_date)))
+            if isdir(joinpath(reportdir(cfg), datedirname(check_date)))
                 results["previous_date"] = check_date
                 found_previous_date = true
             end
@@ -175,7 +180,7 @@ function Base.run(job::BenchmarkJob)
         end
         if found_previous_date # untar and retrieve old data
             try
-                previous_path = joinpath(repordir(cfg), datedirname(results["previous_date"]))
+                previous_path = joinpath(reportdir(cfg), datedirname(results["previous_date"]))
                 cd(previous_path) do
                     run(`tar -xvzf data.tar.gz`)
                     datapath = joinpath(previous_path, "data")
@@ -224,9 +229,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
-            builddir = build_julia!(cfg, build, submission(job).prnumber)
+            builddir = build_julia!(cfg, build, logdir(job), submission(job).prnumber)
         else
-            builddir = build_julia!(cfg, build)
+            builddir = build_julia!(cfg, build, logdir(job))
         end
         juliapath = joinpath(builddir, "julia")
     end
@@ -265,8 +270,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     end
 
     benchname = string(build.sha, "_", whichbuild)
-    benchout = joinpath(reportdir(job), string(benchname, ".out"))
-    bencherr = joinpath(reportdir(job), string(benchname, ".err"))
+    benchout = joinpath(logdir(job), string(benchname, ".out"))
+    bencherr = joinpath(logdir(job), string(benchname, ".err"))
     benchresults = joinpath(datadir(job), string(benchname, ".jld"))
 
     open(jlscriptpath, "w") do file
@@ -377,11 +382,11 @@ function report(job::BenchmarkJob, results)
             # write the markdown report
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
-            open(joinpath(reportdir(job), reportname)) do file
+            open(joinpath(reportdir(job), reportname), "w") do file
                 printreport(file, job, results)
             end
             # push changes to report repo
-            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload markdown report for $(summary(job))")
+            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload report for $(summary(job))")
         catch err
             nodelog(cfg, node, "error when pushing to report repo: $(err)")
         end

@@ -30,14 +30,10 @@ reportrepo(config::Config) = config.reportrepo
 # the local directory of the report repository
 reportdir(config::Config) = joinpath(workdir(config), split(reportrepo(config), "/")[2])
 
-# the directory where build logs are stored
-logdir(config::Config) = joinpath(workdir(config), "logs")
-
 persistdir!(path) = (!(isdir(path)) && mkdir(path); return path)
 
 function persistdir!(config::Config)
     persistdir!(workdir(config))
-    persistdir!(logdir(config))
     if isdir(reportdir(config))
         gitreset!(reportdir(config))
     else
@@ -46,8 +42,8 @@ function persistdir!(config::Config)
 end
 
 function nodelog(config::Config, node, message)
-    persistdir!(logdir(config))
-    open(joinpath(logdir(config), "node$(node).log"), "a") do file
+    persistdir!(workdir(config))
+    open(joinpath(workdir(config), "node$(node).log"), "a") do file
         println(file, now(), " | ", node, " | ", message)
     end
 end

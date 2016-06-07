@@ -19,7 +19,7 @@ end
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
 
 # if a PR number is included, attempt to build from the PR's merge commit
-function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} = Nullable{Int}())
+function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Nullable{Int} = Nullable{Int}())
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
     cd(workdir(config))
@@ -47,8 +47,8 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
 
     # set up logs for STDOUT and STDERR
     logname = string(build.sha, "_build")
-    outfile = joinpath(logdir(config), string(logname, ".out"))
-    errfile = joinpath(logdir(config), string(logname, ".err"))
+    outfile = joinpath(logpath, string(logname, ".out"))
+    errfile = joinpath(logpath, string(logname, ".err"))
 
     # run the build
     run(pipeline(`make`, stdout = outfile, stderr = errfile))
