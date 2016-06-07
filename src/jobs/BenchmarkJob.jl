@@ -543,6 +543,8 @@ idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
 
+resultrow(ids, t::BenchmarkTools.Trial) = resultrow(ids, minimum(t))
+
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
     m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
