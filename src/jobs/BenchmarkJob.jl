@@ -173,7 +173,7 @@ function Base.run(job::BenchmarkJob)
     nodelog(cfg, node, "running primary build for $(summary(job))")
     primary_results = execute_benchmarks!(job, :primary)
     nodelog(cfg, node, "finished primary build for $(summary(job))")
-    results = Dict("primary" => primary_results)
+    results = Dict{Any,Any}("primary" => primary_results)
 
     # gather results to compare against
     if job.isdaily # get results from previous day (if it exists, check the past 30 days)
@@ -210,13 +210,12 @@ function Base.run(job::BenchmarkJob)
         end
     elseif !(isnull(job.against)) # run comparison build
         nodelog(cfg, node, "running comparison build for $(summary(job))")
-        against_results = execute_benchmarks!(job, :against)
+        results["against"] = execute_benchmarks!(job, :against)
         nodelog(cfg, node, "finished comparison build for $(summary(job))")
-        results["against"] = against_results
     end
 
     if haskey(results, "against")
-        results["judged"] = BenchmarkTools.judge(minimum(primary_results), minimum(against_results))
+        results["judged"] = BenchmarkTools.judge(minimum(primary_results), minimum(results["against"]))
     end
 
     # report results
