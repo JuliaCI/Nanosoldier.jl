@@ -41,10 +41,12 @@ end
 ################
 
 type BenchmarkJob <: AbstractJob
-    submission::JobSubmission
+    submission::JobSubmission   # the original submission
     tagpred::UTF8String         # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
-    skipbuild::Bool
+    date::Dates.Date            # the date of the submitted job
+    isdaily::Bool               # is the job a daily job?
+    skipbuild::Bool             # use local v0.5 install instead of a fresh build (for testing)
 end
 
 function BenchmarkJob(submission::JobSubmission)
@@ -65,12 +67,21 @@ function BenchmarkJob(submission::JobSubmission)
     else
         against = Nullable{BuildRef}()
     end
+
     if haskey(submission.kwargs, :skipbuild)
         skipbuild = submission.kwargs[:skipbuild] == "true"
     else
         skipbuild = false
     end
-    return BenchmarkJob(submission, first(submission.args), against, skipbuild)
+
+    if haskey(submission.kwargs, :isdaily)
+        isdaily = submission.kwargs[:isdaily] == "true"
+    else
+        isdaily = false
+    end
+
+    return BenchmarkJob(submission, first(submission.args), against,
+                        Dates.today(), isdaily, skipbuild)
 end
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
@@ -80,20 +91,45 @@ end
 
 function Base.summary(job::BenchmarkJob)
     result = "BenchmarkJob $(summary(submission(job).build))"
-    if !(isnull(job.against))
+    if job.isdaily
+        result = "$(result) [daily]"
+    elseif !(isnull(job.against))
         result = "$(result) vs. $(summary(get(job.against)))"
     end
     return result
 end
 
 function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
+    allowed_kwargs = (:vs, :skipbuild, :isdaily)
     args, kwargs = submission.args, submission.kwargs
-    return (submission.func == "runbenchmarks" &&
-            (length(args) == 1 && is_valid_tagpred(first(args))) &&
-            (isempty(kwargs) || (length(kwargs) < 3)))
+    has_valid_args = length(args) == 1 && is_valid_tagpred(first(args))
+    has_valid_kwargs = (all(key -> in(key, allowed_kwargs), keys(kwargs)) &&
+                        (length(kwargs) <= length(allowed_kwargs)))
+    return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::BenchmarkJob) = job.submission
+
+datedirname(date::Dates.Date) = string("daily_", Dates.year(date), "_", Dates.month(date), "_", Dates.day(date))
+
+function jobdirname(job::BenchmarkJob)
+    if job.isdaily
+        return datedirname(job.date)
+    else
+        primarysha = snipsha(submission(job).build.sha)
+        if isnull(job.against)
+            return primarysha
+        else
+            againstsha = snipsha(get(job.against).sha)
+            return string(primarysha, "_vs_", againstsha)
+        end
+    end
+end
+
+reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
+tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
+tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
 ##########################
 # BenchmarkJob Execution #
@@ -103,7 +139,8 @@ function Base.run(job::BenchmarkJob)
     node = myid()
     cfg = submission(job).config
 
-    # update BaseBenchmarks for all Julia versions
+    # update BaseBenchmarks for all supported Julia versions
+    nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "test" : "nanosoldier"
     oldpwd = pwd()
     versiondirs = ("v0.4", "v0.5")
@@ -114,19 +151,71 @@ function Base.run(job::BenchmarkJob)
     end
     cd(oldpwd)
 
+    # make temporary directory for job results
+    # Why not create the job's actual report directory now instead? The answer is that
+    # the commit SHA that currently describes the job might change if we find out that
+    # we should use a merge commit instead. To avoid confusion, we dump all the results
+    # to this temporary directory first, then move the data to the correct location
+    # in the reporting phase.
+    nodelog(cfg, node, "creating temporary directory for benchmark results")
+    if isdir(tmpdir(job))
+        nodelog(cfg, node, "...removing old temporary directory...")
+        rm(tmpdir(job), recursive = true)
+    end
+    nodelog(cfg, node, "...creating $(tmpdir(job))...")
+    mkdir(tmpdir(job))
+    nodelog(cfg, node, "...creating $(tmplogdir(job))...")
+    mkdir(tmplogdir(job))
+    nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
+    mkdir(tmpdatadir(job))
+
     # run primary job
     nodelog(cfg, node, "running primary build for $(summary(job))")
     primary_results = execute_benchmarks!(job, :primary)
     nodelog(cfg, node, "finished primary build for $(summary(job))")
-    results = Dict("primary" => primary_results)
+    results = Dict{Any,Any}("primary" => primary_results)
 
-    # run comparison job
-    if !(isnull(job.against))
+    # gather results to compare against
+    if job.isdaily # get results from previous day (if it exists, check the past 30 days)
+        nodelog(cfg, node, "retrieving results from previous daily build")
+        found_previous_date = false
+        i = 1
+        while !(found_previous_date) && i < 31
+            check_date = job.date - Dates.Day(i)
+            if isdir(joinpath(reportdir(cfg), datedirname(check_date)))
+                results["previous_date"] = check_date
+                found_previous_date = true
+            end
+            i += 1
+        end
+        if found_previous_date # untar and retrieve old data
+            try
+                previous_path = joinpath(reportdir(cfg), datedirname(results["previous_date"]))
+                cd(previous_path) do
+                    run(`tar -xvzf data.tar.gz`)
+                    datapath = joinpath(previous_path, "data")
+                    try
+                        datafiles = readdir(datapath)
+                        jldfile = datafiles[findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)]
+                        results["against"] = JLD.load(joinpath(datapath, jldfile), "results")
+                    catch err
+                        throw(err)
+                    finally
+                        rm(datapath, recursive = true)
+                    end
+                end
+            catch err
+                nodelog(cfg, node, "encountered error when retrieving old daily build data: $(err)")
+            end
+        end
+    elseif !(isnull(job.against)) # run comparison build
         nodelog(cfg, node, "running comparison build for $(summary(job))")
-        against_results = execute_benchmarks!(job, :against)
+        results["against"] = execute_benchmarks!(job, :against)
         nodelog(cfg, node, "finished comparison build for $(summary(job))")
-        results["against"] = against_results
-        results["judged"] = BenchmarkTools.judge(primary_results, against_results)
+    end
+
+    if haskey(results, "against")
+        results["judged"] = BenchmarkTools.judge(minimum(primary_results), minimum(results["against"]))
     end
 
     # report results
@@ -149,9 +238,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
-            builddir = build_julia!(cfg, build, submission(job).prnumber)
+            builddir = build_julia!(cfg, build, tmplogdir(job), submission(job).prnumber)
         else
-            builddir = build_julia!(cfg, build)
+            builddir = build_julia!(cfg, build, tmplogdir(job))
         end
         juliapath = joinpath(builddir, "julia")
     end
@@ -190,13 +279,13 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     end
 
     benchname = string(build.sha, "_", whichbuild)
-    benchout = joinpath(logdir(cfg),  string(benchname, ".out"))
-    bencherr = joinpath(logdir(cfg),  string(benchname, ".err"))
-    benchresults = joinpath(resultdir(cfg), string(benchname, ".jld"))
+    benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
+    bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
+    benchresults = joinpath(tmpdatadir(job), string(benchname, ".jld"))
 
     open(jlscriptpath, "w") do file
         println(file, """
-                      println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the logs folder)")
+                      println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
 
@@ -220,7 +309,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       warmup(benchmarks)
 
                       println("RUNNING BENCHMARKS...")
-                      results = minimum(run(benchmarks; verbose = true))
+                      results = run(benchmarks; verbose = true)
 
                       println("SAVING RESULT...")
                       JLD.save(\"$(benchresults)\", "results", results)
@@ -276,27 +365,12 @@ end
 function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
-    target_url = ""
     if isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
     else
-        # To upload our JLD file, we'd need to use the Git Data API, which allows uploading
-        # of large binary blobs. Unfortunately, GitHub.jl doesn't yet implement the Git Data
-        # API, so we don't yet do this. The old code here uploaded a JSON file, but
-        # unfortunately didn't work very consistently because the JSON was often over the
-        # size limit.
-        # try
-        #     datapath = joinpath(reportdir(job), "$(reportfile(job)).json")
-        #     datastr = base64encode(JSON.json(results))
-        #     target_url = upload_report_file(job, datapath, datastr, "upload result data for $(summary(job))")
-        #     nodelog(cfg, node, "uploaded $(datapath) to $(cfg.reportrepo)")
-        # catch err
-        #     nodelog(cfg, node, "error when uploading result JSON file: $(err)")
-        # end
-
         # determine the job's final status
-        if !(isnull(job.against))
+        if !(isnull(job.against)) || haskey(results, "previous_date")
             found_regressions = BenchmarkTools.isregression(results["judged"])
             state = found_regressions ? "failure" : "success"
             status = found_regressions ? "possible performance regressions were detected" : "no performance regressions were detected"
@@ -305,14 +379,27 @@ function report(job::BenchmarkJob, results)
             status = "successfully executed benchmarks"
         end
 
-        # upload markdown report to the report repository
+        # push to report repo
+        target_url = ""
         try
-            reportpath = joinpath(reportdir(job), "$(reportfile(job)).md")
-            reportstr = base64encode(sprint(io -> printreport(io, job, results)))
-            target_url = upload_report_file(job, reportpath, reportstr, "upload markdown report for $(summary(job))")
-            nodelog(cfg, node, "uploaded $(reportpath) to $(cfg.reportrepo)")
+            # prepare the benchmark data for uploading
+            nodelog(cfg, node, "...preparing data...")
+            cd(tmpdir(job)) do
+                run(`tar -zcvf data.tar.gz data`)
+                rm(tmpdatadir(job), recursive = true)
+            end
+            # write the markdown report
+            nodelog(cfg, node, "...generating report...")
+            reportname = "report.md"
+            open(joinpath(tmpdir(job), reportname), "w") do file
+                printreport(file, job, results)
+            end
+            nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
+            mv(tmpdir(job), reportdir(job); remove_destination = true)
+            # push changes to report repo
+            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload report for $(summary(job))")
         catch err
-            nodelog(cfg, node, "error when uploading markdown report: $(err)")
+            nodelog(cfg, node, "error when pushing to report repo: $(err)")
         end
 
         # reply with the job's final status
@@ -326,14 +413,6 @@ function report(job::BenchmarkJob, results)
     end
 end
 
-reportdir(job::BenchmarkJob) = snipsha(submission(job).build.sha)
-
-function reportfile(job::BenchmarkJob)
-    dir = reportdir(job)
-    return isnull(job.against) ? dir : "$(dir)_vs_$(snipsha(get(job.against).sha))"
-end
-
-
 # Markdown Report Generation #
 #----------------------------#
 
@@ -345,13 +424,18 @@ function printreport(io::IO, job::BenchmarkJob, results)
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
     joblink = "[$(buildname)]($(buildlink))"
-    iscomparisonjob = !(isnull(job.against))
+    hasagainstbuild = !(isnull(job.against))
+    hasprevdate = haskey(results, "previous_date")
+    iscomparisonjob = hasagainstbuild || hasprevdate
 
-    if iscomparisonjob
+    if hasagainstbuild
         againstbuild = get(job.against)
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
+    end
+
+    if iscomparisonjob
         tablegroup = results["judged"]
     else
         tablegroup = results["primary"]
@@ -370,7 +454,23 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 *Triggered By:* [link]($(submission(job).url))
 
                 *Tag Predicate:* `$(job.tagpred)`
+                """)
 
+    if job.isdaily
+        if hasprevdate
+            dailystr = string(job.date, " vs ", results["previous_date"])
+        else
+            dailystr = string(job.date)
+        end
+        println(io, """
+                    *Daily Job:* $(dailystr)
+                    """)
+    end
+
+    # print result table #
+    #--------------------#
+
+    println(io, """
                 ## Results
 
                 *Note: If Chrome is your browser, I strongly recommend installing the [Wide GitHub](https://chrome.google.com/webstore/detail/wide-github/kaalofacklcidaampbokdplbklpeldpj?hl=en)
@@ -386,8 +486,6 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 time/memory value for a given benchmark is expected to fall within this percentage of the reported value.
                 """)
 
-    # print result table #
-    #--------------------#
     if iscomparisonjob
         print(io, """
                   A ratio greater than `1.0` denotes a possible regression (marked with $(REGRESS_MARK)), while a ratio less
@@ -445,7 +543,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
               ```
               """)
 
-    if iscomparisonjob
+    if hasagainstbuild
         println(io)
         print(io, """
                   #### Comparison Build
@@ -460,6 +558,8 @@ end
 idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
+
+resultrow(ids, t::BenchmarkTools.Trial) = resultrow(ids, minimum(t))
 
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)

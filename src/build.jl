@@ -19,7 +19,7 @@ end
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
 
 # if a PR number is included, attempt to build from the PR's merge commit
-function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} = Nullable{Int}())
+function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Nullable{Int} = Nullable{Int}())
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
     cd(workdir(config))
@@ -28,7 +28,7 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
     if !(isnull(prnumber))
         pr = get(prnumber)
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
-        run(`git clone --quiet https://github.com/$(config.trackrepo) $(builddir)`)
+        gitclone!(config.trackrepo, builddir)
         cd(builddir)
         try
             run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)
@@ -40,15 +40,15 @@ function build_julia!(config::Config, build::BuildRef, prnumber::Nullable{Int} =
         run(`git checkout --quiet --force FETCH_HEAD`)
         build.sha = readchomp(`git rev-parse HEAD`)
     else
-        run(`git clone --quiet https://github.com/$(build.repo) $(builddir)`)
+        gitclone!(build.repo, builddir)
         cd(builddir)
         run(`git checkout --quiet $(build.sha)`)
     end
 
     # set up logs for STDOUT and STDERR
     logname = string(build.sha, "_build")
-    outfile = joinpath(logdir(config), string(logname, ".out"))
-    errfile = joinpath(logdir(config), string(logname, ".err"))
+    outfile = joinpath(logpath, string(logname, ".out"))
+    errfile = joinpath(logpath, string(logname, ".err"))
 
     # run the build
     run(pipeline(`make`, stdout = outfile, stderr = errfile))

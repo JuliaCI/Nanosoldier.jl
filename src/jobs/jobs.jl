@@ -10,7 +10,7 @@ abstract AbstractJob
 
 reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job), args...; kwargs...)
 reply_comment(job::AbstractJob, args...; kwargs...) = reply_comment(submission(job), args...; kwargs...)
-upload_report_file(job::AbstractJob, args...; kwargs...) = upload_report_file(submission(job), args...; kwargs...)
+upload_report_repo!(job::AbstractJob, args...; kwargs...) = upload_report_repo!(submission(job), args...; kwargs...)
 
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")

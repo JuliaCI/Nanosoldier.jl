@@ -60,6 +60,18 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 - `"owner/repo:branch"`: the head commit of the branch named `branch` in the repository `owner/repo`
 - `"owner/repo@sha"`: the commit specified by `sha` in the repository `owner/repo`
 
+##### Benchmark Results
+
+Once a `BenchmarjJob` is complete, the results are uploaded to the
+[BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
+has its own directory for results. This directory contains the following items:
+
+- `report.md` is a markdown report that summarizes the job results
+- `data.tar.gz` contains raw timing data in JLD format. To untar this file, run
+`tar -xzvf data.tar.gz`. You can analyze this data using the
+[BenchmarkTools](https://github.com/JuliaCI/BaseBenchmarkReports) package.
+- `logs` is a directory containing the build logs and benchmark execution logs for the job.
+
 ##### Comment Examples
 
 Here are some examples of comments that trigger a `BenchmarkJob` in various contexts:
