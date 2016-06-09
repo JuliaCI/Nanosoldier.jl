@@ -370,7 +370,7 @@ function report(job::BenchmarkJob, results)
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
     else
         # determine the job's final status
-        if !(isnull(job.against))
+        if !(isnull(job.against)) || haskey(results, "previous_date")
             found_regressions = BenchmarkTools.isregression(results["judged"])
             state = found_regressions ? "failure" : "success"
             status = found_regressions ? "possible performance regressions were detected" : "no performance regressions were detected"
@@ -424,13 +424,18 @@ function printreport(io::IO, job::BenchmarkJob, results)
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
     joblink = "[$(buildname)]($(buildlink))"
-    iscomparisonjob = !(isnull(job.against))
+    hasagainstbuild = !(isnull(job.against))
+    hasprevdate = haskey(results, "previous_date")
+    iscomparisonjob = hasagainstbuild || hasprevdate
 
-    if iscomparisonjob
+    if hasagainstbuild
         againstbuild = get(job.against)
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
+    end
+
+    if iscomparisonjob
         tablegroup = results["judged"]
     else
         tablegroup = results["primary"]
@@ -452,7 +457,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 """)
 
     if job.isdaily
-        if haskey(results, "previous_date")
+        if hasprevdate
             dailystr = string(job.date, " vs ", results["previous_date"])
         else
             dailystr = string(job.date)
@@ -538,7 +543,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
               ```
               """)
 
-    if iscomparisonjob
+    if hasagainstbuild
         println(io)
         print(io, """
                   #### Comparison Build
