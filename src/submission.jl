@@ -137,6 +137,5 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
         run(`git push`)
         return headsha
     end
-    reportfile = GitHub.file(reportrepo(cfg), markdownpath; auth = cfg.auth)
-    return string(GitHub.permalink(reportfile, sha))
+    return "https://github.com/$(reportrepo(cfg))/blob/$(sha)/$(markdownpath)"
 end
