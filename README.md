@@ -62,7 +62,7 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 
 ##### Benchmark Results
 
-Once a `BenchmarjJob` is complete, the results are uploaded to the
+Once a `BenchmarkJob` is complete, the results are uploaded to the
 [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
 has its own directory for results. This directory contains the following items:
 
