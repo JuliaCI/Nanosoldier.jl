@@ -10,7 +10,7 @@ end
 
 BuildRef(repo, sha) = BuildRef(repo, sha, "?")
 
-function Base.(:(==))(a::BuildRef, b::BuildRef)
+function @compat(Base.:(==))(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
             a.vinfo == b.vinfo)

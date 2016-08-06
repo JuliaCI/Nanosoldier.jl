@@ -65,16 +65,26 @@ function Base.run(server::Server, args...; kwargs...)
                             remotecall_fetch(run, node, job)
                             nodelog(server.config, node, "completed job: $(summary(job))")
                         catch err
-                            message = "error on node $(node): $(err)"
-                            nodelog(server.config, node, message)
-                            reply_status(job, "error", message)
+                            err_str = string(error)
+                            message = "Something went wrong when running [your job]($(submission(job).url)): `$(err_str)`\n"
+                            if typeof(err) <: NanosoldierError
+                                if isempty(err.url)
+                                    message *= "Unfortunately, the logs could not be uploaded.\n"
+                                else
+                                    message *= "Logs and partial data can be found [here]($(err.url))\n"
+                                end
+                            end
+                            message *= "cc @jrevels"
+                            nodelog(server.config, node, err_str)
+                            reply_status(job, "error", err_str)
+                            reply_comment(job, message)
                         end
                     end
                     sleep(5) # poll only every 5 seconds so as not to throttle CPU
                 end
             catch err
                 nodelog(server.config, node, "encountered task error: $(err)")
-                throw(err)
+                rethrow(err)
             end
         end
     end
