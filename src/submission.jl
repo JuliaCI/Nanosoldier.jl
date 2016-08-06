@@ -21,7 +21,7 @@ function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::Regex
     end
 end
 
-function Base.(:(==))(a::JobSubmission, b::JobSubmission)
+function @compat(Base.:(==))(a::JobSubmission, b::JobSubmission)
     if isnull(a.prnumber) == isnull(b.prnumber)
         same_prnumber = isnull(a.prnumber) ? true : (get(a.prnumber) == get(b.prnumber))
         return (same_prnumber && a.config == b.config && a.build == b.build &&
