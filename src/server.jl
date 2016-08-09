@@ -65,7 +65,7 @@ function Base.run(server::Server, args...; kwargs...)
                             remotecall_fetch(run, node, job)
                             nodelog(server.config, node, "completed job: $(summary(job))")
                         catch err
-                            err_str = string(error)
+                            err_str = string(err)
                             message = "Something went wrong when running [your job]($(submission(job).url)): `$(err_str)`\n"
                             if typeof(err) <: NanosoldierError
                                 if isempty(err.url)
