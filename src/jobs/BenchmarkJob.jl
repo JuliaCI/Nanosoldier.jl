@@ -484,7 +484,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                     The build could not finish due to an error:
 
                     ```
-                    $(result["error"])
+                    $(results["error"])
                     ```
 
                     Check the logs folder in this directory for more detailed output.
