@@ -205,6 +205,7 @@ function Base.run(job::BenchmarkJob)
                             datafiles = readdir(datapath)
                             jldfile = datafiles[findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)]
                             results["against"] = JLD.load(joinpath(datapath, jldfile), "results")
+                            results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
                         catch err
                             rethrow(err)
                         finally
