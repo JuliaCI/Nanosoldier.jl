@@ -26,7 +26,7 @@ gitreset!(path) = cd(gitreset!, path)
 # error handling #
 ##################
 
-immutable NanosoldierError{E<:Exception} <: Exception
+type NanosoldierError{E<:Exception} <: Exception
     url::UTF8String
     msg::UTF8String
     err::E
