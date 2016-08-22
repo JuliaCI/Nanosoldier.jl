@@ -30,9 +30,9 @@ When a job is completed, @nanosoldier will reply to your comment to tell you how
 
 CI jobs are implemented in this package as subtypes of `Nanosoldier.AbstractJob`. See [here](https://github.com/JuliaCI/Nanosoldier.jl/blob/master/src/jobs/jobs.jl) for a description of the interface new job types need to implement.
 
-#### `BenchmarkJob`
+### `BenchmarkJob`
 
-##### Execution Cycle
+#### Execution Cycle
 
 A `BenchmarkJob` has the following execution cycle:
 
@@ -41,7 +41,7 @@ A `BenchmarkJob` has the following execution cycle:
 3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
 4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
 
-##### Trigger Syntax
+#### Trigger Syntax
 
 A `BenchmarkJob` is triggered with the following syntax:
 
@@ -60,7 +60,7 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 - `"owner/repo:branch"`: the head commit of the branch named `branch` in the repository `owner/repo`
 - `"owner/repo@sha"`: the commit specified by `sha` in the repository `owner/repo`
 
-##### Benchmark Results
+#### Benchmark Results
 
 Once a `BenchmarkJob` is complete, the results are uploaded to the
 [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
@@ -72,7 +72,7 @@ has its own directory for results. This directory contains the following items:
 [BenchmarkTools](https://github.com/JuliaCI/BaseBenchmarkReports) package.
 - `logs` is a directory containing the build logs and benchmark execution logs for the job.
 
-##### Comment Examples
+#### Comment Examples
 
 Here are some examples of comments that trigger a `BenchmarkJob` in various contexts:
 
@@ -114,3 +114,9 @@ against the head commit of my fork's branch.
 
 @nanosoldier `runbenchmarks(ALL, vs = "jrevels/julia:mybranch")`
 ```
+
+## Acknowledgements
+
+The development of the Nanosoldier benchmarking platform was supported in part by the US
+Army Research Office through the Institute for Soldier Nanotechnologies under Contract
+No. W911NF-07-D0004.
