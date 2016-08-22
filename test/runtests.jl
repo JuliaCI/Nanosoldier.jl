@@ -101,7 +101,7 @@ results = Dict(
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
-    mdpath = joinpath(Pkg.dir("Nanosoldier"), "test", "report.md")
+    mdpath = joinpath(dirname(@__FILE__), "report.md")
     open(mdpath, "r") do file
         readstring(file) == sprint(io -> Nanosoldier.printreport(io, job, results))
     end
