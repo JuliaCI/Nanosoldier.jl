@@ -65,9 +65,10 @@ function Base.run(server::Server, args...; kwargs...)
                             remotecall_fetch(run, node, job)
                             nodelog(server.config, node, "completed job: $(summary(job))")
                         catch err
+                            err = isa(err, RemoteException) ? err.captured.ex : err
                             err_str = string(err)
                             message = "Something went wrong when running [your job]($(submission(job).url)): `$(err_str)`\n"
-                            if typeof(err) <: NanosoldierError
+                            if isa(err, NanosoldierError)
                                 if isempty(err.url)
                                     message *= "Unfortunately, the logs could not be uploaded.\n"
                                 else
