@@ -84,11 +84,6 @@ function BenchmarkJob(submission::JobSubmission)
                         Dates.today(), isdaily, skipbuild)
 end
 
-function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
-    shastr = get(get(GitHub.branch(reponame, branchname; auth = config.auth).commit).sha)
-    return BuildRef(reponame, shastr)
-end
-
 function Base.summary(job::BenchmarkJob)
     result = "BenchmarkJob $(summary(submission(job).build))"
     if job.isdaily
@@ -110,6 +105,15 @@ end
 
 submission(job::BenchmarkJob) = job.submission
 
+#############
+# Utilities #
+#############
+
+function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
+    shastr = get(get(GitHub.branch(reponame, branchname; auth = config.auth).commit).sha)
+    return BuildRef(reponame, shastr)
+end
+
 datedirname(date::Dates.Date) = string("daily_", Dates.year(date), "_", Dates.month(date), "_", Dates.day(date))
 
 function jobdirname(job::BenchmarkJob)
@@ -130,6 +134,31 @@ reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdi
 tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
+
+function retrieve_daily_data!(results, key, cfg, date)
+    dailydir = joinpath(reportdir(cfg), datedirname(date))
+    found_previous_date = false
+    if isdir(dailydir)
+        cd(dailydir) do
+            datapath = joinpath(dailydir, "data")
+            try
+                run(`tar -xvzf data.tar.gz`)
+                datafiles = readdir(datapath)
+                primary_index = findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)
+                if primary_index > 0
+                    primary_file = datafiles[primary_index]
+                    results[key] = JLD.load(joinpath(datapath, primary_file), "results")
+                    found_previous_date = true
+                end
+            catch err
+                nodelog(cfg, myid(), "encountered error when retrieving daily data: $err")
+            finally
+                isdir(datapath) && rm(datapath, recursive = true)
+            end
+        end
+    end
+    return found_previous_date
+end
 
 ##########################
 # BenchmarkJob Execution #
@@ -184,47 +213,30 @@ function Base.run(job::BenchmarkJob)
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
     if !(haskey(results, "error"))
         if job.isdaily # get results from previous day (if it exists, check the past 30 days)
-            nodelog(cfg, node, "retrieving results from previous daily build")
-            found_previous_date = false
-            i = 1
-            while !(found_previous_date) && i < 31
-                check_date = job.date - Dates.Day(i)
-                if isdir(joinpath(reportdir(cfg), datedirname(check_date)))
-                    results["previous_date"] = check_date
-                    found_previous_date = true
+            try
+                nodelog(cfg, node, "retrieving results from previous daily build")
+                found_previous_date = false
+                i = 1
+                while !(found_previous_date) && i < 31
+                    check_date = job.date - Dates.Day(i)
+                    found_previous_date = retrieve_daily_data!(results, "against", cfg, check_date)
+                    found_previous_date && (results["previous_date"] = check_date)
+                    i += 1
                 end
-                i += 1
-            end
-            if found_previous_date # untar and retrieve old data
-                try
-                    previous_path = joinpath(reportdir(cfg), datedirname(results["previous_date"]))
-                    cd(previous_path) do
-                        run(`tar -xvzf data.tar.gz`)
-                        datapath = joinpath(previous_path, "data")
-                        try
-                            datafiles = readdir(datapath)
-                            jldfile = datafiles[findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)]
-                            results["against"] = JLD.load(joinpath(datapath, jldfile), "results")
-                            results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
-                        catch err
-                            rethrow(err)
-                        finally
-                            rm(datapath, recursive = true)
-                        end
-                    end
-                catch err
-                    rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
-                end
+            catch err
+                rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
             end
         elseif !(isnull(job.against)) # run comparison build
             try
                 nodelog(cfg, node, "running comparison build for $(summary(job))")
                 results["against"] = execute_benchmarks!(job, :against)
                 nodelog(cfg, node, "finished comparison build for $(summary(job))")
-                results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
             catch err
                 results["error"] = NanosoldierError("failed to run benchmarks against comparison commit", err)
             end
+        end
+        if haskey(results, "against")
+            results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
         end
     end
 
