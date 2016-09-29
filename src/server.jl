@@ -67,7 +67,7 @@ function Base.run(server::Server, args...; kwargs...)
                         catch err
                             err = isa(err, RemoteException) ? err.captured.ex : err
                             err_str = string(err)
-                            message = "Something went wrong when running [your job]($(submission(job).url)): `$(err_str)`\n"
+                            message = "Something went wrong when running [your job]($(submission(job).url)):\n```\n$(err_str)\n```"
                             if isa(err, NanosoldierError)
                                 if isempty(err.url)
                                     message *= "Unfortunately, the logs could not be uploaded.\n"
