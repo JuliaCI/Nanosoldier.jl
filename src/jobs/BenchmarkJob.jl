@@ -356,6 +356,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
+    run(`sudo cset shield -e sh -- -c "sync && echo 3 > /proc/sys/vm/drop_caches"`)
     run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
 
     # clean up the cpusets
