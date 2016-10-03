@@ -22,14 +22,18 @@ immutable Server
             addedjob = false
             for J in subtypes(AbstractJob)
                 if isvalid(submission, J)
-                    job = J(submission)
-                    push!(jobs, job)
-                    reply_status(job, "pending", "job added to queue: $(summary(job))")
-                    addedjob = true
+                    try
+                        job = J(submission)
+                        push!(jobs, job)
+                        reply_status(job, "pending", "job added to queue: $(summary(job))")
+                        addedjob = true
+                    catch err
+                        nodelog(config, 1, "failed to constuct $(J) with a supposedly valid submission: $(err)")
+                    end
                 end
             end
             if !(addedjob)
-                reply_status(submission, "error", "invalid job submission")
+                reply_status(submission, "error", "invalid job submission; check syntax")
                 HttpCommon.Response(400, "invalid job submission")
             end
             return HttpCommon.Response(202, "recieved job submission")
