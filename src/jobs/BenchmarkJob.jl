@@ -296,6 +296,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     open(shscriptpath, "w") do file
         println(file, """
                       #!/bin/sh
+                      $(juliapath) -e 'println("loading binary for first time before running benchmarks...")'
                       $(juliapath) $(jlscriptpath)
                       """)
     end
