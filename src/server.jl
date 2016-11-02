@@ -18,7 +18,7 @@ immutable Server
             if haskey(event.payload, "action") && !(in(event.payload["action"], ("created", "opened")))
                 return HttpCommon.Response(204, "no action taken (submission was from an edit, close, or delete)")
             end
-            submission = JobSubmission(config, event, phrase)
+            submission = JobSubmission(config, event, phrase.match)
             addedjob = false
             for J in subtypes(AbstractJob)
                 if isvalid(submission, J)
@@ -57,41 +57,64 @@ function Base.run(server::Server, args...; kwargs...)
         @schedule begin
             try
                 while true
-                    if isempty(server.jobs)
-                        yield()
+                    job = retrieve_job!(server.jobs, node == last(server.config.nodes))
+                    if !(isnull(job))
+                        delegate_job(server, get(job), node)
                     else
-                        job = shift!(server.jobs)
-                        message = "running on node $(node): $(summary(job))"
-                        reply_status(job, "pending", message)
-                        nodelog(server.config, node, message)
-                        try
-                            remotecall_fetch(persistdir!, node, server.config)
-                            remotecall_fetch(run, node, job)
-                            nodelog(server.config, node, "completed job: $(summary(job))")
-                        catch err
-                            err = isa(err, RemoteException) ? err.captured.ex : err
-                            err_str = string(err)
-                            message = "Something went wrong when running [your job]($(submission(job).url)):\n```\n$(err_str)\n```"
-                            if isa(err, NanosoldierError)
-                                if isempty(err.url)
-                                    message *= "Unfortunately, the logs could not be uploaded.\n"
-                                else
-                                    message *= "Logs and partial data can be found [here]($(err.url))\n"
-                                end
-                            end
-                            message *= "cc @jrevels"
-                            nodelog(server.config, node, err_str)
-                            reply_status(job, "error", err_str)
-                            reply_comment(job, message)
-                        end
+                        yield()
                     end
                     sleep(5) # poll only every 5 seconds so as not to throttle CPU
                 end
             catch err
-                nodelog(server.config, node, "encountered task error: $(err)")
+                nodelog(server.config, node, "encountered job loop error: $(err)")
                 rethrow(err)
             end
         end
     end
     return run(server.listener, args...; kwargs...)
+end
+
+function retrieve_job!(jobs, accept_daily::Bool)
+    if isempty(jobs)
+        return Nullable{AbstractJob}()
+    else
+        if !(accept_daily)
+            i = findfirst(job -> !(isa(job, BenchmarkJob) && job.isdaily), jobs)
+            if i == 0
+                return Nullable{AbstractJob}()
+            else
+                job = jobs[i]
+                deleteat!(jobs, i)
+                return Nullable(job)
+            end
+        else
+            return Nullable(shift!(jobs))
+        end
+    end
+end
+
+function delegate_job(server::Server, job::AbstractJob, node)
+    message = "running on node $(node): $(summary(job))"
+    reply_status(job, "pending", message)
+    nodelog(server.config, node, message)
+    try
+        remotecall_fetch(persistdir!, node, server.config)
+        remotecall_fetch(run, node, job)
+        nodelog(server.config, node, "completed job: $(summary(job))")
+    catch err
+        err = isa(err, RemoteException) ? err.captured.ex : err
+        err_str = string(err)
+        message = "Something went wrong when running [your job]($(submission(job).url)):\n```\n$(err_str)\n```\n"
+        if isa(err, NanosoldierError)
+            if isempty(err.url)
+                message *= "Unfortunately, the logs could not be uploaded.\n"
+            else
+                message *= "Logs and partial data can be found [here]($(err.url))\n"
+            end
+        end
+        message *= "cc @jrevels"
+        nodelog(server.config, node, err_str)
+        reply_status(job, "error", err_str)
+        reply_comment(job, message)
+    end
 end

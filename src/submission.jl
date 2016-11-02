@@ -11,10 +11,10 @@ type JobSubmission
     kwargs::Dict{Symbol,UTF8String}
 end
 
-function JobSubmission(config::Config, event::GitHub.WebhookEvent, phrase::RegexMatch)
+function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_string)
     try
         build, statussha, url, fromkind, prnumber = parse_event(config, event)
-        func, args, kwargs = parse_phrase_match(phrase.match)
+        func, args, kwargs = parse_submission_string(submission_string)
         return JobSubmission(config, build, statussha, url, fromkind, prnumber, func, args, kwargs)
     catch err
         error("could not parse comment into job submission: $err")
@@ -87,8 +87,8 @@ function phrase_argument{T}(x::T)
     end
 end
 
-function parse_phrase_match(phrase_match::AbstractString)
-    fncall = match(r"`.*?`", phrase_match).match[2:end-1]
+function parse_submission_string(submission_string)
+    fncall = match(r"`.*?`", submission_string).match[2:end-1]
     argind = searchindex(fncall, "(")
     name = fncall[1:(argind - 1)]
     parsed_args = parse(replace(fncall[argind:end], ";", ","))

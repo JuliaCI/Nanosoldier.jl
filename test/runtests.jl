@@ -1,6 +1,6 @@
 import GitHub
 using Nanosoldier, Base.Test, Compat, BenchmarkTools
-using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob
+using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob, AbstractJob
 using BenchmarkTools: TrialEstimate, Parameters
 
 #########
@@ -40,8 +40,8 @@ tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 # submission parsing and validation #
 #####################################
 
-function build_test_submission(phrase_match)
-    func, args, kwargs = Nanosoldier.parse_phrase_match(phrase_match)
+function build_test_submission(submission_string)
+    func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
     submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
     @test Nanosoldier.isvalid(submission, BenchmarkJob)
     return submission
@@ -62,6 +62,43 @@ build_test_submission("@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs 
 build_test_submission("@nanosoldier `runbenchmarks(ALL; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 build_test_submission("@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 build_test_submission("@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+
+#############################
+# retrieval from job queue  #
+#############################
+
+non_daily_job = BenchmarkJob(build_test_submission("@nanosoldier `runbenchmarks(ALL)`"))
+daily_job = BenchmarkJob(build_test_submission("@nanosoldier `runbenchmarks(ALL, isdaily = true)`"))
+
+queue = [daily_job, daily_job]
+job = Nanosoldier.retrieve_job!(queue, true)
+@test !(isnull(job)) && get(job).isdaily
+@test length(queue) == 1
+
+queue = [non_daily_job, daily_job]
+job = Nanosoldier.retrieve_job!(queue, true)
+@test !(isnull(job)) && !(get(job).isdaily)
+@test length(queue) == 1
+
+queue = [daily_job, non_daily_job]
+job = Nanosoldier.retrieve_job!(queue, true)
+@test !(isnull(job)) && get(job).isdaily
+@test length(queue) == 1
+
+queue = [daily_job, daily_job]
+job = Nanosoldier.retrieve_job!(queue, false)
+@test isnull(job)
+@test length(queue) == 2
+
+queue = [non_daily_job, daily_job]
+job = Nanosoldier.retrieve_job!(queue, false)
+@test !(isnull(job)) && !(get(job).isdaily)
+@test length(queue) == 1
+
+queue = [daily_job, non_daily_job]
+job = Nanosoldier.retrieve_job!(queue, false)
+@test !(isnull(job)) && !(get(job).isdaily)
+@test length(queue) == 1
 
 #########################
 # job report generation #
