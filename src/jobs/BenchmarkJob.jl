@@ -370,6 +370,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # environment information that is useless/potentially risky to expose.
     try
         build.vinfo = first(split(readstring(`$(juliapath) -e 'versioninfo(true)'`), "Environment"))
+    catch err
+        build.vinfo = "retrieving versioninfo() failed: $err"
     end
 
     cd(workdir(cfg))
