@@ -17,7 +17,7 @@ function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_st
         func, args, kwargs = parse_submission_string(submission_string)
         return JobSubmission(config, build, statussha, url, fromkind, prnumber, func, args, kwargs)
     catch err
-        error("could not parse comment into job submission: $err")
+        error(string("could not parse comment into job submission: ", sprint(showerror, err)))
     end
 end
 
