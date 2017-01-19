@@ -34,7 +34,10 @@ end
 
 NanosoldierError{E<:Exception}(msg, err::E) = NanosoldierError{E}("", msg, err)
 
-Base.show(io::IO, err::NanosoldierError) = print(io, "NanosoldierError: ", err.msg, ": ", err.err)
+function Base.show(io::IO, err::NanosoldierError)
+    print(io, "NanosoldierError: ", err.msg, ": ")
+    showerror(io, err.err)
+end
 
 ############
 # includes #

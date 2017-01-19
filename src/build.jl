@@ -8,7 +8,7 @@ type BuildRef
     vinfo::UTF8String # versioninfo() taken during the build
 end
 
-BuildRef(repo, sha) = BuildRef(repo, sha, "?")
+BuildRef(repo, sha) = BuildRef(repo, sha, "retrieving versioninfo() failed")
 
 function @compat(Base.:(==))(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&

@@ -151,7 +151,7 @@ function retrieve_daily_data!(results, key, cfg, date)
                     found_previous_date = true
                 end
             catch err
-                nodelog(cfg, myid(), "encountered error when retrieving daily data: $err")
+                nodelog(cfg, myid(), string("encountered error when retrieving daily data: ", sprint(showerror, err)))
             finally
                 isdir(datapath) && rm(datapath, recursive = true)
             end
@@ -370,6 +370,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # environment information that is useless/potentially risky to expose.
     try
         build.vinfo = first(split(readstring(`$(juliapath) -e 'versioninfo(true)'`), "Environment"))
+    catch err
+        build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
     cd(workdir(cfg))
