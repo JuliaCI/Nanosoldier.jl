@@ -315,7 +315,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       # move ourselves onto the first CPU in the shielded set
                       run(`sudo cset proc -m -p \$(getpid()) -t /user/child`)
 
-                      blas_set_num_threads(1) # ensure BLAS threads do not trample each other
+                      VERSION < v"0.5.0-dev+4338" ? blas_set_num_threads(1) : BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                       addprocs(1)             # add worker that can be used by parallel benchmarks
 
                       using BaseBenchmarks
