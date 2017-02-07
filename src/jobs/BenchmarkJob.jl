@@ -147,7 +147,7 @@ function retrieve_daily_data!(results, key, cfg, date)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)
                 if primary_index > 0
                     primary_file = datafiles[primary_index]
-                    results[key] = JLD.load(joinpath(datapath, primary_file), "results")
+                    results[key] = BenchmarkTools.load(joinpath(datapath, primary_file), "results")
                     found_previous_date = true
                 end
             catch err
@@ -335,7 +335,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       results = run(benchmarks; verbose = true)
 
                       println("SAVING RESULT...")
-                      JLD.save(\"$(benchresults)\", "results", results)
+                      BenchmarkTools.save(\"$(benchresults)\", "results", results)
 
                       println("DONE!")
 
@@ -364,7 +364,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`sudo cset set -d /user/child`)
     run(`sudo cset shield --reset`)
 
-    results = JLD.load(benchresults, "results")
+    results = BenchmarkTools.load(benchresults, "results")
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
