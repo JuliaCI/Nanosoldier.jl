@@ -1,4 +1,4 @@
-nodes = addprocs(["nanosoldier6"])
+nodes = addprocs(["nanosoldier6"], exeflags=["--compilecache=no", "--precompiled=no"]))
 
 import Nanosoldier, GitHub
 
