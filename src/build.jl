@@ -51,7 +51,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Nullab
     errfile = joinpath(logpath, string(logname, ".err"))
 
     # run the build
-    run(pipeline(`make`, stdout = outfile, stderr = errfile))
+    run(pipeline(`make -j$(length(config.cpus))`, stdout = outfile, stderr = errfile))
     cd(workdir(config))
     return builddir
 end
