@@ -46,7 +46,7 @@ type BenchmarkJob <: AbstractJob
     against::Nullable{BuildRef} # the comparison build (if available)
     date::Dates.Date            # the date of the submitted job
     isdaily::Bool               # is the job a daily job?
-    skipbuild::Bool             # use local v0.5 install instead of a fresh build (for testing)
+    skipbuild::Bool             # use local julia install instead of a fresh build (for testing)
 end
 
 function BenchmarkJob(submission::JobSubmission)
