@@ -392,7 +392,7 @@ function report(job::BenchmarkJob, results)
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains mispelled tags? cc @jrevels")
+        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains misspelled tags? cc @jrevels")
     else
         #  prepare report + data and push it to report repo
         target_url = ""
