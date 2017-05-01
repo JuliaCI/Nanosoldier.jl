@@ -272,6 +272,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     cd(builddir)
 
+    # update local Julia packages for the relevant Julia version
+    run(`$juliapath -e 'Pkg.update()'`)
+
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JLD file so that we can retrieve them.
