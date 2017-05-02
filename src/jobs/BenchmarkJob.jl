@@ -267,7 +267,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "test" : "nanosoldier"
     oldpwd = pwd()
-    run(`$juliapath -e 'Pkg.add("BaseBenchmarks")'`)
+    try run(`$juliapath -e 'Pkg.clone("https://github.com/JuliaCI/BaseBenchmarks.jl")'`) end
     cd(readstring(`$juliapath -e 'print(Pkg.dir("BaseBenchmarks"))'`))
     run(`git fetch --all --quiet`)
     run(`git reset --hard --quiet origin/$(branchname)`)
