@@ -168,18 +168,6 @@ function Base.run(job::BenchmarkJob)
     node = myid()
     cfg = submission(job).config
 
-    # update BaseBenchmarks for all supported Julia versions
-    nodelog(cfg, node, "updating local BaseBenchmarks repo")
-    branchname = cfg.testmode ? "test" : "nanosoldier"
-    oldpwd = pwd()
-    versiondirs = ("v0.4", "v0.5", "v0.6")
-    for v in versiondirs
-        cd(joinpath(homedir(), ".julia", v, "BaseBenchmarks"))
-        run(`git fetch --all --quiet`)
-        run(`git reset --hard --quiet origin/$(branchname)`)
-    end
-    cd(oldpwd)
-
     # make temporary directory for job results
     # Why not create the job's actual report directory now instead? The answer is that
     # the commit SHA that currently describes the job might change if we find out that
@@ -274,6 +262,16 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     # update local Julia packages for the relevant Julia version
     run(`$juliapath -e 'Pkg.update()'`)
+
+    # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
+    nodelog(cfg, node, "updating local BaseBenchmarks repo")
+    branchname = cfg.testmode ? "test" : "nanosoldier"
+    oldpwd = pwd()
+    run(`$juliapath -e 'Pkg.add("BaseBenchmarks")'`)
+    cd(readstring(`$juliapath -e 'print(Pkg.dir("BaseBenchmarks"))'`))
+    run(`git fetch --all --quiet`)
+    run(`git reset --hard --quiet origin/$(branchname)`)
+    cd(oldpwd)
 
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
