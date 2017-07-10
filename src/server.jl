@@ -112,7 +112,7 @@ function delegate_job(server::Server, job::AbstractJob, node)
                 message *= "Logs and partial data can be found [here]($(err.url))\n"
             end
         end
-        message *= "cc @jrevels"
+        message *= "cc @ararslan"
         nodelog(server.config, node, err_str)
         reply_status(job, "error", err_str)
         reply_comment(job, message)
