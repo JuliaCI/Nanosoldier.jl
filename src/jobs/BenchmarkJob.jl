@@ -52,7 +52,7 @@ end
 function BenchmarkJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs)
         againststr = parse(submission.kwargs[:vs])
-        if in(SHA_SEPARATOR, againststr) # e.g. againststr == jrevels/julia@e83b7559df94b3050603847dbd6f3674058027e6
+        if in(SHA_SEPARATOR, againststr) # e.g. againststr == ararslan/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
             againstbuild = BuildRef(againstrepo, againstsha)
@@ -393,7 +393,7 @@ function report(job::BenchmarkJob, results)
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains misspelled tags? cc @jrevels")
+        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains misspelled tags? cc @ararslan")
     else
         #  prepare report + data and push it to report repo
         target_url = ""
@@ -433,9 +433,9 @@ function report(job::BenchmarkJob, results)
             # reply with the job's final status
             reply_status(job, state, status, target_url)
             if isempty(target_url)
-                comment = "[Your benchmark job]($(submission(job).url)) has completed, but something went wrong when trying to upload the result data. cc @jrevels"
+                comment = "[Your benchmark job]($(submission(job).url)) has completed, but something went wrong when trying to upload the result data. cc @ararslan"
             else
-                comment = "[Your benchmark job]($(submission(job).url)) has completed - $(status). A full report can be found [here]($(target_url)). cc @jrevels"
+                comment = "[Your benchmark job]($(submission(job).url)) has completed - $(status). A full report can be found [here]($(target_url)). cc @ararslan"
             end
             reply_comment(job, comment)
         end
