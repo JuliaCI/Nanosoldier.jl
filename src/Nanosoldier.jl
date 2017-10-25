@@ -1,10 +1,8 @@
 module Nanosoldier
 
-import GitHub, BenchmarkTools, JLD, JSON, HttpCommon
+import GitHub, BenchmarkTools, JSON, HttpCommon
 
 using Compat
-
-import Compat.UTF8String
 
 const TRIGGER = r"\@nanosoldier\s*`.*?`"
 const SHA_SEPARATOR = '@'
@@ -26,13 +24,13 @@ gitreset!(path) = cd(gitreset!, path)
 # error handling #
 ##################
 
-type NanosoldierError{E<:Exception} <: Exception
-    url::UTF8String
-    msg::UTF8String
+struct NanosoldierError{E<:Exception} <: Exception
+    url::String
+    msg::String
     err::E
 end
 
-NanosoldierError{E<:Exception}(msg, err::E) = NanosoldierError{E}("", msg, err)
+NanosoldierError(msg, err::E) where {E<:Exception} = NanosoldierError{E}("", msg, err)
 
 function Base.show(io::IO, err::NanosoldierError)
     print(io, "NanosoldierError: ", err.msg, ": ")

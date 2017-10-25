@@ -29,15 +29,15 @@ benchmark results remained invariant between builds).
 
 | ID | time ratio | memory ratio |
 |----|------------|--------------|
-| `["g","h","z"]` | 1.00 (60%)  | 5.00 (27%) :x: |
-| `["g","h",("y",1)]` | 2.00 (5%) :x: | 0.00 (3%) :white_check_mark: |
-| `["g","h",("y",2)]` | 0.50 (5%) :white_check_mark: | 1.00 (1%)  |
+| `["g", "h", "z"]` | 1.00 (60%)  | 5.00 (27%) :x: |
+| `["g", "h", ("y", 1)]` | 2.00 (5%) :x: | 0.00 (3%) :white_check_mark: |
+| `["g", "h", ("y", 2)]` | 0.50 (5%) :white_check_mark: | 1.00 (1%)  |
 
 ## Benchmark Group List
 
 Here's a list of all the benchmark groups executed by this job:
 
-- `["g","h"]`
+- `["g", "h"]`
 
 ## Version Info
 

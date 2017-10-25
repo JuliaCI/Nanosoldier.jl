@@ -67,7 +67,7 @@ Once a `BenchmarkJob` is complete, the results are uploaded to the
 has its own directory for results. This directory contains the following items:
 
 - `report.md` is a markdown report that summarizes the job results
-- `data.tar.gz` contains raw timing data in JLD format. To untar this file, run
+- `data.tar.gz` contains raw timing data in JSON format. To untar this file, run
 `tar -xzvf data.tar.gz`. You can analyze this data using the
 [BenchmarkTools](https://github.com/JuliaCI/BaseBenchmarkReports) package.
 - `logs` is a directory containing the build logs and benchmark execution logs for the job.

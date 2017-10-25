@@ -1,5 +1,4 @@
-
-immutable Server
+struct Server
     config::Config
     jobs::Vector{AbstractJob}
     listener::GitHub.CommentListener

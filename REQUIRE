@@ -1,7 +1,6 @@
-julia 0.4
-BenchmarkTools 0.0.7
+julia 0.6
+BenchmarkTools 0.2.0
 GitHub
 JSON
-JLD
 HttpCommon
 Compat 0.8.6
