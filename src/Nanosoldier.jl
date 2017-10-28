@@ -1,6 +1,6 @@
 module Nanosoldier
 
-import GitHub, BenchmarkTools, JSON, HttpCommon
+import GitHub, BenchmarkTools, JSON, HTTP
 
 using Compat
 
