@@ -1,3 +1,5 @@
+__precompile__()
+
 module Nanosoldier
 
 import GitHub, BenchmarkTools, JSON, HTTP
