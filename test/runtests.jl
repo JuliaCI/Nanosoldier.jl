@@ -1,5 +1,5 @@
 import GitHub
-using Nanosoldier, Base.Test, Compat, BenchmarkTools
+using Nanosoldier, Compat, Compat.Test, BenchmarkTools
 using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob, AbstractJob
 using BenchmarkTools: TrialEstimate, Parameters
 
@@ -140,6 +140,6 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 @test begin
     mdpath = joinpath(dirname(@__FILE__), "report.md")
     open(mdpath, "r") do file
-        readstring(file) == sprint(io -> Nanosoldier.printreport(io, job, results))
+        read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results))
     end
 end

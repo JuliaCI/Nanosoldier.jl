@@ -1,14 +1,13 @@
-
-type JobSubmission
+mutable struct JobSubmission
     config::Config
     build::BuildRef
-    statussha::UTF8String   # the SHA to send statuses to (since `build` can mutate)
-    url::UTF8String         # the URL linking to the triggering comment
+    statussha::String       # the SHA to send statuses to (since `build` can mutate)
+    url::String             # the URL linking to the triggering comment
     fromkind::Symbol        # `:pr`, `:review`, or `:commit`?
     prnumber::Nullable{Int} # the job's PR number, if `fromkind` is `:pr` or `:review`
-    func::UTF8String
-    args::Vector{UTF8String}
-    kwargs::Dict{Symbol,UTF8String}
+    func::String
+    args::Vector{String}
+    kwargs::Dict{Symbol,String}
 end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_string)
@@ -21,7 +20,7 @@ function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_st
     end
 end
 
-function @compat(Base.:(==))(a::JobSubmission, b::JobSubmission)
+function Base.:(==)(a::JobSubmission, b::JobSubmission)
     if isnull(a.prnumber) == isnull(b.prnumber)
         same_prnumber = isnull(a.prnumber) ? true : (get(a.prnumber) == get(b.prnumber))
         return (same_prnumber && a.config == b.config && a.build == b.build &&
@@ -77,22 +76,15 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
 end
 
 # `x` can only be Expr, Symbol, QuoteNode, T<:Number, or T<:AbstractString
-function phrase_argument{T}(x::T)
-    if T <: Expr || T <: Symbol || T <: QuoteNode
-        return UTF8String(string(x))
-    elseif T <: AbstractString || T <: Number
-        return UTF8String(repr(x))
-    else
-        error("invalid argument type $(typeof(x))")
-    end
-end
+phrase_argument(x::Union{Expr, Symbol, QuoteNode}) = string(x)
+phrase_argument(x::Union{AbstractString, Number})  = repr(x)
 
 function parse_submission_string(submission_string)
     fncall = match(r"`.*?`", submission_string).match[2:end-1]
     argind = searchindex(fncall, "(")
     name = fncall[1:(argind - 1)]
     parsed_args = parse(replace(fncall[argind:end], ";", ","))
-    args, kwargs = Vector{UTF8String}(), Dict{Symbol,UTF8String}()
+    args, kwargs = Vector{String}(), Dict{Symbol,String}()
     if isa(parsed_args, Expr) && parsed_args.head == :tuple
         started_kwargs = false
         for x in parsed_args.args
@@ -132,7 +124,7 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
     sha = cd(reportdir(cfg)) do
         run(`git add -A`)
         run(`git commit -m $message`)
-        headsha = chomp(readstring(`git rev-parse HEAD`))
+        headsha = readchomp(`git rev-parse HEAD`)
         run(`git pull -X ours`)
         run(`git push`)
         return headsha

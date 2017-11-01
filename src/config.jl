@@ -1,13 +1,12 @@
-
-immutable Config
-    user::UTF8String           # the OS username of the user running the server
+struct Config
+    user::String               # the OS username of the user running the server
     nodes::Vector{Int}         # the pids for the nodes on the cluster
     cpus::Vector{Int}          # the indices of the cpus per node
     auth::GitHub.Authorization # the GitHub authorization used to post statuses/reports
-    secret::UTF8String         # the GitHub secret used to validate webhooks
-    trackrepo::UTF8String      # the main Julia repo tracked by the server
-    reportrepo::UTF8String     # the repo to which result reports are posted
-    workdir::UTF8String        # the server's work directory
+    secret::String             # the GitHub secret used to validate webhooks
+    trackrepo::String          # the main Julia repo tracked by the server
+    reportrepo::String         # the repo to which result reports are posted
+    workdir::String            # the server's work directory
     testmode::Bool             # if true, jobs will run as test jobs
     function Config(user, nodes, cpus, auth, secret;
                     workdir = pwd(),

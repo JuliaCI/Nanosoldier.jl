@@ -2,15 +2,15 @@
 # BuildRef #
 ############
 
-type BuildRef
-    repo::UTF8String  # the build repo
-    sha::UTF8String   # the build + status SHA
-    vinfo::UTF8String # versioninfo() taken during the build
+mutable struct BuildRef
+    repo::String  # the build repo
+    sha::String   # the build + status SHA
+    vinfo::String # versioninfo() taken during the build
 end
 
 BuildRef(repo, sha) = BuildRef(repo, sha, "retrieving versioninfo() failed")
 
-function @compat(Base.:(==))(a::BuildRef, b::BuildRef)
+function Base.:(==)(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
             a.vinfo == b.vinfo)

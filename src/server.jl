@@ -1,5 +1,4 @@
-
-immutable Server
+struct Server
     config::Config
     jobs::Vector{AbstractJob}
     listener::GitHub.CommentListener
@@ -13,10 +12,10 @@ immutable Server
         handle = (event, phrase) -> begin
             nodelog(config, 1, "received job submission with phrase $phrase")
             if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
-                return HttpCommon.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
+                return HTTP.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
             end
             if haskey(event.payload, "action") && !(in(event.payload["action"], ("created", "opened")))
-                return HttpCommon.Response(204, "no action taken (submission was from an edit, close, or delete)")
+                return HTTP.Response(204, "no action taken (submission was from an edit, close, or delete)")
             end
             submission = JobSubmission(config, event, phrase.match)
             addedjob = false
@@ -34,9 +33,9 @@ immutable Server
             end
             if !(addedjob)
                 reply_status(submission, "error", "invalid job submission; check syntax")
-                HttpCommon.Response(400, "invalid job submission")
+                HTTP.Response(400, "invalid job submission")
             end
-            return HttpCommon.Response(202, "received job submission")
+            return HTTP.Response(202, "received job submission")
         end
 
         listener = GitHub.CommentListener(handle, TRIGGER;

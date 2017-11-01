@@ -6,7 +6,7 @@
 # - `Base.run(job::J)`: execute `job`
 # - `Base.summary(job::J)`: a short string identifying/describing `job`
 
-abstract AbstractJob
+abstract type AbstractJob end
 
 reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job), args...; kwargs...)
 reply_comment(job::AbstractJob, args...; kwargs...) = reply_comment(submission(job), args...; kwargs...)

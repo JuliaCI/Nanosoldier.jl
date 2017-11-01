@@ -40,9 +40,9 @@ end
 # BenchmarkJob #
 ################
 
-type BenchmarkJob <: AbstractJob
+mutable struct BenchmarkJob <: AbstractJob
     submission::JobSubmission   # the original submission
-    tagpred::UTF8String         # predicate string to be fed to @tagged
+    tagpred::String             # predicate string to be fed to @tagged
     against::Nullable{BuildRef} # the comparison build (if available)
     date::Dates.Date            # the date of the submitted job
     isdaily::Bool               # is the job a daily job?
@@ -144,10 +144,10 @@ function retrieve_daily_data!(results, key, cfg, date)
             try
                 run(`tar -xvzf data.tar.gz`)
                 datafiles = readdir(datapath)
-                primary_index = findfirst(fname -> endswith(fname, "_primary.jld"), datafiles)
+                primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
                     primary_file = datafiles[primary_index]
-                    results[key] = BenchmarkTools.load(joinpath(datapath, primary_file), "results")
+                    results[key] = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
                     found_previous_date = true
                 end
             catch err
@@ -268,14 +268,14 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     branchname = cfg.testmode ? "test" : "nanosoldier"
     oldpwd = pwd()
     try run(`$juliapath -e 'Pkg.clone("https://github.com/JuliaCI/BaseBenchmarks.jl")'`) end
-    cd(readstring(`$juliapath -e 'print(Pkg.dir("BaseBenchmarks"))'`))
+    cd(read(`$juliapath -e 'print(Pkg.dir("BaseBenchmarks"))'`, String))
     run(`git fetch --all --quiet`)
     run(`git reset --hard --quiet origin/$(branchname)`)
     cd(oldpwd)
 
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
-    # then serialized to a JLD file so that we can retrieve them.
+    # then serialized to a JSON file so that we can retrieve them.
     #
     # CPU shielding requires passwordless sudo access to `cset`. To enable this for the
     # server user, run `sudo visudo` and add the following line:
@@ -305,7 +305,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     benchname = string(build.sha, "_", whichbuild)
     benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
     bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
-    benchresults = joinpath(tmpdatadir(job), string(benchname, ".jld"))
+    benchresults = joinpath(tmpdatadir(job), string(benchname, ".json"))
 
     open(jlscriptpath, "w") do file
         println(file, """
@@ -316,12 +316,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       # move ourselves onto the first CPU in the shielded set
                       run(`sudo cset proc -m -p \$(getpid()) -t /user/child`)
 
-                      VERSION < v"0.5.0-dev+4338" ? blas_set_num_threads(1) : BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
+                      BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                       addprocs(1)             # add worker that can be used by parallel benchmarks
 
                       using BaseBenchmarks
                       using BenchmarkTools
-                      using JLD
+                      using JSON
 
                       println("LOADING SUITE...")
                       BaseBenchmarks.loadall!()
@@ -336,7 +336,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       results = run(benchmarks; verbose = true)
 
                       println("SAVING RESULT...")
-                      BenchmarkTools.save(\"$(benchresults)\", "results", results)
+                      BenchmarkTools.save(\"$(benchresults)\", results)
 
                       println("DONE!")
 
@@ -365,12 +365,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     run(`sudo cset set -d /user/child`)
     run(`sudo cset shield --reset`)
 
-    results = BenchmarkTools.load(benchresults, "results")
+    results = BenchmarkTools.load(benchresults)[1]
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
     try
-        build.vinfo = first(split(readstring(`$(juliapath) -e 'versioninfo(true)'`), "Environment"))
+        build.vinfo = first(split(read(`$(juliapath) -e 'versioninfo(true)'`, String), "Environment"))
     catch err
         build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
