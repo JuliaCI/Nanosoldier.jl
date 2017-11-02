@@ -1,6 +1,6 @@
 julia 0.6
 BenchmarkTools 0.2.0
-GitHub
+GitHub 3.0.0
 JSON
 HTTP
 Compat 0.8.6

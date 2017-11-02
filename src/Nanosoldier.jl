@@ -1,3 +1,5 @@
+__precompile__()
+
 module Nanosoldier
 
 import GitHub, BenchmarkTools, JSON, HTTP
@@ -24,7 +26,7 @@ gitreset!(path) = cd(gitreset!, path)
 # error handling #
 ##################
 
-struct NanosoldierError{E<:Exception} <: Exception
+mutable struct NanosoldierError{E<:Exception} <: Exception
     url::String
     msg::String
     err::E
