@@ -211,7 +211,7 @@ function Base.run(job::BenchmarkJob)
                     found_previous_date && (results["previous_date"] = check_date)
                     i += 1
                 end
-                !(found_previous_date) && error("didn't find previous daily build data in the past 31 days")
+                found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
             catch err
                 rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
             end
