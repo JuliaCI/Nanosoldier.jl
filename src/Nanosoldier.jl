@@ -5,6 +5,7 @@ module Nanosoldier
 import GitHub, BenchmarkTools, JSON, HTTP
 
 using Compat
+using Compat.Dates
 
 const TRIGGER = r"\@nanosoldier\s*`.*?`"
 const SHA_SEPARATOR = '@'
