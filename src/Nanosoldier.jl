@@ -15,6 +15,12 @@ const BRANCH_SEPARATOR = ':'
 # utility functions #
 #####################
 
+if VERSION < v"0.7.0-DEV.2437"
+    const parsecode = Base.parse
+else
+    const parsecode = Meta.parse
+end
+
 snip(str, len) = length(str) > len ? str[1:len] : str
 snipsha(sha) = snip(sha, 7)
 

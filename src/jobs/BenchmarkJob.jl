@@ -9,7 +9,7 @@
 const VALID_TAG_PRED_SYMS = (:!, :&&, :||, :call, :ALL)
 
 function is_valid_tagpred(tagpred::AbstractString)
-    parsed = parse(tagpred)
+    parsed = parsecode(tagpred)
     if isa(parsed, Expr)
         return is_valid_tagpred(parsed)
     elseif parsed == :ALL
@@ -51,7 +51,7 @@ end
 
 function BenchmarkJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs)
-        againststr = parse(submission.kwargs[:vs])
+        againststr = parsecode(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == ararslan/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef

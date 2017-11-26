@@ -83,7 +83,7 @@ function parse_submission_string(submission_string)
     fncall = match(r"`.*?`", submission_string).match[2:end-1]
     argind = searchindex(fncall, "(")
     name = fncall[1:(argind - 1)]
-    parsed_args = parse(replace(fncall[argind:end], ";", ","))
+    parsed_args = parsecode(replace(fncall[argind:end], ";", ","))
     args, kwargs = Vector{String}(), Dict{Symbol,String}()
     if isa(parsed_args, Expr) && parsed_args.head == :tuple
         started_kwargs = false
