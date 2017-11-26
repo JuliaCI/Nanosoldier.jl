@@ -309,6 +309,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     open(jlscriptpath, "w") do file
         println(file, """
+                      using Compat
+                      using Compat.Dates # needed for `now`
+
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
