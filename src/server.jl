@@ -12,7 +12,7 @@ struct Server
         handle = (event, phrase) -> begin
             nodelog(config, 1, "received job submission with phrase $phrase")
             if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
-                return HTTP.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
+                return HTTP.Response(204, "no action taken (submission was in an issue rather than PR or commit)")
             end
             if haskey(event.payload, "action") && !(in(event.payload["action"], ("created", "opened")))
                 return HTTP.Response(204, "no action taken (submission was from an edit, close, or delete)")
