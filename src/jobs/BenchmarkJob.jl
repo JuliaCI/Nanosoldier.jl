@@ -315,6 +315,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       if VERSION >= v"0.7.0-DEV.2954"
                           using Distributed # needed for `addprocs`
                       end
+                      if VERSION >= v"0.7.0-DEV.3449"
+                          using LinearAlgebra # needed for `BLAS.set_num_threads`
+                      end
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
