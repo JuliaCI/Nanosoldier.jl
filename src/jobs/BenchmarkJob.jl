@@ -543,13 +543,13 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   that indicate possible regressions or improvements - are shown below (thus, an empty table means that all
                   benchmark results remained invariant between builds).
 
-                  | ID | time ratio | memory ratio |
-                  |----|------------|--------------|
+                  | ID | real-time ratio | cpu-time ratio | memory ratio |
+                  |----|-----------------|----------------|--------------|
                   """)
     else
         print(io, """
-                  | ID | time | GC time | memory | allocations |
-                  |----|------|---------|--------|-------------|
+                  | ID | real-time | cpu-time | GC time | memory | allocations |
+                  |----|-----------|----------|---------|--------|-------------|
                   """)
     end
 
@@ -615,23 +615,27 @@ resultrow(ids, t::BenchmarkTools.Trial) = resultrow(ids, minimum(t))
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
     m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
-    timestr = string(BenchmarkTools.prettytime(BenchmarkTools.time(t)), " (", t_tol, ")")
+    realtimestr = string(BenchmarkTools.prettytime(BenchmarkTools.realtime(t)), " (", t_tol, ")")
+    cputimestr = string(BenchmarkTools.prettytime(BenchmarkTools.cputime(t)), " (", t_tol, ")")
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
     allocstr = string(BenchmarkTools.allocs(t))
-    return "| `$(idrepr(ids))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
+    return "| `$(idrepr(ids))` | $(realtimestr) | $(cputimestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
 function resultrow(ids, t::BenchmarkTools.TrialJudgement)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
     m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
-    t_ratio = @sprintf("%.2f", BenchmarkTools.time(BenchmarkTools.ratio(t)))
+    rt_ratio = @sprintf("%.2f", BenchmarkTools.realtime(BenchmarkTools.ratio(t)))
+    ct_ratio = @sprintf("%.2f", BenchmarkTools.cputime(BenchmarkTools.ratio(t)))
     m_ratio =  @sprintf("%.2f", BenchmarkTools.memory(BenchmarkTools.ratio(t)))
-    t_mark = resultmark(BenchmarkTools.time(t))
+    rt_mark = resultmark(BenchmarkTools.realtime(t))
+    ct_mark = resultmark(BenchmarkTools.cputime(t))
     m_mark = resultmark(BenchmarkTools.memory(t))
-    timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
+    realtimestr = "$(rt_ratio) ($(rt_tol)) $(rt_mark)"
+    cputimestr = "$(ct_ratio) ($(ct_tol)) $(ct_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
-    return "| `$(idrepr(ids))` | $(timestr) | $(memstr) |"
+    return "| `$(idrepr(ids))` | $(realtimestr) | $(cputimestr) | $(memstr) |"
 end
 
 resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")
