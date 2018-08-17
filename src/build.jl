@@ -19,23 +19,22 @@ end
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
 
 # if a PR number is included, attempt to build from the PR's merge commit
-function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Nullable{Int} = Nullable{Int}())
+function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
     cd(workdir(config))
 
     # clone/fetch the appropriate Julia version
-    if !(isnull(prnumber))
-        pr = get(prnumber)
+    if prnumber !== nothing
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
         gitclone!(config.trackrepo, builddir)
         cd(builddir)
         try
-            run(`git fetch --quiet origin +refs/pull/$(pr)/merge:`)
+            run(`git fetch --quiet origin +refs/pull/$(prnumber)/merge:`)
         catch
             # if there's not a merge commit on the remote (likely due to
             # merge conflicts) then fetch the head commit instead.
-            run(`git fetch --quiet origin +refs/pull/$(pr)/head:`)
+            run(`git fetch --quiet origin +refs/pull/$(prnumber)/head:`)
         end
         run(`git checkout --quiet --force FETCH_HEAD`)
         build.sha = readchomp(`git rev-parse HEAD`)
@@ -51,7 +50,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Nullab
     errfile = joinpath(logpath, string(logname, ".err"))
 
     # run the build
-    run(pipeline(`make -j$(length(config.cpus))`, stdout = outfile, stderr = errfile))
+    run(pipeline(`make -j$(length(config.cpus)) USECCACHE=1`, stdout=outfile, stderr=errfile))
     cd(workdir(config))
     return builddir
 end

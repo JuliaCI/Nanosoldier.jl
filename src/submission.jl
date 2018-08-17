@@ -1,10 +1,10 @@
 mutable struct JobSubmission
     config::Config
     build::BuildRef
-    statussha::String       # the SHA to send statuses to (since `build` can mutate)
-    url::String             # the URL linking to the triggering comment
-    fromkind::Symbol        # `:pr`, `:review`, or `:commit`?
-    prnumber::Nullable{Int} # the job's PR number, if `fromkind` is `:pr` or `:review`
+    statussha::String            # the SHA to send statuses to (since `build` can mutate)
+    url::String                  # the URL linking to the triggering comment
+    fromkind::Symbol             # `:pr`, `:review`, or `:commit`?
+    prnumber::Union{Int,Nothing} # the job's PR number, if `fromkind` is `:pr` or `:review`
     func::String
     args::Vector{String}
     kwargs::Dict{Symbol,String}
@@ -21,8 +21,8 @@ function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_st
 end
 
 function Base.:(==)(a::JobSubmission, b::JobSubmission)
-    if isnull(a.prnumber) == isnull(b.prnumber)
-        same_prnumber = isnull(a.prnumber) ? true : (get(a.prnumber) == get(b.prnumber))
+    if (a.prnumber === nothing) == (b.prnumber === nothing)
+        same_prnumber = a.prnumber === nothing ? true : (a.prnumber == b.prnumber)
         return (same_prnumber && a.config == b.config && a.build == b.build &&
                 a.statussha == b.statussha && a.url == b.url && a.fromkind == b.fromkind &&
                 a.func == b.func && a.args == b.args)
@@ -36,11 +36,11 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         # A commit was commented on, and the comment contained a trigger phrase.
         # The primary repo is the location of the comment, and the primary SHA
         # is that of the commit that was commented on.
-        repo = get(event.repository.full_name)
+        repo = event.repository.full_name
         sha = event.payload["comment"]["commit_id"]
         url = event.payload["comment"]["html_url"]
         fromkind = :commit
-        prnumber = Nullable{Int}()
+        prnumber = nothing
     elseif event.kind == "pull_request_review_comment"
         # A diff was commented on, and the comment contained a trigger phrase.
         # The primary repo is the location of the head branch, and the primary
@@ -49,7 +49,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         sha = event.payload["comment"]["commit_id"]
         url = event.payload["comment"]["html_url"]
         fromkind = :review
-        prnumber = Nullable(Int(event.payload["pull_request"]["number"]))
+        prnumber = Int(event.payload["pull_request"]["number"])
     elseif event.kind == "pull_request"
         # A PR was opened, and the description body contained a trigger phrase.
         # The primary repo is the location of the head branch, and the primary
@@ -59,18 +59,18 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         sha = event.payload["pull_request"]["head"]["sha"]
         url = event.payload["pull_request"]["html_url"]
         fromkind = :pr
-        prnumber = Nullable(Int(event.payload["pull_request"]["number"]))
+        prnumber = Int(event.payload["pull_request"]["number"])
     elseif event.kind == "issue_comment"
         # A comment was made in a PR, and it contained a trigger phrase. The
         # primary repo is the location of the PR's head branch, and the primary
         # SHA is that of the head commit. The PR number is provided, so that the
         # build can execute on the relevant merge commit.
-        pr = GitHub.pull_request(event.repository, event.payload["issue"]["number"], auth = config.auth)
-        repo = get(get(get(pr.head).repo).full_name)
-        sha = get(get(pr.head).sha)
+        pr = GitHub.pull_request(event.repository, event.payload["issue"]["number"], auth=config.auth)
+        repo = pr.head.repo.full_name
+        sha = pr.head.sha
         url = event.payload["comment"]["html_url"]
         fromkind = :pr
-        prnumber = Nullable(Int(get(pr.number)))
+        prnumber = Int(pr.number)
     end
     return BuildRef(repo, sha), sha, url, fromkind, prnumber
 end
@@ -81,19 +81,19 @@ phrase_argument(x::Union{AbstractString, Number})  = repr(x)
 
 function parse_submission_string(submission_string)
     fncall = match(r"`.*?`", submission_string).match[2:end-1]
-    argind = searchindex(fncall, "(")
+    argind = findfirst(isequal('('), fncall)
     name = fncall[1:(argind - 1)]
-    parsed_args = parsecode(replace(fncall[argind:end], ";", ","))
+    parsed_args = Meta.parse(replace(fncall[argind:end], ";" => ","))
     args, kwargs = Vector{String}(), Dict{Symbol,String}()
     if isa(parsed_args, Expr) && parsed_args.head == :tuple
         started_kwargs = false
         for x in parsed_args.args
             if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
-                @assert !(haskey(kwargs, x.args[1])) "kwargs must all be unique"
+                @assert !haskey(kwargs, x.args[1]) "kwargs must all be unique"
                 kwargs[x.args[1]] = phrase_argument(x.args[2])
                 started_kwargs = true
             else
-                @assert !(started_kwargs) "kwargs must come after other args"
+                @assert !started_kwargs "kwargs must come after other args"
                 push!(args, phrase_argument(x))
             end
         end
@@ -107,13 +107,13 @@ function reply_status(sub::JobSubmission, state, description, url=nothing)
     params = Dict("state" => state,
                   "context" => "Nanosoldier",
                   "description" => snip(description, 140))
-    url != nothing && (params["target_url"] = url)
+    url !== nothing && (params["target_url"] = url)
     return GitHub.create_status(sub.config.trackrepo, sub.statussha;
                                 auth = sub.config.auth, params = params)
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
-    commentplace = isnull(sub.prnumber) ? sub.statussha : get(sub.prnumber)
+    commentplace = sub.prnumber === nothing ? sub.statussha : sub.prnumber
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
     return GitHub.create_comment(sub.config.trackrepo, commentplace, commentkind;
                                  auth = sub.config.auth, params = Dict("body" => message))

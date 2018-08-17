@@ -1,8 +1,6 @@
-if VERSION >= v"0.7.0-DEV.2954"
-    using Distributed
-end
+using Distributed
 
-nodes = addprocs(["nanosoldier6"], exeflags=["--compilecache=no", "--precompiled=no"])
+nodes = addprocs(["nanosoldier6"])
 
 import Nanosoldier, GitHub
 
