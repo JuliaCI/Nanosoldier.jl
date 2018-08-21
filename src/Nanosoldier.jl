@@ -1,5 +1,3 @@
-__precompile__()
-
 module Nanosoldier
 
 using Dates, Distributed, Printf
