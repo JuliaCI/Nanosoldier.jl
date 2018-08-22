@@ -2,6 +2,7 @@ struct Server
     config::Config
     jobs::Vector{AbstractJob}
     listener::GitHub.CommentListener
+
     function Server(config::Config)
         jobs = Vector{AbstractJob}()
 
@@ -11,10 +12,10 @@ struct Server
         # the job-feeding tasks scheduled when `run` is called on the Server.
         handle = (event, phrase) -> begin
             nodelog(config, 1, "received job submission with phrase $phrase")
-            if event.kind == "issue_comment" && !(haskey(event.payload["issue"], "pull_request"))
+            if event.kind == "issue_comment" && !haskey(event.payload["issue"], "pull_request")
                 return HTTP.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
             end
-            if haskey(event.payload, "action") && !(in(event.payload["action"], ("created", "opened")))
+            if haskey(event.payload, "action") && !in(event.payload["action"], ("created", "opened"))
                 return HTTP.Response(204, "no action taken (submission was from an edit, close, or delete)")
             end
             submission = JobSubmission(config, event, phrase.match)
@@ -31,7 +32,7 @@ struct Server
                     end
                 end
             end
-            if !(addedjob)
+            if !addedjob
                 reply_status(submission, "error", "invalid job submission; check syntax")
                 HTTP.Response(400, "invalid job submission")
             end
@@ -53,12 +54,12 @@ function Base.run(server::Server, args...; kwargs...)
     # queque once the node has completed its primary job. If the queue is
     # empty, then the task will call `yield` in order to avoid a deadlock.
     for node in server.config.nodes
-        @schedule begin
+        @async begin
             try
                 while true
                     job = retrieve_job!(server.jobs, node == last(server.config.nodes))
-                    if !(isnull(job))
-                        delegate_job(server, get(job), node)
+                    if job !== nothing
+                        delegate_job(server, job, node)
                     else
                         yield()
                     end
@@ -75,19 +76,19 @@ end
 
 function retrieve_job!(jobs, accept_daily::Bool)
     if isempty(jobs)
-        return Nullable{AbstractJob}()
+        return nothing
     else
-        if !(accept_daily)
+        if !accept_daily
             i = findfirst(job -> !(isa(job, BenchmarkJob) && job.isdaily), jobs)
-            if i == 0
-                return Nullable{AbstractJob}()
+            if i === nothing
+                return nothing
             else
                 job = jobs[i]
                 deleteat!(jobs, i)
-                return Nullable(job)
+                return job
             end
         else
-            return Nullable(shift!(jobs))
+            return popfirst!(jobs)
         end
     end
 end

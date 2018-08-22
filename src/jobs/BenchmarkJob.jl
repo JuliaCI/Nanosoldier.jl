@@ -9,7 +9,7 @@
 const VALID_TAG_PRED_SYMS = (:!, :&&, :||, :call, :ALL)
 
 function is_valid_tagpred(tagpred::AbstractString)
-    parsed = parsecode(tagpred)
+    parsed = Meta.parse(tagpred)
     if isa(parsed, Expr)
         return is_valid_tagpred(parsed)
     elseif parsed == :ALL
@@ -20,15 +20,15 @@ function is_valid_tagpred(tagpred::AbstractString)
 end
 
 function is_valid_tagpred(tagpred::Expr)
-    if !(in(tagpred.head, VALID_TAG_PRED_SYMS))
+    if !in(tagpred.head, VALID_TAG_PRED_SYMS)
         return false
     else
         for item in tagpred.args
             if isa(item, Expr)
-                !(is_valid_tagpred(item)) && return false
+                is_valid_tagpred(item) || return false
             elseif isa(item, Symbol)
-                !(in(item, VALID_TAG_PRED_SYMS)) && return false
-            elseif !(isa(item, AbstractString))
+                in(item, VALID_TAG_PRED_SYMS) || return false
+            elseif !isa(item, AbstractString)
                 return false
             end
         end
@@ -41,17 +41,17 @@ end
 ################
 
 mutable struct BenchmarkJob <: AbstractJob
-    submission::JobSubmission   # the original submission
-    tagpred::String             # predicate string to be fed to @tagged
-    against::Nullable{BuildRef} # the comparison build (if available)
-    date::Dates.Date            # the date of the submitted job
-    isdaily::Bool               # is the job a daily job?
-    skipbuild::Bool             # use local julia install instead of a fresh build (for testing)
+    submission::JobSubmission        # the original submission
+    tagpred::String                  # predicate string to be fed to @tagged
+    against::Union{BuildRef,Nothing} # the comparison build (if available)
+    date::Dates.Date                 # the date of the submitted job
+    isdaily::Bool                    # is the job a daily job?
+    skipbuild::Bool                  # use local julia install instead of a fresh build (for testing)
 end
 
 function BenchmarkJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs)
-        againststr = parsecode(submission.kwargs[:vs])
+        againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == ararslan/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
@@ -63,9 +63,9 @@ function BenchmarkJob(submission::JobSubmission)
         else
             error("invalid argument to `vs` keyword")
         end
-        against = Nullable(againstbuild)
+        against = againstbuild
     else
-        against = Nullable{BuildRef}()
+        against = nothing
     end
 
     if haskey(submission.kwargs, :skipbuild)
@@ -87,9 +87,9 @@ end
 function Base.summary(job::BenchmarkJob)
     result = "BenchmarkJob $(summary(submission(job).build))"
     if job.isdaily
-        result = "$(result) [daily]"
-    elseif !(isnull(job.against))
-        result = "$(result) vs. $(summary(get(job.against)))"
+        result *= " [daily]"
+    elseif job.against !== nothing
+        result *= " vs. $(summary(job.against))"
     end
     return result
 end
@@ -98,7 +98,7 @@ function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
     allowed_kwargs = (:vs, :skipbuild, :isdaily)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_tagpred(first(args))
-    has_valid_kwargs = (all(key -> in(key, allowed_kwargs), keys(kwargs)) &&
+    has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
                         (length(kwargs) <= length(allowed_kwargs)))
     return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
 end
@@ -110,21 +110,21 @@ submission(job::BenchmarkJob) = job.submission
 #############
 
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
-    shastr = get(get(GitHub.branch(reponame, branchname; auth = config.auth).commit).sha)
+    shastr = GitHub.branch(reponame, branchname; auth=config.auth).commit.sha
     return BuildRef(reponame, shastr)
 end
 
-datedirname(date::Dates.Date) = string("daily_", Dates.year(date), "_", Dates.month(date), "_", Dates.day(date))
+datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
 
 function jobdirname(job::BenchmarkJob)
     if job.isdaily
         return datedirname(job.date)
     else
         primarysha = snipsha(submission(job).build.sha)
-        if isnull(job.against)
+        if job.against === nothing
             return primarysha
         else
-            againstsha = snipsha(get(job.against).sha)
+            againstsha = snipsha(job.against.sha)
             return string(primarysha, "_vs_", againstsha)
         end
     end
@@ -153,7 +153,7 @@ function retrieve_daily_data!(results, key, cfg, date)
             catch err
                 nodelog(cfg, myid(), string("encountered error when retrieving daily data: ", sprint(showerror, err)))
             finally
-                isdir(datapath) && rm(datapath, recursive = true)
+                isdir(datapath) && rm(datapath, recursive=true)
             end
         end
     end
@@ -177,7 +177,7 @@ function Base.run(job::BenchmarkJob)
     nodelog(cfg, node, "creating temporary directory for benchmark results")
     if isdir(tmpdir(job))
         nodelog(cfg, node, "...removing old temporary directory...")
-        rm(tmpdir(job), recursive = true)
+        rm(tmpdir(job), recursive=true)
     end
     nodelog(cfg, node, "...creating $(tmpdir(job))...")
     mkdir(tmpdir(job))
@@ -199,13 +199,13 @@ function Base.run(job::BenchmarkJob)
     end
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
-    if !(haskey(results, "error"))
+    if !haskey(results, "error")
         if job.isdaily # get results from previous day (if it exists, check the past 30 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !(found_previous_date) && i < 31
+                while !found_previous_date && i < 31
                     check_date = job.date - Dates.Day(i)
                     found_previous_date = retrieve_daily_data!(results, "against", cfg, check_date)
                     found_previous_date && (results["previous_date"] = check_date)
@@ -215,7 +215,7 @@ function Base.run(job::BenchmarkJob)
             catch err
                 rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
             end
-        elseif !(isnull(job.against)) # run comparison build
+        elseif job.against !== nothing # run comparison build
             try
                 nodelog(cfg, node, "running comparison build for $(summary(job))")
                 results["against"] = execute_benchmarks!(job, :against)
@@ -238,12 +238,12 @@ end
 function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     node = myid()
     cfg = submission(job).config
-    build = whichbuild == :against ? get(job.against) : submission(job).build
+    build = whichbuild == :against ? job.against : submission(job).build
 
     if job.skipbuild
         nodelog(cfg, node, "...skipping julia build...")
         builddir = mktempdir(workdir(cfg))
-        juliapath = joinpath(homedir(), "julia6/julia")
+        juliapath = joinpath(homedir(), "julia6/julia") # TODO: Rename directory
     else
         nodelog(cfg, node, "...building julia...")
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
@@ -261,17 +261,34 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cd(builddir)
 
     # update local Julia packages for the relevant Julia version
-    run(`$juliapath -e 'Pkg.update()'`)
+    run(`$juliapath -e 'VERSION >= v"0.7.0-DEV.3656" && using Pkg; Pkg.update()'`)
 
     # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "test" : "nanosoldier"
-    oldpwd = pwd()
-    try run(`$juliapath -e 'Pkg.clone("https://github.com/JuliaCI/BaseBenchmarks.jl")'`) end
-    cd(read(`$juliapath -e 'print(Pkg.dir("BaseBenchmarks"))'`, String))
-    run(`git fetch --all --quiet`)
-    run(`git reset --hard --quiet origin/$(branchname)`)
-    cd(oldpwd)
+    try
+        run(```
+            $juliapath -e '
+                VERSION >= v"0.7.0-DEV.3656" && using Pkg
+                url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
+                VERSION >= v"0.7.0-DEV.5183" ? Pkg.add(url) : Pkg.clone(url)
+            '
+            ```)
+    catch
+    end
+    cd(read(```
+        $juliapath -e '
+            if VERSION >= v"0.7.0-beta2.203"
+                import BaseBenchmarks
+                print(dirname(dirname(pathof(BaseBenchmarks))))
+            else
+                print(Pkg.dir("BaseBenchmarks"))
+            end
+        '
+        ```, String)) do
+        run(`git fetch --all --quiet`)
+        run(`git reset --hard --quiet origin/$(branchname)`)
+    end
 
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
@@ -311,47 +328,45 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         println(file, """
                       using Compat
                       using Compat.Dates # needed for `now`
-
-                      if VERSION >= v"0.7.0-DEV.2954"
-                          using Distributed # needed for `addprocs`
-                      end
-                      if VERSION >= v"0.7.0-DEV.3449"
-                          using LinearAlgebra # needed for `BLAS.set_num_threads`
-                      end
+                      using Compat.Distributed # needed for `addprocs`
+                      using Compat.LinearAlgebra # needed for `BLAS.set_num_threads`
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
                       bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
 
-                      # move ourselves onto the first CPU in the shielded set
-                      run(`sudo cset proc -m -p \$(getpid()) -t /user/child`)
+                      # ensure we don't leak file handles when something goes wrong
+                      try
+                          # move ourselves onto the first CPU in the shielded set
+                          run(`sudo cset proc -m -p \$(getpid()) -t /user/child`)
 
-                      BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
-                      addprocs(1)             # add worker that can be used by parallel benchmarks
+                          BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
+                          addprocs(1)             # add worker that can be used by parallel benchmarks
 
-                      using BaseBenchmarks
-                      using BenchmarkTools
-                      using JSON
+                          using BaseBenchmarks
+                          using BenchmarkTools
+                          using JSON
 
-                      println("LOADING SUITE...")
-                      BaseBenchmarks.loadall!()
+                          println("LOADING SUITE...")
+                          BaseBenchmarks.loadall!()
 
-                      println("FILTERING SUITE...")
-                      benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))]
+                          println("FILTERING SUITE...")
+                          benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))]
 
-                      println("WARMING UP BENCHMARKS...")
-                      warmup(benchmarks)
+                          println("WARMING UP BENCHMARKS...")
+                          warmup(benchmarks)
 
-                      println("RUNNING BENCHMARKS...")
-                      results = run(benchmarks; verbose = true)
+                          println("RUNNING BENCHMARKS...")
+                          results = run(benchmarks; verbose=true)
 
-                      println("SAVING RESULT...")
-                      BenchmarkTools.save(\"$(benchresults)\", results)
+                          println("SAVING RESULT...")
+                          BenchmarkTools.save(\"$(benchresults)\", results)
 
-                      println("DONE!")
-
-                      close(benchout)
-                      close(bencherr)
+                          println("DONE!")
+                      finally
+                          close(benchout)
+                          close(bencherr)
+                      end
                       """)
     end
 
@@ -360,8 +375,14 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # make jlscript executable
     run(`chmod +x $(jlscriptpath)`)
     # clean up old cpusets, if they exist
-    try run(`sudo cset set -d /user/child`) end
-    try run(`sudo cset shield --reset`) end
+    try
+        run(`sudo cset set -d /user/child`)
+    catch
+    end
+    try
+        run(`sudo cset shield --reset`)
+    catch
+    end
     # shield our CPUs
     run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
     run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
@@ -380,7 +401,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
     try
-        build.vinfo = first(split(read(`$(juliapath) -e 'versioninfo(true)'`, String), "Environment"))
+        build.vinfo = first(split(read(```
+            $juliapath -e '
+                VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
+                VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
+                '
+            ```, String), "Environment"))
     catch err
         build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
@@ -388,7 +414,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cd(workdir(cfg))
 
     # delete the builddir now that we're done with it
-    rm(builddir, recursive = true)
+    rm(builddir, recursive=true)
 
     return results
 end
@@ -403,7 +429,9 @@ function report(job::BenchmarkJob, results)
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, but no benchmarks were actually executed. Perhaps your tag predicate contains misspelled tags? cc @ararslan")
+        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
+                      "but no benchmarks were actually executed. Perhaps your tag predicate " *
+                      "contains misspelled tags? cc @ararslan")
     else
         #  prepare report + data and push it to report repo
         target_url = ""
@@ -416,12 +444,13 @@ function report(job::BenchmarkJob, results)
             nodelog(cfg, node, "...tarring data...")
             cd(tmpdir(job)) do
                 run(`tar -zcvf data.tar.gz data`)
-                rm(tmpdatadir(job), recursive = true)
+                rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
-            mv(tmpdir(job), reportdir(job); remove_destination = true)
+            mv(tmpdir(job), reportdir(job); force=true)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
-            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname), "upload report for $(summary(job))")
+            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname),
+                                             "upload report for $(summary(job))")
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
@@ -432,10 +461,11 @@ function report(job::BenchmarkJob, results)
             rethrow(err)
         else
             # determine the job's final status
-            if !(isnull(job.against)) || haskey(results, "previous_date")
+            if job.against !== nothing || haskey(results, "previous_date")
                 found_regressions = BenchmarkTools.isregression(results["judged"])
                 state = found_regressions ? "failure" : "success"
-                status = found_regressions ? "possible performance regressions were detected" : "no performance regressions were detected"
+                status = found_regressions ? "possible performance regressions were detected" :
+                                             "no performance regressions were detected"
             else
                 state = "success"
                 status = "successfully executed benchmarks"
@@ -443,9 +473,11 @@ function report(job::BenchmarkJob, results)
             # reply with the job's final status
             reply_status(job, state, status, target_url)
             if isempty(target_url)
-                comment = "[Your benchmark job]($(submission(job).url)) has completed, but something went wrong when trying to upload the result data. cc @ararslan"
+                comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
+                          "something went wrong when trying to upload the result data. cc @ararslan"
             else
-                comment = "[Your benchmark job]($(submission(job).url)) has completed - $(status). A full report can be found [here]($(target_url)). cc @ararslan"
+                comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
+                          "$(status). A full report can be found [here]($(target_url)). cc @ararslan"
             end
             reply_comment(job, comment)
         end
@@ -463,12 +495,12 @@ function printreport(io::IO, job::BenchmarkJob, results)
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
     joblink = "[$(buildname)]($(buildlink))"
-    hasagainstbuild = !(isnull(job.against))
+    hasagainstbuild = job.against !== nothing
     hasprevdate = haskey(results, "previous_date")
     iscomparisonjob = hasagainstbuild || hasprevdate
 
     if hasagainstbuild
-        againstbuild = get(job.against)
+        againstbuild = job.against
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
@@ -559,11 +591,12 @@ function printreport(io::IO, job::BenchmarkJob, results)
     entries = BenchmarkTools.leaves(tablegroup)
 
     try
-        entries = entries[sortperm(map(x -> string(first(x)), entries))]
+        entries = entries[sortperm(map(string∘first, entries))]
+    catch
     end
 
     for (ids, t) in entries
-        if !(iscomparisonjob) || BenchmarkTools.isregression(t) || BenchmarkTools.isimprovement(t)
+        if !iscomparisonjob || BenchmarkTools.isregression(t) || BenchmarkTools.isimprovement(t)
             println(io, resultrow(ids, t))
         end
     end
@@ -602,14 +635,19 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   #### Comparison Build
 
                   ```
-                  $(get(job.against).vinfo)
+                  $(job.against.vinfo)
                   ```
                   """)
     end
     return nothing
 end
 
-idrepr(id) = (str = repr(id); str[searchindex(str, '['):end])
+function idrepr(id)
+    str = repr(id)
+    ind = findfirst(isequal('['), str)
+    ind === nothing && error("Malformed id")
+    return str[ind:end]
+end
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
 

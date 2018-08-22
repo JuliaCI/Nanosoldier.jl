@@ -1,5 +1,5 @@
 import GitHub
-using Nanosoldier, Compat, Compat.Test, BenchmarkTools
+using Nanosoldier, Test, BenchmarkTools
 using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob, AbstractJob
 using BenchmarkTools: TrialEstimate, Parameters
 
@@ -32,7 +32,7 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 """
 
 primary = BuildRef("ararslan/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
-against = Nullable(BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against"))
+against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
 config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 
@@ -42,7 +42,7 @@ tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 
 function build_test_submission(submission_string)
     func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
-    submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, Nullable{Int}(), func, args, kwargs)
+    submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
     @test Nanosoldier.isvalid(submission, BenchmarkJob)
     return submission
 end
@@ -72,32 +72,32 @@ daily_job = BenchmarkJob(build_test_submission("@nanosoldier `runbenchmarks(ALL,
 
 queue = [daily_job, daily_job]
 job = Nanosoldier.retrieve_job!(queue, true)
-@test !(isnull(job)) && get(job).isdaily
+@test job !== nothing && job.isdaily
 @test length(queue) == 1
 
 queue = [non_daily_job, daily_job]
 job = Nanosoldier.retrieve_job!(queue, true)
-@test !(isnull(job)) && !(get(job).isdaily)
+@test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, non_daily_job]
 job = Nanosoldier.retrieve_job!(queue, true)
-@test !(isnull(job)) && get(job).isdaily
+@test job !== nothing && job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, daily_job]
 job = Nanosoldier.retrieve_job!(queue, false)
-@test isnull(job)
+@test job === nothing
 @test length(queue) == 2
 
 queue = [non_daily_job, daily_job]
 job = Nanosoldier.retrieve_job!(queue, false)
-@test !(isnull(job)) && !(get(job).isdaily)
+@test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, non_daily_job]
 job = Nanosoldier.retrieve_job!(queue, false)
-@test !(isnull(job)) && !(get(job).isdaily)
+@test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
 #########################
@@ -108,7 +108,7 @@ sub = build_test_submission("@nanosoldier `runbenchmarks($tagpred)`")
 job = BenchmarkJob(sub)
 @test Nanosoldier.submission(job) == sub
 @test job.tagpred == tagpred
-@test isnull(job.against)
+@test job.against == nothing
 job.against = against
 
 results = Dict(
@@ -138,7 +138,7 @@ results = Dict(
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
-    mdpath = joinpath(dirname(@__FILE__), "report.md")
+    mdpath = joinpath(@__DIR__, "report.md")
     open(mdpath, "r") do file
         read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results))
     end
