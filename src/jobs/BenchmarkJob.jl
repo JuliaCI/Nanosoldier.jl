@@ -151,7 +151,9 @@ function retrieve_daily_data!(results, key, cfg, date)
                     found_previous_date = true
                 end
             catch err
-                nodelog(cfg, myid(), string("encountered error when retrieving daily data: ", sprint(showerror, err)))
+                nodelog(cfg, myid(),
+                        "encountered error when retrieving daily data: " * sprint(showerror, err),
+                        error=(err, stacktrace(catch_backtrace())))
             finally
                 isdir(datapath) && rm(datapath, recursive=true)
             end

@@ -28,7 +28,8 @@ struct Server
                         reply_status(job, "pending", "job added to queue: $(summary(job))")
                         addedjob = true
                     catch err
-                        nodelog(config, 1, "failed to constuct $(J) with a supposedly valid submission: $(err)")
+                        nodelog(config, 1, "failed to constuct $J with a supposedly valid submission: $err",
+                                error=(err, stacktrace(catch_backtrace())))
                     end
                 end
             end
@@ -66,13 +67,8 @@ function Base.run(server::Server, args...; kwargs...)
                     sleep(5) # poll only every 5 seconds so as not to throttle CPU
                 end
             catch err
-                # Errors get swallowed into the void when using `@async`, so we have
-                # to be explicit when dealing with them; `rethrow` here won't cut it.
-                # We'll get the stacktrace for the error then log it to both the node
-                # log and to the running REPL session to ensure someone sees it.
-                st = stacktrace(catch_backtrace())
-                nodelog(server.config, node, "encountered job loop error: $err:\n$st")
-                @error "encountered job loop error on node $node:" exception=(err, st)
+                nodelog(server.config, node, "encountered job loop error: $err",
+                        error=(err, stacktrace(catch_backtrace())))
             end
         end
     end
@@ -118,7 +114,7 @@ function delegate_job(server::Server, job::AbstractJob, node)
             end
         end
         message *= "cc @ararslan"
-        nodelog(server.config, node, err_str)
+        nodelog(server.config, node, err_str, error=(err, stacktrace(catch_backtrace())))
         reply_status(job, "error", err_str)
         reply_comment(job, message)
     end

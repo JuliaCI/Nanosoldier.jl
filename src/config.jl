@@ -41,9 +41,15 @@ function persistdir!(config::Config)
     end
 end
 
-function nodelog(config::Config, node, message)
+function nodelog(config::Config, node, message; error=nothing)
+    time = now()
+    if error !== nothing
+        @error "[Node $node | $time]: Encountered error: $message" exception=error
+    else
+        @info "[Node $node | $time]: $message"
+    end
     persistdir!(workdir(config))
     open(joinpath(workdir(config), "node$(node).log"), "a") do file
-        println(file, now(), " | ", node, " | ", message)
+        println(file, time, " | ", node, " | ", message)
     end
 end
