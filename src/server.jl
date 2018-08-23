@@ -66,8 +66,13 @@ function Base.run(server::Server, args...; kwargs...)
                     sleep(5) # poll only every 5 seconds so as not to throttle CPU
                 end
             catch err
-                nodelog(server.config, node, "encountered job loop error: $(err)")
-                rethrow(err)
+                # Errors get swallowed into the void when using `@async`, so we have
+                # to be explicit when dealing with them; `rethrow` here won't cut it.
+                # We'll get the stacktrace for the error then log it to both the node
+                # log and to the running REPL session to ensure someone sees it.
+                st = stacktrace(catch_backtrace())
+                nodelog(server.config, node, "encountered job loop error: $err:\n$st")
+                @error "encountered job loop error on node $node:" exception=(err, st)
             end
         end
     end
