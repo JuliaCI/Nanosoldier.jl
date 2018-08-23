@@ -1,8 +1,9 @@
 using Distributed
+import Nanosoldier, GitHub
 
 nodes = addprocs(["nanosoldier6"])
 
-import Nanosoldier, GitHub
+@everywhere using Nanosoldier
 
 cpus = [1,2,3]
 auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
