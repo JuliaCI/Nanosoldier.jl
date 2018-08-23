@@ -1,6 +1,6 @@
 module Nanosoldier
 
-using Dates, Distributed, Printf
+using Dates, Distributed, Printf, InteractiveUtils
 import GitHub, BenchmarkTools, JSON, HTTP
 
 const TRIGGER = r"\@nanosoldier\s*`.*?`"
