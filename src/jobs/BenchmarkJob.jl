@@ -278,6 +278,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                 else
                     Pkg.clone(url)
                 end
+                # These are referenced by name so they need to be added explicitly
+                foreach(Pkg.add, ("Compat", "BenchmarkTools", "JSON"))
             '
             ```)
     catch
