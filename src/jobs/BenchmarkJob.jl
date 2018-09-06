@@ -273,7 +273,11 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
             $juliapath -e '
                 VERSION >= v"0.7.0-DEV.3656" && using Pkg
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
-                VERSION >= v"0.7.0-DEV.5183" ? Pkg.add(url) : Pkg.clone(url)
+                if VERSION >= v"0.7.0-DEV.5183"
+                    Pkg.add(PackageSpec(name="BaseBenchmarks", url=url))
+                else
+                    Pkg.clone(url)
+                end
             '
             ```)
     catch
