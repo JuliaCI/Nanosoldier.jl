@@ -338,6 +338,10 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       using Compat.Dates # needed for `now`
                       using Compat.Distributed # needed for `addprocs`
                       using Compat.LinearAlgebra # needed for `BLAS.set_num_threads`
+            
+                      using BaseBenchmarks
+                      using BenchmarkTools
+                      using JSON
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
                       benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
@@ -350,10 +354,6 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
-
-                          using BaseBenchmarks
-                          using BenchmarkTools
-                          using JSON
 
                           println("LOADING SUITE...")
                           BaseBenchmarks.loadall!()
