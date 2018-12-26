@@ -338,14 +338,18 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       using Compat.Dates # needed for `now`
                       using Compat.Distributed # needed for `addprocs`
                       using Compat.LinearAlgebra # needed for `BLAS.set_num_threads`
-            
+
                       using BaseBenchmarks
                       using BenchmarkTools
                       using JSON
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
-                      benchout = open(\"$(benchout)\", "w"); redirect_stdout(benchout)
-                      bencherr = open(\"$(bencherr)\", "w"); redirect_stderr(bencherr)
+                      benchout = open(\"$(benchout)\", "w")
+                      oldout = stdout
+                      rdout, wrout = redirect_stdout(benchout)
+                      bencherr = open(\"$(bencherr)\", "w")
+                      olderr = stderr
+                      rderr, wrerr = redirect_stderr(bencherr)
 
                       # ensure we don't leak file handles when something goes wrong
                       try
@@ -372,8 +376,12 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
                           println("DONE!")
                       finally
+                          redirect_stdout(oldout)
                           close(benchout)
+                          close(wrout)
+                          redirect_stderr(olderr)
                           close(bencherr)
+                          close(wrerr)
                       end
                       """)
     end
