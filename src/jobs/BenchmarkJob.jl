@@ -109,13 +109,6 @@ submission(job::BenchmarkJob) = job.submission
 # Utilities #
 #############
 
-function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
-    shastr = GitHub.branch(reponame, branchname; auth=config.auth).commit.sha
-    return BuildRef(reponame, shastr)
-end
-
-datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
-
 function jobdirname(job::BenchmarkJob)
     if job.isdaily
         return datedirname(job.date)

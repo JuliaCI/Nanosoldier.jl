@@ -12,5 +12,12 @@ reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job
 reply_comment(job::AbstractJob, args...; kwargs...) = reply_comment(submission(job), args...; kwargs...)
 upload_report_repo!(job::AbstractJob, args...; kwargs...) = upload_report_repo!(submission(job), args...; kwargs...)
 
+function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
+    shastr = GitHub.branch(reponame, branchname; auth=config.auth).commit.sha
+    return BuildRef(reponame, shastr)
+end
+
+datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
+
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")
