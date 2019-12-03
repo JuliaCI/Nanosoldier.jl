@@ -115,6 +115,40 @@ against the head commit of my fork's branch.
 @nanosoldier `runbenchmarks(ALL, vs = "ararslan/julia:mybranch")`
 ```
 
+### `PkgEvalJob`
+
+#### Execution Cycle
+
+A `PkgEvalJob` has the following execution cycle:
+
+1. Pull in the JuliaLang/julia repository and build the commit specified by the context of the trigger phrase.
+2. Using the new Julia build, test the packages from the [General](https://github.com/JuliaRegistries/General) registry as specified by the trigger phrase.
+3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
+4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
+
+#### Trigger Syntax
+
+A `PkgEvalJob` is triggered with the following syntax:
+
+```
+@nanosoldier `runtests(package_selection, vs = "ref")`
+```
+
+The package selection argument is used to decide which packages to test. It should be a list of package names, e.g. `["Example"]`, that will be looked up in the registry. Additionally, you can test all packages in the registry by using the keyword `ALL`, e.g. `runtests(ALL)`.
+
+The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
+
+#### Benchmark Results
+
+Once a `PkgEvalJob` is complete, the results are uploaded to the
+[BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
+has its own directory for results. This directory contains the following items:
+
+- `report.md` is a markdown report that summarizes the job results
+- `data.tar.gz` contains raw test data as Feather files encoding a DataFrame. To untar this file, run
+`tar -xzvf data.tar.gz`.
+- `logs` is a directory containing the test logs for the job.
+
 ## Acknowledgements
 
 The development of the Nanosoldier benchmarking platform was supported in part by the US
