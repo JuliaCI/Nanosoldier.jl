@@ -465,7 +465,7 @@ function report(job::BenchmarkJob, results)
         if haskey(results, "error")
             err = results["error"]
             err.url = target_url
-            rethrow(err)
+            throw(err)
         else
             # determine the job's final status
             if job.against !== nothing || haskey(results, "previous_date")
