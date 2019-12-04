@@ -40,7 +40,7 @@ struct Server
             return HTTP.Response(202, "received job submission")
         end
 
-        listener = GitHub.CommentListener(handle, TRIGGER;
+        listener = GitHub.CommentListener(handle, config.trigger;
                                           auth = config.auth,
                                           secret = config.secret,
                                           repos = [config.trackrepo])

@@ -3,7 +3,6 @@ module Nanosoldier
 using Dates, Distributed, Printf, InteractiveUtils
 import GitHub, BenchmarkTools, JSON, HTTP
 
-const TRIGGER = r"\@nanosoldier\s*`.*?`"
 const SHA_SEPARATOR = '@'
 const BRANCH_SEPARATOR = ':'
 

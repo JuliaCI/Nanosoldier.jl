@@ -6,6 +6,7 @@ struct Config
     secret::String             # the GitHub secret used to validate webhooks
     trackrepo::String          # the main Julia repo tracked by the server
     reportrepo::String         # the repo to which result reports are posted
+    trigger::Regex             # a regular expression to match comments against
     workdir::String            # the server's work directory
     testmode::Bool             # if true, jobs will run as test jobs
 
@@ -13,11 +14,12 @@ struct Config
                     workdir = pwd(),
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/BaseBenchmarkReports",
+                    trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
         isempty(cpus) && throw(ArgumentError("need at least one cpu per node to work on"))
         return new(user, nodes, cpus, auth, secret, trackrepo,
-                   reportrepo, workdir, testmode)
+                   reportrepo, trigger, workdir, testmode)
     end
 end
 
