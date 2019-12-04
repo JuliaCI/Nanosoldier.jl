@@ -438,7 +438,7 @@ function report(job::BenchmarkJob, results)
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
                       "but no benchmarks were actually executed. Perhaps your tag predicate " *
-                      "contains misspelled tags? cc @ararslan")
+                      "contains misspelled tags? cc @$(cfg.admin)")
     else
         #  prepare report + data and push it to report repo
         target_url = ""
@@ -481,10 +481,10 @@ function report(job::BenchmarkJob, results)
             reply_status(job, state, status, target_url)
             if isempty(target_url)
                 comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @ararslan"
+                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
             else
                 comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url)). cc @ararslan"
+                          "$(status). A full report can be found [here]($(target_url)). cc @$(cfg.admin)"
             end
             reply_comment(job, comment)
         end

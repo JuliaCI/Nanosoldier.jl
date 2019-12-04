@@ -8,6 +8,7 @@ struct Config
     reportrepo::String         # the repo to which result reports are posted
     trigger::Regex             # a regular expression to match comments against
     workdir::String            # the server's work directory
+    admin::String              # GitHub handle of the server administrator
     testmode::Bool             # if true, jobs will run as test jobs
 
     function Config(user, nodes, cpus, auth, secret;
@@ -15,11 +16,12 @@ struct Config
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/BaseBenchmarkReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
+                    admin = "ararslan",
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
         isempty(cpus) && throw(ArgumentError("need at least one cpu per node to work on"))
         return new(user, nodes, cpus, auth, secret, trackrepo,
-                   reportrepo, trigger, workdir, testmode)
+                   reportrepo, trigger, workdir, admin, testmode)
     end
 end
 
