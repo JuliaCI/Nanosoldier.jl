@@ -57,8 +57,10 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 
 - `":branch"`: the head commit of the branch named `branch` in the current repository (`JuliaLang/julia`)
 - `"@sha"`: the commit specified by `sha` in the current repository (`JuliaLang/julia`)
+- `"#tag"`: the commit pointed to by the tag named `tag` in the current repository (`JuliaLang/julia`)
 - `"owner/repo:branch"`: the head commit of the branch named `branch` in the repository `owner/repo`
 - `"owner/repo@sha"`: the commit specified by `sha` in the repository `owner/repo`
+- `"owner/repo#tag"`: the commit pointed to by the tag named `tag` in the repository `owner/repo`
 
 #### Benchmark Results
 

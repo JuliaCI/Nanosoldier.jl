@@ -64,6 +64,10 @@ build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL; isdaily = 
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
+build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia#v1.0.0\")`")
+build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia#v1.0.0\")`")
+build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia#v1.0.0\")`")
+
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests(ALL)`")
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests(\"pkg\")`")
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")

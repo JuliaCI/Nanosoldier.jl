@@ -17,6 +17,11 @@ function branchref(config::Config, reponame::AbstractString, branchname::Abstrac
     return BuildRef(reponame, shastr)
 end
 
+function tagref(config::Config, reponame::AbstractString, tagname::AbstractString)
+    shastr = GitHub.tag(reponame, tagname; auth=config.auth).object["sha"]
+    return BuildRef(reponame, shastr)
+end
+
 datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
 
 include("BenchmarkJob.jl")

@@ -5,6 +5,7 @@ import GitHub, BenchmarkTools, JSON, HTTP
 
 const SHA_SEPARATOR = '@'
 const BRANCH_SEPARATOR = ':'
+const TAG_SEPARATOR = '#'
 
 #####################
 # utility functions #

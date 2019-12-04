@@ -61,6 +61,10 @@ function PkgEvalJob(submission::JobSubmission)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
+        elseif in(TAG_SEPARATOR, againststr)
+            reporef, againsttag = split(againststr, TAG_SEPARATOR)
+            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstbuild = tagref(submission.config, againstrepo, againsttag)
         else
             error("invalid argument to `vs` keyword")
         end
