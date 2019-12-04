@@ -37,7 +37,7 @@ function persistdir!(config::Config)
     if isdir(reportdir(config))
         gitreset!(reportdir(config))
     else
-        gitclone!(reportrepo(config), reportdir(config))
+        gitclone!(reportrepo(config), reportdir(config), config.auth)
     end
 end
 
