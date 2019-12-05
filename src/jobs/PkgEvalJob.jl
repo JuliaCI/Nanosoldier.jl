@@ -253,6 +253,7 @@ function Base.run(job::PkgEvalJob)
         nodelog(cfg, node, "running primary build for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run tests against primary commit", err)
+        results["backtrace"] = catch_backtrace()
     end
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
@@ -278,8 +279,8 @@ function Base.run(job::PkgEvalJob)
                 results["against"] = execute_tests!(job, job.against, :against)
                 nodelog(cfg, node, "finished comparison build for $(summary(job))")
             catch err
-                rethrow()
                 results["error"] = NanosoldierError("failed to run tests against comparison commit", err)
+                results["backtrace"] = catch_backtrace()
             end
         end
     end
@@ -316,7 +317,7 @@ function report(job::PkgEvalJob, results)
             open(joinpath(tmpdir(job), reportname), "w") do file
                 printreport(file, job, results)
             end
-            if job.isdaily
+            if job.isdaily && !haskey(results, "error")
                 nodelog(cfg, node, "...generating database...")
                 dbname = "db.json"
                 open(joinpath(tmpdir(job), dbname), "w") do file
@@ -338,6 +339,14 @@ function report(job::PkgEvalJob, results)
         end
 
         if haskey(results, "error")
+            # TODO: throw with backtrace?
+            if haskey(results, "backtrace")
+                @error("An exception occurred during job execution",
+                       exception=(results["error"], results["backtrace"]))
+            else
+                @error("An exception occurred during job execution",
+                       exception=results["error"])
+            end
             err = results["error"]
             err.url = target_url
             throw(err)
@@ -419,8 +428,15 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
                     The build could not finish due to an error:
 
-                    ```
-                    $(results["error"])
+                    ```""")
+
+        Base.showerror(io, results["error"])
+        if haskey(results, "backtrace")
+            Base.show_backtrace(io, results["backtrace"])
+        end
+        println(io)
+
+        println(io, """
                     ```
 
                     Check the logs folder in this directory for more detailed output.

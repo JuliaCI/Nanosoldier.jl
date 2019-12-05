@@ -195,6 +195,7 @@ function Base.run(job::BenchmarkJob)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run benchmarks against primary commit", err)
+        results["backtrace"] = catch_backtrace()
     end
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
@@ -221,6 +222,7 @@ function Base.run(job::BenchmarkJob)
                 nodelog(cfg, node, "finished comparison build for $(summary(job))")
             catch err
                 results["error"] = NanosoldierError("failed to run benchmarks against comparison commit", err)
+                results["backtrace"] = catch_backtrace()
             end
         end
         if haskey(results, "against")
@@ -467,6 +469,14 @@ function report(job::BenchmarkJob, results)
         end
 
         if haskey(results, "error")
+            # TODO: throw with backtrace?
+            if haskey(results, "backtrace")
+                @error("An exception occurred during job execution",
+                       exception=(results["error"], results["backtrace"]))
+            else
+                @error("An exception occurred during job execution",
+                       exception=results["error"])
+            end
             err = results["error"]
             err.url = target_url
             throw(err)
@@ -552,8 +562,15 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                     The build could not finish due to an error:
 
-                    ```
-                    $(results["error"])
+                    ```""")
+
+        Base.showerror(io, results["error"])
+        if haskey(results, "backtrace")
+            Base.show_backtrace(io, results["backtrace"])
+        end
+        println(io)
+
+        println(io, """
                     ```
 
                     Check the logs folder in this directory for more detailed output.
