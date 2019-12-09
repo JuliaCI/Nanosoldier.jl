@@ -54,11 +54,11 @@ function Base.run(server::Server, args...; kwargs...)
     # Schedule a task for each node that feeds the node a job from the
     # queque once the node has completed its primary job. If the queue is
     # empty, then the task will call `yield` in order to avoid a deadlock.
-    for node in server.config.nodes
+    for (job_type, job_nodes) in server.config.nodes, node in job_nodes
         @async begin
             try
                 while true
-                    job = retrieve_job!(server.jobs, node == last(server.config.nodes))
+                    job = retrieve_job!(server.jobs, job_type, node == last(job_nodes))
                     if job !== nothing
                         delegate_job(server, job, node)
                     else
@@ -75,21 +75,17 @@ function Base.run(server::Server, args...; kwargs...)
     return run(server.listener, args...; kwargs...)
 end
 
-function retrieve_job!(jobs, accept_daily::Bool)
+function retrieve_job!(jobs, job_type::Type, accept_daily::Bool)
     if isempty(jobs)
         return nothing
     else
-        if !accept_daily
-            i = findfirst(job -> !(isa(job, BenchmarkJob) && job.isdaily), jobs)
-            if i === nothing
-                return nothing
-            else
-                job = jobs[i]
-                deleteat!(jobs, i)
-                return job
-            end
+        i = findfirst(job -> isa(job, job_type) && (accept_daily || !job.isdaily), jobs)
+        if i === nothing
+            return nothing
         else
-            return popfirst!(jobs)
+            job = jobs[i]
+            deleteat!(jobs, i)
+            return job
         end
     end
 end

@@ -1,15 +1,15 @@
 struct Config
-    user::String               # the OS username of the user running the server
-    nodes::Vector{Int}         # the pids for the nodes on the cluster
-    cpus::Vector{Int}          # the indices of the cpus per node
-    auth::GitHub.Authorization # the GitHub authorization used to post statuses/reports
-    secret::String             # the GitHub secret used to validate webhooks
-    trackrepo::String          # the main Julia repo tracked by the server
-    reportrepo::String         # the repo to which result reports are posted
-    trigger::Regex             # a regular expression to match comments against
-    workdir::String            # the server's work directory
-    admin::String              # GitHub handle of the server administrator
-    testmode::Bool             # if true, jobs will run as test jobs
+    user::String                    # the OS username of the user running the server
+    nodes::Dict{Type,Vector{Int}}   # the pids for the nodes on the cluster
+    cpus::Vector{Int}               # the indices of the cpus per node
+    auth::GitHub.Authorization      # the GitHub authorization used to post statuses/reports
+    secret::String                  # the GitHub secret used to validate webhooks
+    trackrepo::String               # the main Julia repo tracked by the server
+    reportrepo::String              # the repo to which result reports are posted
+    trigger::Regex                  # a regular expression to match comments against
+    workdir::String                 # the server's work directory
+    admin::String                   # GitHub handle of the server administrator
+    testmode::Bool                  # if true, jobs will run as test jobs
 
     function Config(user, nodes, cpus, auth, secret;
                     workdir = pwd(),

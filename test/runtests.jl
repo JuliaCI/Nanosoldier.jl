@@ -33,7 +33,7 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 primary = BuildRef("ararslan/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
 against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
-config = Config("user", [1], [1], GitHub.AnonymousAuth(), "test");
+config = Config("user", Dict(Any => [1]), [1], GitHub.AnonymousAuth(), "test");
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
 
@@ -80,32 +80,47 @@ non_daily_job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks
 daily_job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, isdaily = true)`")
 
 queue = [daily_job, daily_job]
-job = Nanosoldier.retrieve_job!(queue, true)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
 @test job !== nothing && job.isdaily
 @test length(queue) == 1
 
 queue = [non_daily_job, daily_job]
-job = Nanosoldier.retrieve_job!(queue, true)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
 @test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, non_daily_job]
-job = Nanosoldier.retrieve_job!(queue, true)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
 @test job !== nothing && job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, daily_job]
-job = Nanosoldier.retrieve_job!(queue, false)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, false)
 @test job === nothing
 @test length(queue) == 2
 
 queue = [non_daily_job, daily_job]
-job = Nanosoldier.retrieve_job!(queue, false)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, false)
 @test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
 queue = [daily_job, non_daily_job]
-job = Nanosoldier.retrieve_job!(queue, false)
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, false)
+@test job !== nothing && !job.isdaily
+@test length(queue) == 1
+
+queue = [daily_job, non_daily_job]
+job = Nanosoldier.retrieve_job!(queue, PkgEvalJob, true)
+@test job === nothing
+@test length(queue) == 2
+
+queue = [daily_job, non_daily_job]
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
+@test job !== nothing && job.isdaily
+@test length(queue) == 1
+
+queue = [daily_job, non_daily_job]
+job = Nanosoldier.retrieve_job!(queue, Any, false)
 @test job !== nothing && !job.isdaily
 @test length(queue) == 1
 
