@@ -109,17 +109,18 @@ submission(job::PkgEvalJob) = job.submission
 #############
 
 function jobdirname(job::PkgEvalJob)
-    if job.isdaily
-        return datedirname(job.date)
+    tag = if job.isdaily
+        datedirname(job.date)
     else
         primarysha = snipsha(submission(job).build.sha)
         if job.against === nothing
-            return primarysha
+            primarysha
         else
             againstsha = snipsha(job.against.sha)
-            return string(primarysha, "_vs_", againstsha)
+            string(primarysha, "_vs_", againstsha)
         end
     end
+    return "pkgeval-$tag"
 end
 
 reportdir(job::PkgEvalJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
@@ -128,7 +129,7 @@ tmplogdir(job::PkgEvalJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_tests!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), datedirname(date))
+    dailydir = joinpath(reportdir(cfg), "pkgeval-" * datedirname(date))
     found_previous_date = false
     if isdir(dailydir)
         cd(dailydir) do

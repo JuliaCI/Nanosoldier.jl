@@ -114,17 +114,18 @@ submission(job::BenchmarkJob) = job.submission
 #############
 
 function jobdirname(job::BenchmarkJob)
-    if job.isdaily
-        return datedirname(job.date)
+    tag = if job.isdaily
+        datedirname(job.date)
     else
         primarysha = snipsha(submission(job).build.sha)
         if job.against === nothing
-            return primarysha
+            primarysha
         else
             againstsha = snipsha(job.against.sha)
-            return string(primarysha, "_vs_", againstsha)
+            string(primarysha, "_vs_", againstsha)
         end
     end
+    return "benchmark-$tag"
 end
 
 reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
@@ -133,7 +134,7 @@ tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_data!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), datedirname(date))
+    dailydir = joinpath(reportdir(cfg), "benchmark-" * datedirname(date))
     found_previous_date = false
     if isdir(dailydir)
         cd(dailydir) do
