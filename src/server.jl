@@ -56,6 +56,11 @@ function Base.run(server::Server, args...; kwargs...)
     # empty, then the task will call `yield` in order to avoid a deadlock.
     for (job_type, job_nodes) in server.config.nodes, node in job_nodes
         @async begin
+            # default to using all CPUs
+            if !haskey(server.config.cpus, getpid())
+                server.config.cpus[getpid()] = Base.OneTo(Sys.CPU_THREADS)
+            end
+
             try
                 while true
                     job = retrieve_job!(server.jobs, job_type, node == last(job_nodes))

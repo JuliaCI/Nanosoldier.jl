@@ -188,7 +188,8 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
 
     # run tests
     results = withenv("CI" => true) do
-        NewPkgEval.run([julia], pkgs; ninstances=length(submission(job).config.cpus))
+        cpus = mycpus(submission(job).config)
+        NewPkgEval.run([julia], pkgs; ninstances=length(cpus))
     end
 
     # write logs

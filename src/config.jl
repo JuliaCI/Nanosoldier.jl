@@ -1,7 +1,7 @@
 struct Config
     user::String                    # the OS username of the user running the server
     nodes::Dict{Type,Vector{Int}}   # the pids for the nodes on the cluster
-    cpus::Vector{Int}               # the indices of the cpus per node
+    cpus::Dict{Int,Vector{Int}}     # the indices of the cpus per node
     auth::GitHub.Authorization      # the GitHub authorization used to post statuses/reports
     secret::String                  # the GitHub secret used to validate webhooks
     trackrepo::String               # the main Julia repo tracked by the server
@@ -11,15 +11,15 @@ struct Config
     admin::String                   # GitHub handle of the server administrator
     testmode::Bool                  # if true, jobs will run as test jobs
 
-    function Config(user, nodes, cpus, auth, secret;
+    function Config(user, nodes, auth, secret;
                     workdir = pwd(),
+                    cpus = Dict{Int,Vector{Int}}(),
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/BaseBenchmarkReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     admin = "ararslan",
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
-        isempty(cpus) && throw(ArgumentError("need at least one cpu per node to work on"))
         return new(user, nodes, cpus, auth, secret, trackrepo,
                    reportrepo, trigger, workdir, admin, testmode)
     end
@@ -57,3 +57,6 @@ function nodelog(config::Config, node, message; error=nothing)
         println(file, time, " | ", node, " | ", message)
     end
 end
+
+# the list of CPUs for a given node
+mycpus(config::Config, node=getpid()) = get(config.cpus, node, Base.OneTo(Sys.CPU_THREADS))

@@ -33,7 +33,7 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
 
 primary = BuildRef("ararslan/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
 against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
-config = Config("user", Dict(Any => [1]), [1], GitHub.AnonymousAuth(), "test");
+config = Config("user", Dict(Any => [getpid()]), GitHub.AnonymousAuth(), "test");
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
 

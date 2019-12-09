@@ -397,8 +397,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     catch
     end
     # shield our CPUs
-    run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
-    run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
+    cpus = mycpus(cfg)
+    run(`sudo cset shield -c $(join(cpus, ",")) -k on`)
+    run(`sudo cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
