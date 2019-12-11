@@ -238,7 +238,7 @@ version = "0.7.0"
 
 [[NewPkgEval]]
 deps = ["BinaryBuilder", "DataFrames", "Dates", "LibGit2", "Mustache", "Pkg", "ProgressMeter", "Random", "SHA"]
-git-tree-sha1 = "75398fa37a8d7d580a0d1b9a4704ec5492c2b137"
+git-tree-sha1 = "385a7e4e196fa689fd8de5034aa52f8ebe917fa9"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaComputing/NewPkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"

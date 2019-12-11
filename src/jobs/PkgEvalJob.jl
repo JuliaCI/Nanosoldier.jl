@@ -161,7 +161,23 @@ end
 
 function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
     # determine Julia version to use
-    julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
+    julia = nothing
+    if whichbuild == :primary && submission(job).fromkind == :pr
+        # if we're dealing with a PR, try the merge commit
+        pr = submission(job).prnumber
+        if prnumber !== nothing
+            try
+                julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", build.repo)
+            catch err
+                isa(err, LibGit2.GitError) || rethrow()
+                # there might not be a merge commit (e.g. in the case of merge conflicts)
+            end
+        end
+    end
+    if julia === nothing
+        # fall back to the last commit in the PR
+        julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
+    end
     NewPkgEval.prepare_julia(julia)
 
     # get some version info
