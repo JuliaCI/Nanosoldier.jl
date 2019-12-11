@@ -460,14 +460,16 @@ function printreport(io::IO, job::PkgEvalJob, results)
     results["has_issues"] = false
 
     # report test results in groups based on the test status
-    for (status, verb) in (:fail=>"failed tests", :ok=>"passed tests",
-                           :kill=>"were killed", :skip=>"were skipped")
+    for (status, (verb, emoji)) in (:fail   => ("failed tests", ":heavy_multiplication_x:"),
+                                    :ok     => ("passed tests", ":heavy_check_mark:"),
+                                    :kill   => ("were killed",  ":heavy_exclamation_mark:"),
+                                    :skip   => ("were skipped", ":heavy_minus_sign:"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
         sort!(group, :name)
 
         if !isempty(group)
-            println(io, "## Packages that", iscomparisonjob ? " now" : "", " $verb\n")
+            println(io, "## $emoji Packages that", iscomparisonjob ? " now" : "", " $verb\n")
 
             function reportrow(test)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
