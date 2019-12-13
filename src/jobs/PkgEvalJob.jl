@@ -608,13 +608,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
     o = count(==(:ok),      results["primary"].status)
     s = count(==(:skip),    results["primary"].status)
     f = count(==(:fail),    results["primary"].status)
-    k = count(==(:kill),    results["primary"].status)
     x = nrow(results["primary"])
 
     println(io, """
                 ## Summary
 
-                In total, $x packages were tested, out of which $o succeeded, $f failed $k got killed and $s were skipped.
+                In total, $x packages were tested, out of which $o succeeded, $f failed and $s were skipped.
                 """)
 
     println(io)
