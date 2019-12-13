@@ -465,6 +465,15 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print result list #
     #-------------------#
 
+    # we don't care about the distinction between failed and killed tests,
+    # so lump them together
+    for key in ("primary", "against")
+        if haskey(results, key)
+            df = results[key]
+            df[df[!, :status] .== :kill, :status] .= :fail
+        end
+    end
+
     if iscomparisonjob
         package_results = join(results["primary"], results["against"],
                                on=:uuid, kind=:left, makeunique=true, indicator=:source)
@@ -478,7 +487,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # report test results in groups based on the test status
     for (status, (verb, emoji)) in (:fail   => ("failed tests", ":heavy_multiplication_x:"),
                                     :ok     => ("passed tests", ":heavy_check_mark:"),
-                                    :kill   => ("were killed",  ":heavy_exclamation_mark:"),
                                     :skip   => ("were skipped", ":heavy_minus_sign:"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
@@ -523,7 +531,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     println(io)
                     foreach(reportrow, eachrow(changed_tests))
 
-                    results["has_issues"] |= status in (:fail, :kill) && !isempty(changed_tests)
+                    if status == :fail && !isempty(changed_tests)
+                        results["has_issues"] |= true
+                    end
                 end
 
                 # now report the other ones
@@ -546,7 +556,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io, "$(nrow(group)) packages $verb.")
                 foreach(reportrow, eachrow(group))
 
-                results["has_issues"] |= status in (:fail, :kill) && !isempty(group)
+                if status == :fail
+                    results["has_issues"] |= true
+                end
             end
 
             println(io)
