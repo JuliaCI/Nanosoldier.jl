@@ -173,6 +173,11 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
                 # there might not be a merge commit (e.g. in the case of merge conflicts)
             end
         end
+        # NOTE: by calling obtain_julia_build with a ref (and not just a commit),
+        #       we'll get a versioninfo() that contains that ref. since that is useful,
+        #       BenchmarkJob should probably also use NewPkgEval's Julia builder,
+        #       at which point we can stop eagerly resolving Julia specifiers to
+        #       commit strings (branchref, tagref), or at least keeping more information.
     end
     if julia === nothing
         # fall back to the last commit in the PR
