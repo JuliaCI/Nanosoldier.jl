@@ -130,29 +130,34 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_tests!(results, key, cfg, date)
     dailydir = joinpath(reportdir(cfg), "pkgeval-" * datedirname(date))
-    found_previous_date = false
     if isdir(dailydir)
-        cd(dailydir) do
+        return cd(dailydir) do
             datapath = joinpath(dailydir, "data")
             try
                 run(`tar -xzf data.tar.gz`)
-                results[key] = Feather.read(joinpath(datapath, "primary.feather"))
-                found_previous_date = true
 
-                # undo stringification
+                # read results and undo stringification
+                results[key] = Feather.read(joinpath(datapath, "primary.feather"))
                 for col in (:julia, :version, :status, :reason, :uuid)
                     results[key][!, col] = map(str->eval(Meta.parse(str)), results[key][!, col])
                 end
+
+                # read properties and create build ref
+                job = JSON.parsefile(joinpath(datapath, "job.json"))
+                build = BuildRef(job["build"]["repo"], job["build"]["sha"])
+
+                build
             catch err
                 nodelog(cfg, myid(),
                         "encountered error when retrieving daily data: " * sprint(showerror, err),
                         error=(err, stacktrace(catch_backtrace())))
+                nothing
             finally
                 isdir(datapath) && rm(datapath, recursive=true)
             end
         end
     end
-    return found_previous_date
+    return
 end
 
 ########################
@@ -228,12 +233,24 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
 
     # write data
     cd(tmpdatadir(job)) do
+        # dataframe with test results
         let results = copy(results)
             # Feather can't handle non-primitive types, so stringify them
             for col in (:julia, :version, :status, :reason, :uuid)
                 results[!, col] = map(repr, results[!, col])
             end
             Feather.write("$(whichbuild).feather", results)
+        end
+
+        # dict with job properties
+        open("job.json", "w") do io
+            json = Dict{String,Any}(
+                "build" => Dict(
+                    "repo"  => build.repo,
+                    "sha"   => build.sha,
+                )
+            )
+            JSON.print(io, json)
         end
     end
 
@@ -279,24 +296,36 @@ function Base.run(job::PkgEvalJob)
         results["backtrace"] = catch_backtrace()
     end
 
-    # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
+    # as long as our primary job didn't error, run the comparison job
+    # (or if it's a daily job, gather results to compare against)
     if !haskey(results, "error")
-        if job.isdaily # get results from previous day (if it exists, check the past 30 days)
+        # get results from previous day (if it exists, check the past 30 days)
+        if job.isdaily
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
-                i = 1
-                while !found_previous_date && i < 31
+                for i in 1:30
                     check_date = job.date - Dates.Day(i)
-                    found_previous_date = retrieve_daily_tests!(results, "against", cfg, check_date)
-                    found_previous_date && (results["previous_date"] = check_date)
-                    i += 1
+                    previous_build = retrieve_daily_tests!(results, "previous", cfg, check_date)
+                    if previous_build !== nothing
+                        found_previous_date = true
+                        results["previous_date"] = check_date
+
+                        # NOTE: we don't actually use the results from the previous day,
+                        #       since packages upgrades might cause failures too.
+                        #       instead, just use the build ref to compare against
+                        job.against = previous_build
+                        break
+                    end
                 end
                 found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
             catch err
                 rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
             end
-        elseif job.against !== nothing # run comparison build
+        end
+
+        # run comparison build
+        if job.against !== nothing
             try
                 nodelog(cfg, node, "running comparison build for $(summary(job))")
                 results["against"] = execute_tests!(job, job.against, :against)
@@ -470,9 +499,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print result list #
     #-------------------#
 
+    # TODO: in the case of a daily build, we might also have results["previous];
+    #       use that to report on package upgrades that caused test failures?
+
     # we don't care about the distinction between failed and killed tests,
     # so lump them together
-    for key in ("primary", "against")
+    for key in ("primary", "against", "previous")
         if haskey(results, key)
             df = results[key]
             df[df[!, :status] .== :kill, :status] .= :fail
