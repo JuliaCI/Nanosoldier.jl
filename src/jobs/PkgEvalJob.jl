@@ -170,7 +170,7 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
     if whichbuild == :primary && submission(job).fromkind == :pr
         # if we're dealing with a PR, try the merge commit
         pr = submission(job).prnumber
-        if prnumber !== nothing
+        if pr !== nothing
             try
                 julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", build.repo)
             catch err
