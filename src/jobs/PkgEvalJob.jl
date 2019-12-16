@@ -3,6 +3,7 @@ using DataFrames
 using Feather
 using JSON
 using Base: UUID
+using LibGit2
 
 
 ################################
