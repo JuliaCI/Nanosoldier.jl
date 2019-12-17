@@ -546,9 +546,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     against_log = "logs/$(test.name_1)/$(test.julia_1).log"
-                    if hasprevdate
-                        against_log = "../pkgeval-$(datedirname(results["previous_date"]))/$against_log"
-                    end
                     print(io, " vs. [$(test.name_1)$(verstr(test.version_1))]($against_log)")
 
                     print(io, " ($(NewPkgEval.statusses[test.status_1])")
