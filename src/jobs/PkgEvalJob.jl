@@ -144,7 +144,7 @@ function retrieve_daily_tests!(results, key, cfg, date)
                 end
 
                 # read properties and create build ref
-                job = JSON.parsefile(joinpath(datapath, "job.json"))
+                job = JSON.parsefile(joinpath(datapath, "primary.json"))
                 build = BuildRef(job["build"]["repo"], job["build"]["sha"])
 
                 build
@@ -244,7 +244,7 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
         end
 
         # dict with job properties
-        open("job.json", "w") do io
+        open("$(whichbuild).json", "w") do io
             json = Dict{String,Any}(
                 "build" => Dict(
                     "repo"  => build.repo,
