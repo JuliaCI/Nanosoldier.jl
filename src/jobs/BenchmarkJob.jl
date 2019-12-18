@@ -504,7 +504,7 @@ end
 const REGRESS_MARK = ":x:"
 const IMPROVE_MARK = ":white_check_mark:"
 
-function printreport(io::IO, job::BenchmarkJob, results)
+function printreport(io::IO, job::BenchmarkJob, results; sortby = string∘first)
     build = submission(job).build
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
@@ -605,7 +605,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
     entries = BenchmarkTools.leaves(tablegroup)
 
     try
-        entries = entries[sortperm(map(string∘first, entries))]
+        entries = entries[sortperm(map(sortby, entries))]
     catch
     end
 
