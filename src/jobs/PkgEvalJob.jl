@@ -173,7 +173,9 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
         pr = submission(job).prnumber
         if pr !== nothing
             try
-                julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", build.repo)
+                # NOTE: the merge head only exists in the upstream Julia repository,
+                #       and not in the repository where the pull request originated.
+                julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", "JuliaLang/julia")
             catch err
                 isa(err, LibGit2.GitError) || rethrow()
                 # there might not be a merge commit (e.g. in the case of merge conflicts)
