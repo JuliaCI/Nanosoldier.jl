@@ -28,11 +28,9 @@ version = "0.4.3"
 
 [[BinaryBuilder]]
 deps = ["Base64", "Dates", "GitHub", "HTTP", "InteractiveUtils", "JLD2", "JSON", "LibGit2", "Libdl", "MbedTLS", "ObjectFile", "Pkg", "PkgLicenses", "ProgressMeter", "REPL", "Random", "Registrator", "RegistryTools", "SHA", "Sockets", "ghr_jll"]
-git-tree-sha1 = "ebff39652f362552d76b2565d363c36a993a1a70"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaPackaging/BinaryBuilder.jl.git"
+git-tree-sha1 = "777ceefb0b33ff663d373a74b28ca048237b985b"
 uuid = "12aac903-9f7c-5d81-afc2-d9565ea332ae"
-version = "0.2.0"
+version = "0.2.1"
 
 [[BinaryProvider]]
 deps = ["Libdl", "SHA"]
@@ -41,10 +39,10 @@ uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 version = "0.5.8"
 
 [[CategoricalArrays]]
-deps = ["Compat", "DataAPI", "Future", "JSON", "Missings", "Printf", "Reexport", "Unicode"]
-git-tree-sha1 = "9c3fd1ebb503d271943c4ea94332d55ea900c9cb"
+deps = ["Compat", "DataAPI", "Future", "JSON", "Missings", "Printf", "Reexport", "Statistics", "Unicode"]
+git-tree-sha1 = "9127b0c2ee1bfd810921dd688dd8d73be1d9fb57"
 uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-version = "0.7.4"
+version = "0.7.5"
 
 [[CodecZlib]]
 deps = ["BinaryProvider", "Libdl", "TranscodingStreams"]
@@ -71,9 +69,9 @@ version = "0.19.4"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "a1b652fb77ae8ca7ea328fa7ba5aa151036e5c10"
+git-tree-sha1 = "f784254f428fb8fd7ac15982e5862a38a44523d3"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.6"
+version = "0.17.7"
 
 [[DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -100,9 +98,9 @@ version = "0.5.3"
 
 [[FileIO]]
 deps = ["Pkg"]
-git-tree-sha1 = "6c976460b85527d22d979682222d36767d95e27f"
+git-tree-sha1 = "74585bf1f7ed7259e166011e89f49363d7fa89a6"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.1.0"
+version = "1.2.1"
 
 [[FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -164,9 +162,9 @@ version = "1.0.0"
 
 [[JLD2]]
 deps = ["CodecZlib", "DataStructures", "FileIO", "Mmap", "Pkg", "Printf", "UUIDs"]
-git-tree-sha1 = "0193ef8c75ce70584198b95b4a48f9ec0c49ffa8"
+git-tree-sha1 = "2c1a6d672f2b85a520d59e63851bc67226b06ba8"
 uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.1.9"
+version = "0.1.10"
 
 [[JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -238,7 +236,7 @@ version = "0.7.0"
 
 [[NewPkgEval]]
 deps = ["BinaryBuilder", "DataFrames", "Dates", "LibGit2", "Mustache", "Pkg", "ProgressMeter", "Random", "SHA"]
-git-tree-sha1 = "385a7e4e196fa689fd8de5034aa52f8ebe917fa9"
+git-tree-sha1 = "abbd186064aeda3f74fef3010fe0847cdd081d36"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaComputing/NewPkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
@@ -275,7 +273,7 @@ uuid = "fa939f87-e72e-5be4-a000-7fc836dbe307"
 version = "1.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PkgLicenses]]
@@ -285,9 +283,10 @@ uuid = "fc669557-7ec9-5e45-bca9-462afbc28879"
 version = "0.2.0"
 
 [[PooledArrays]]
-git-tree-sha1 = "6e8c38927cb6e9ae144f7277c753714861b27d14"
+deps = ["DataAPI"]
+git-tree-sha1 = "b1333d4eced1826e15adbdf01a4ecaccca9d353c"
 uuid = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
-version = "0.5.2"
+version = "0.5.3"
 
 [[Printf]]
 deps = ["Unicode"]
