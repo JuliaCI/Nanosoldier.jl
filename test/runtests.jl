@@ -139,12 +139,10 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    sortbyratio = x -> -(x[2].ratio.time)
-    open(mdpath, "r") do file
-        read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results; sortby=sortbyratio))
-    end
-    rm(mdpath; force = true)
     open(mdpath, "r") do file
         read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results))
+    end
+    open(mdpath, "r") do file
+        read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results; sortby = x -> -(x[2].ratio.time)))
     end
 end
