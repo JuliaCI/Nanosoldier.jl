@@ -533,17 +533,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
         sort!(group, :name)
 
         if !isempty(group)
-            println(io, "## $emoji Packages that", iscomparisonjob ? " now" : "", " $verb\n")
+            println(io, "## $emoji Packages that $verb\n")
 
+            # report on a single test
             function reportrow(test)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
 
                 primary_log = "logs/$(test.name)/$(test.julia).log"
                 print(io, "- [$(test.name)$(verstr(test.version))]($primary_log)")
-
-                if !ismissing(test.reason)
-                    print(io, " ($(NewPkgEval.reasons[test.reason]))")
-                end
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
@@ -560,13 +557,35 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io)
             end
 
+            # report on a group of tests, prefixed with the reason
+            function reportgroup(group)
+                subgroups = groupby(group, :reason; skipmissing=true)
+                for subgroup in subgroups
+                    println(io, uppercasefirst(NewPkgEval.reasons[first(subgroup).reason]), ":")
+                    println(io)
+                    foreach(reportrow, eachrow(subgroup))
+                    println(io)
+                end
+
+                # print tests without a reason separately, at the end
+                subgroup = group[group[!, :reason] .=== missing, :]
+                if !isempty(subgroup)
+                    if length(subgroups) > 0
+                        println(io, "Other:")
+                        println(io)
+                    end
+                    foreach(reportrow, eachrow(subgroup))
+                    println(io)
+                end
+            end
+
             if iscomparisonjob
                 # first report on tests that changed status
                 let changed_tests = filter(test->test.source == "both" &&
                                                  test.status != test.status_1, group)
-                    println(io, "$(nrow(changed_tests)) packages $verb only on the current version.")
+                    println(io, "**$(nrow(changed_tests)) packages $verb only on the current version.**")
                     println(io)
-                    foreach(reportrow, eachrow(changed_tests))
+                    reportgroup(changed_tests)
 
                     if status == :fail && !isempty(changed_tests)
                         results["has_issues"] |= true
@@ -577,12 +596,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 let unchanged_tests = filter(test->test.source == "left_only" ||
                                                    test.status == test.status_1, group)
                     println(io, """
-                        <details><summary>$(nrow(unchanged_tests)) packages $verb on the previous version too.</summary>
+                        <details><summary><strong>$(nrow(unchanged_tests)) packages $verb on the previous version too.</strong></summary>
                         <p>
                         """)
                     unchanged_tests = copy(unchanged_tests)     # only report the
                     unchanged_tests[!, :source] .= "left_only"  # primary result
-                    foreach(reportrow, eachrow(unchanged_tests))
+                    reportgroup(unchanged_tests)
                     println(io, """
                         </p>
                         </details>
@@ -591,7 +610,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
             else
                 # just report on all tests
                 println(io, "$(nrow(group)) packages $verb.")
-                foreach(reportrow, eachrow(group))
+                reportgroup(group)
 
                 if status == :fail
                     results["has_issues"] |= true
