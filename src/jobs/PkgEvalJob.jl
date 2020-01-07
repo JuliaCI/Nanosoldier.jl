@@ -499,6 +499,20 @@ function printreport(io::IO, job::PkgEvalJob, results)
         return nothing
     end
 
+    # print summary of tested packages #
+    #----------------------------------#
+
+    o = count(==(:ok),      results["primary"].status)
+    s = count(==(:skip),    results["primary"].status)
+    f = count(==(:fail),    results["primary"].status)
+    x = nrow(results["primary"])
+
+    println(io, """
+                In total, $x packages were tested, out of which $o succeeded, $f failed and $s were skipped.
+                """)
+
+    println(io)
+
     # print result list #
     #-------------------#
 
@@ -620,22 +634,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
             println(io)
         end
     end
-
-    # print summary of tested packages #
-    #----------------------------------#
-
-    o = count(==(:ok),      results["primary"].status)
-    s = count(==(:skip),    results["primary"].status)
-    f = count(==(:fail),    results["primary"].status)
-    x = nrow(results["primary"])
-
-    println(io, """
-                ## Summary
-
-                In total, $x packages were tested, out of which $o succeeded, $f failed and $s were skipped.
-                """)
-
-    println(io)
 
     # print build version info #
     #--------------------------#
