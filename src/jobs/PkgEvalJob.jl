@@ -289,6 +289,41 @@ function Base.run(job::PkgEvalJob)
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
 
+    if job.isdaily
+        # get build from previous day (if it exists, check the past 30 days)
+        try
+            nodelog(cfg, node, "retrieving results from previous daily build")
+            found_previous_date = false
+            for i in 1:30
+                check_date = job.date - Dates.Day(i)
+                previous_build = retrieve_daily_tests!(results, "previous", cfg, check_date)
+                if previous_build !== nothing
+                    found_previous_date = true
+                    results["previous_date"] = check_date
+
+                    # NOTE: we don't actually use the results from the previous day,
+                    #       since packages upgrades might cause failures too.
+                    #       instead, just use the build ref to compare against
+                    job.against = previous_build
+                    break
+                end
+            end
+            found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
+        catch err
+            rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
+        end
+    end
+
+    # refuse to test against an identical build
+    if job.against !== nothing && job.against.sha == submission(job).build.sha
+        nodelog(cfg, node, "refusing to compare identical builds")
+        reply_status(job, "success", "testing was skipped")
+        reply_comment(job, "[Your test job]($(submission(job).url)) was skipped, " *
+                    "because it would would have compared two identical " *
+                    "builds of Julia. cc @$(cfg.admin)")
+        return
+    end
+
     # run primary job
     try
         nodelog(cfg, node, "running primary build for $(summary(job))")
@@ -300,43 +335,14 @@ function Base.run(job::PkgEvalJob)
     end
 
     # as long as our primary job didn't error, run the comparison job
-    # (or if it's a daily job, gather results to compare against)
-    if !haskey(results, "error")
-        # get results from previous day (if it exists, check the past 30 days)
-        if job.isdaily
-            try
-                nodelog(cfg, node, "retrieving results from previous daily build")
-                found_previous_date = false
-                for i in 1:30
-                    check_date = job.date - Dates.Day(i)
-                    previous_build = retrieve_daily_tests!(results, "previous", cfg, check_date)
-                    if previous_build !== nothing
-                        found_previous_date = true
-                        results["previous_date"] = check_date
-
-                        # NOTE: we don't actually use the results from the previous day,
-                        #       since packages upgrades might cause failures too.
-                        #       instead, just use the build ref to compare against
-                        job.against = previous_build
-                        break
-                    end
-                end
-                found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
-            catch err
-                rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
-            end
-        end
-
-        # run comparison build
-        if job.against !== nothing
-            try
-                nodelog(cfg, node, "running comparison build for $(summary(job))")
-                results["against"] = execute_tests!(job, job.against, :against)
-                nodelog(cfg, node, "finished comparison build for $(summary(job))")
-            catch err
-                results["error"] = NanosoldierError("failed to run tests against comparison commit", err)
-                results["backtrace"] = catch_backtrace()
-            end
+    if !haskey(results, "error") && job.against !== nothing
+        try
+            nodelog(cfg, node, "running comparison build for $(summary(job))")
+            results["against"] = execute_tests!(job, job.against, :against)
+            nodelog(cfg, node, "finished comparison build for $(summary(job))")
+        catch err
+            results["error"] = NanosoldierError("failed to run tests against comparison commit", err)
+            results["backtrace"] = catch_backtrace()
         end
     end
 
