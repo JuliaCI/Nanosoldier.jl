@@ -110,27 +110,27 @@ submission(job::PkgEvalJob) = job.submission
 #############
 
 function jobdirname(job::PkgEvalJob)
-    tag = if job.isdaily
-        datedirname(job.date)
+    if job.isdaily
+        joinpath("by_date", datedirname(job.date))
     else
         primarysha = snipsha(submission(job).build.sha)
-        if job.against === nothing
+        tag = if job.against === nothing
             primarysha
         else
             againstsha = snipsha(job.against.sha)
             string(primarysha, "_vs_", againstsha)
         end
+        joinpath("by_hash", tag)
     end
-    return "pkgeval-$tag"
 end
 
-reportdir(job::PkgEvalJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+reportdir(job::PkgEvalJob) = joinpath(reportdir(submission(job).config), "pkgeval", jobdirname(job))
 tmpdir(job::PkgEvalJob) = joinpath(workdir(submission(job).config), "tmpresults")
 tmplogdir(job::PkgEvalJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_tests!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), "pkgeval-" * datedirname(date))
+    dailydir = joinpath(reportdir(cfg), "pkgeval", "by_date", datedirname(date))
     if isdir(dailydir)
         return cd(dailydir) do
             datapath = joinpath(dailydir, "data")
@@ -391,9 +391,10 @@ function report(job::PkgEvalJob, results)
                 rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
+            mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
-            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname),
+            target_url = upload_report_repo!(job, joinpath("pkgeval", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))

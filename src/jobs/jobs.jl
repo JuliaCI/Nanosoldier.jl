@@ -22,7 +22,8 @@ function tagref(config::Config, reponame::AbstractString, tagname::AbstractStrin
     return BuildRef(reponame, shastr)
 end
 
-datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
+datedirname(date::Dates.Date) = joinpath(Dates.format(date, dateformat"yyyy-mm"),
+                                         Dates.format(date, dateformat"dd"))
 
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")

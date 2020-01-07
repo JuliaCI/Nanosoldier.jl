@@ -114,27 +114,27 @@ submission(job::BenchmarkJob) = job.submission
 #############
 
 function jobdirname(job::BenchmarkJob)
-    tag = if job.isdaily
-        datedirname(job.date)
+    if job.isdaily
+        joinpath("by_date", datedirname(job.date))
     else
         primarysha = snipsha(submission(job).build.sha)
-        if job.against === nothing
+        tag = if job.against === nothing
             primarysha
         else
             againstsha = snipsha(job.against.sha)
             string(primarysha, "_vs_", againstsha)
         end
+        joinpath("by_hash", tag)
     end
-    return "benchmark-$tag"
 end
 
-reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), "benchmark", jobdirname(job))
 tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_data!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), "benchmark-" * datedirname(date))
+    dailydir = joinpath(reportdir(cfg), "benchmark", datedirname(date))
     found_previous_date = false
     if isdir(dailydir)
         cd(dailydir) do
@@ -462,6 +462,7 @@ function report(job::BenchmarkJob, results)
                 rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
+            mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
             target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname),
