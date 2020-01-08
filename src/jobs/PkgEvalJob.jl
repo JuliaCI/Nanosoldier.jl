@@ -109,9 +109,9 @@ submission(job::PkgEvalJob) = job.submission
 # Utilities #
 #############
 
-function jobdirname(job::PkgEvalJob)
+function jobdirname(job::PkgEvalJob; latest::Bool=false)
     if job.isdaily
-        joinpath("by_date", datedirname(job.date))
+        joinpath("by_date", latest ? "latest" : datedirname(job.date))
     else
         primarysha = snipsha(submission(job).build.sha)
         tag = if job.against === nothing
@@ -124,42 +124,10 @@ function jobdirname(job::PkgEvalJob)
     end
 end
 
-reportdir(job::PkgEvalJob) = joinpath(reportdir(submission(job).config), "pkgeval", jobdirname(job))
+reportdir(job::PkgEvalJob; kwargs...) = joinpath(reportdir(submission(job).config), "pkgeval", jobdirname(job; kwargs...))
 tmpdir(job::PkgEvalJob) = joinpath(workdir(submission(job).config), "tmpresults")
 tmplogdir(job::PkgEvalJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
-
-function retrieve_daily_tests!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), "pkgeval", "by_date", datedirname(date))
-    if isdir(dailydir)
-        return cd(dailydir) do
-            datapath = joinpath(dailydir, "data")
-            try
-                run(`tar -xzf data.tar.gz`)
-
-                # read results and undo stringification
-                results[key] = Feather.read(joinpath(datapath, "primary.feather"))
-                for col in (:julia, :version, :status, :reason, :uuid)
-                    results[key][!, col] = map(str->eval(Meta.parse(str)), results[key][!, col])
-                end
-
-                # read properties and create build ref
-                job = JSON.parsefile(joinpath(datapath, "primary.json"))
-                build = BuildRef(job["build"]["repo"], job["build"]["sha"])
-
-                build
-            catch err
-                nodelog(cfg, myid(),
-                        "encountered error when retrieving daily data: " * sprint(showerror, err),
-                        error=(err, stacktrace(catch_backtrace())))
-                nothing
-            finally
-                isdir(datapath) && rm(datapath, recursive=true)
-            end
-        end
-    end
-    return
-end
 
 ########################
 # PkgEvalJob Execution #
@@ -245,7 +213,7 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
             Feather.write("$(whichbuild).feather", results)
         end
 
-        # dict with job properties
+        # dict with build properties
         open("$(whichbuild).json", "w") do io
             json = Dict{String,Any}(
                 "build" => Dict(
@@ -290,25 +258,21 @@ function Base.run(job::PkgEvalJob)
     results = Dict{Any,Any}()
 
     if job.isdaily
-        # get build from previous day (if it exists, check the past 30 days)
+        # get build from previous day
         try
             nodelog(cfg, node, "retrieving results from previous daily build")
-            found_previous_date = false
-            for i in 1:30
-                check_date = job.date - Dates.Day(i)
-                previous_build = retrieve_daily_tests!(results, "previous", cfg, check_date)
-                if previous_build !== nothing
-                    found_previous_date = true
-                    results["previous_date"] = check_date
+            latest_dir = reportdir(job; latest=true)
+            latest_db = joinpath(latest_dir, "db.json")
+            if isfile(latest_db)
+                latest = JSON.parsefile(latest_db)
 
-                    # NOTE: we don't actually use the results from the previous day,
-                    #       since packages upgrades might cause failures too.
-                    #       instead, just use the build ref to compare against
-                    job.against = previous_build
-                    break
-                end
+                # NOTE: we don't actually use the results from the previous day, just the
+                #       build properties, since packages upgrades might cause failures too.
+                results["against_date"] = parse(Date, latest["date"])
+                job.against = BuildRef(latest["build"]["repo"], latest["build"]["sha"])
+            else
+                nodelog(cfg, node, "didn't find previous daily build data")
             end
-            found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
         catch err
             rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
         end
@@ -316,12 +280,9 @@ function Base.run(job::PkgEvalJob)
 
     # refuse to test against an identical build
     if job.against !== nothing && job.against.sha == submission(job).build.sha
-        nodelog(cfg, node, "refusing to compare identical builds")
-        reply_status(job, "success", "testing was skipped")
-        reply_comment(job, "[Your test job]($(submission(job).url)) was skipped, " *
-                    "because it would would have compared two identical " *
-                    "builds of Julia. cc @$(cfg.admin)")
-        return
+        nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
+        delete!(results, "against_date")
+        job.against = nothing
     end
 
     # run primary job
@@ -393,6 +354,11 @@ function report(job::PkgEvalJob, results)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
+            if job.isdaily
+                latest = reportdir(job; latest=true)
+                islink(latest) && rm(latest)
+                symlink(datedirname(job.date), latest)
+            end
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
             target_url = upload_report_repo!(job, joinpath("pkgeval", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
@@ -415,7 +381,7 @@ function report(job::PkgEvalJob, results)
         else
             # determine the job's final status
             state = results["has_issues"] ? "failure" : "success"
-            if job.against !== nothing || haskey(results, "previous_date")
+            if job.against !== nothing
                 status = results["has_issues"] ? "possible new issues were detected" :
                                                  "no new issues were detected"
             else
@@ -445,8 +411,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
     joblink = "[$(buildname)]($(buildlink))"
     hasagainstbuild = job.against !== nothing
-    hasprevdate = haskey(results, "previous_date")
-    iscomparisonjob = hasagainstbuild || hasprevdate
+
+    # in contrast to BenchmarkJob, comparison jobs always have an against build, even daily
+    # ones (so we don't need `iscomparisonjob`). in the case of a daily comparison job,
+    # `results["against_date"]` is guaranteed to be set (so we don't need `hasprevdate`).
 
     if hasagainstbuild
         againstbuild = job.against
@@ -471,8 +439,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 """)
 
     if job.isdaily
-        if hasprevdate
-            dailystr = string(job.date, " vs ", results["previous_date"])
+        if hasagainstbuild
+            dailystr = string(job.date, " vs ", results["against_date"])
         else
             dailystr = string(job.date)
         end
@@ -535,7 +503,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
         end
     end
 
-    if iscomparisonjob
+    if hasagainstbuild
         package_results = join(results["primary"], results["against"],
                                on=:uuid, kind=:left, makeunique=true, indicator=:source)
     else
@@ -600,7 +568,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 end
             end
 
-            if iscomparisonjob
+            if hasagainstbuild
                 # first report on tests that changed status
                 let changed_tests = filter(test->test.source == "both" &&
                                                  test.status != test.status_1, group)
@@ -682,7 +650,8 @@ function printdb(io::IO, job::PkgEvalJob, results)
         "build" => Dict(
             "repo"  => build.repo,
             "sha"   => build.sha,
-        )
+        ),
+        "date" => job.date,
     )
 
     # test results
