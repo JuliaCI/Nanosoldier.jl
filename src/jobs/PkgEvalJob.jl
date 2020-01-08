@@ -477,6 +477,15 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print summary of tested packages #
     #----------------------------------#
 
+    # we don't care about the distinction between failed and killed tests,
+    # so lump them together
+    for key in ("primary", "against", "previous")
+        if haskey(results, key)
+            df = results[key]
+            df[df[!, :status] .== :kill, :status] .= :fail
+        end
+    end
+
     o = count(==(:ok),      results["primary"].status)
     s = count(==(:skip),    results["primary"].status)
     f = count(==(:fail),    results["primary"].status)
@@ -490,18 +499,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     # print result list #
     #-------------------#
-
-    # TODO: in the case of a daily build, we might also have results["previous];
-    #       use that to report on package upgrades that caused test failures?
-
-    # we don't care about the distinction between failed and killed tests,
-    # so lump them together
-    for key in ("primary", "against", "previous")
-        if haskey(results, key)
-            df = results[key]
-            df[df[!, :status] .== :kill, :status] .= :fail
-        end
-    end
 
     if hasagainstbuild
         package_results = join(results["primary"], results["against"],
