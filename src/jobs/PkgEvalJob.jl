@@ -133,46 +133,53 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 # PkgEvalJob Execution #
 ########################
 
-function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
-    # determine Julia version to use
-    julia = nothing
-    if whichbuild == :primary && submission(job).fromkind == :pr
-        # if we're dealing with a PR, try the merge commit
-        pr = submission(job).prnumber
-        if pr !== nothing
-            try
-                # NOTE: the merge head only exists in the upstream Julia repository,
-                #       and not in the repository where the pull request originated.
-                julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", "JuliaLang/julia")
-            catch err
-                isa(err, LibGit2.GitError) || rethrow()
-                # there might not be a merge commit (e.g. in the case of merge conflicts)
+# execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
+function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results::Dict)
+    # determine Julia versions to use
+    julia_versions = Dict{String,VersionNumber}()
+    for (whichbuild, build) in builds
+        # obtain Julia version matching requested BuildRef
+        julia = nothing
+        if whichbuild == "primary" && submission(job).fromkind == :pr
+            # if we're dealing with a PR, try the merge commit
+            pr = submission(job).prnumber
+            if pr !== nothing
+                try
+                    # NOTE: the merge head only exists in the upstream Julia repository,
+                    #       and not in the repository where the pull request originated.
+                    julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", "JuliaLang/julia")
+                catch err
+                    isa(err, LibGit2.GitError) || rethrow()
+                    # there might not be a merge commit (e.g. in the case of merge conflicts)
+                end
             end
+            # NOTE: by calling obtain_julia_build with a ref (and not just a commit),
+            #       we'll get a versioninfo() that contains that ref. since that is useful,
+            #       BenchmarkJob should probably also use NewPkgEval's Julia builder,
+            #       at which point we can stop eagerly resolving Julia specifiers to
+            #       commit strings (branchref, tagref), or at least keeping more information.
         end
-        # NOTE: by calling obtain_julia_build with a ref (and not just a commit),
-        #       we'll get a versioninfo() that contains that ref. since that is useful,
-        #       BenchmarkJob should probably also use NewPkgEval's Julia builder,
-        #       at which point we can stop eagerly resolving Julia specifiers to
-        #       commit strings (branchref, tagref), or at least keeping more information.
-    end
-    if julia === nothing
-        # fall back to the last commit in the PR
-        julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
-    end
-    NewPkgEval.prepare_julia(julia)
+        if julia === nothing
+            # fall back to the last commit in the PR
+            julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
+        end
+        NewPkgEval.prepare_julia(julia)
+        @assert !in(julia, values(julia_versions)) "Cannot compare identical Julia builds"
+        julia_versions[whichbuild] = julia
 
-    # get some version info
-    try
-        out = Pipe()
-        NewPkgEval.run_sandboxed_julia(julia, ```-e '
-                VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
-                VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
-                '
-            ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
-        close(out.in)
-        build.vinfo = first(split(read(out, String), "Environment"))
-    catch err
-        build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        # get some version info
+        try
+            out = Pipe()
+            NewPkgEval.run_sandboxed_julia(julia, ```-e '
+                    VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
+                    VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
+                    '
+                ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
+            close(out.in)
+            build.vinfo = first(split(read(out, String), "Environment"))
+        catch err
+            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        end
     end
 
     # determine packages to test
@@ -185,47 +192,51 @@ function execute_tests!(job::PkgEvalJob, build::BuildRef, whichbuild::Symbol)
     pkgs = NewPkgEval.read_pkgs(pkg_names)
 
     # run tests
-    results = withenv("CI" => true) do
+    all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        NewPkgEval.run([julia], pkgs; ninstances=length(cpus))
+        NewPkgEval.run(collect(values(julia_versions)), pkgs; ninstances=length(cpus))
     end
 
-    # write logs
-    cd(tmplogdir(job)) do
-        for test in eachrow(results)
-            isdir(test.name) || mkdir(test.name)
-            open(joinpath(test.name, "$(test.julia).log"), "w") do io
-                if !ismissing(test.log)
-                    write(io, test.log)
+    # process the results for each Julia version separately
+    for (whichbuild, build) in builds
+        tests = all_tests[all_tests[!, :julia] .== julia_versions[whichbuild], :]
+        results[whichbuild] = tests
+
+        # write logs
+        cd(tmplogdir(job)) do
+            for test in eachrow(tests)
+                isdir(test.name) || mkdir(test.name)
+                open(joinpath(test.name, "$(test.julia).log"), "w") do io
+                    if !ismissing(test.log)
+                        write(io, test.log)
+                    end
                 end
             end
         end
-    end
 
-    # write data
-    cd(tmpdatadir(job)) do
-        # dataframe with test results
-        let results = copy(results)
-            # Feather can't handle non-primitive types, so stringify them
-            for col in (:julia, :version, :status, :reason, :uuid)
-                results[!, col] = map(repr, results[!, col])
+        # write data
+        cd(tmpdatadir(job)) do
+            # dataframe with test results
+            let tests = copy(tests)
+                # Feather can't handle non-primitive types, so stringify them
+                for col in (:julia, :version, :status, :reason, :uuid)
+                    tests[!, col] = map(repr, tests[!, col])
+                end
+                Feather.write("$(whichbuild).feather", tests)
             end
-            Feather.write("$(whichbuild).feather", results)
-        end
 
-        # dict with build properties
-        open("$(whichbuild).json", "w") do io
-            json = Dict{String,Any}(
-                "build" => Dict(
-                    "repo"  => build.repo,
-                    "sha"   => build.sha,
+            # dict with build properties
+            open("$(whichbuild).json", "w") do io
+                json = Dict{String,Any}(
+                    "build" => Dict(
+                        "repo"  => build.repo,
+                        "sha"   => build.sha,
+                    )
                 )
-            )
-            JSON.print(io, json)
+                JSON.print(io, json)
+            end
         end
     end
-
-    return results
 end
 
 function Base.run(job::PkgEvalJob)
@@ -285,26 +296,18 @@ function Base.run(job::PkgEvalJob)
         job.against = nothing
     end
 
-    # run primary job
-    try
-        nodelog(cfg, node, "running primary build for $(summary(job))")
-        results["primary"] = execute_tests!(job, submission(job).build, :primary)
-        nodelog(cfg, node, "running primary build for $(summary(job))")
-    catch err
-        results["error"] = NanosoldierError("failed to run tests against primary commit", err)
-        results["backtrace"] = catch_backtrace()
+    # run tests
+    builds = Dict("primary" => submission(job).build)
+    if job.against !== nothing
+        builds["against"] = job.against
     end
-
-    # as long as our primary job didn't error, run the comparison job
-    if !haskey(results, "error") && job.against !== nothing
-        try
-            nodelog(cfg, node, "running comparison build for $(summary(job))")
-            results["against"] = execute_tests!(job, job.against, :against)
-            nodelog(cfg, node, "finished comparison build for $(summary(job))")
-        catch err
-            results["error"] = NanosoldierError("failed to run tests against comparison commit", err)
-            results["backtrace"] = catch_backtrace()
-        end
+    try
+        nodelog(cfg, node, "running tests for $(summary(job))")
+        execute_tests!(job, builds, results)
+        nodelog(cfg, node, "running tests for $(summary(job))")
+    catch err
+        results["error"] = NanosoldierError("failed to run tests", err)
+        results["backtrace"] = catch_backtrace()
     end
 
     NewPkgEval.purge()
