@@ -567,20 +567,41 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
             if hasagainstbuild
                 # first report on tests that changed status
-                let changed_tests = filter(test->test.source == "both" &&
-                                                 test.status != test.status_1, group)
+                changed_tests = filter(test->test.source == "both" &&
+                                             test.status != test.status_1, group)
+                if !isempty(changed_tests)
                     println(io, "**$(nrow(changed_tests)) packages $verb only on the current version.**")
                     println(io)
                     reportgroup(changed_tests)
 
-                    if status == :fail && !isempty(changed_tests)
+                    if status == :fail
                         results["has_issues"] |= true
+
+                        # if this was an explicit "vs" build (i.e., not a daily comparison
+                        # against a previous day), give the syntax to re-test failures.
+                        if haskey(submission(job).kwargs, :vs)
+                            vs = submission(job).kwargs[:vs]
+                            println(io,  """
+                                <details><summary>Click here for the Nanosoldier invocation to re-run these tests.</summary>
+                                <p>
+
+                                ```
+                                @nanosoldier `runtests($(repr(changed_tests.name)), vs = $vs)`
+                                ```
+
+                                </p>
+                                </details>
+                                """)
+
+                            println(io)
+                        end
                     end
                 end
 
                 # now report the other ones
-                let unchanged_tests = filter(test->test.source == "left_only" ||
-                                                   test.status == test.status_1, group)
+                unchanged_tests = filter(test->test.source == "left_only" ||
+                                               test.status == test.status_1, group)
+                if !isempty(unchanged_tests)
                     println(io, """
                         <details><summary><strong>$(nrow(unchanged_tests)) packages $verb on the previous version too.</strong></summary>
                         <p>
