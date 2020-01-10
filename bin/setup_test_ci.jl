@@ -1,14 +1,13 @@
 using Distributed
-
-nodes = addprocs(["nanosoldier6"])
-
 import Nanosoldier, GitHub
 
-cpus = [1,2,3]
+nodes = Dict(Any => addprocs(["nanosoldier6"]))
+@everywhere import Nanosoldier
+
 auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
 secret = ENV["GITHUB_SECRET"]
 
-config = Nanosoldier.Config(ENV["USER"], nodes, cpus, auth, secret;
+config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
                             workdir = joinpath(homedir(), "test_workdir"),
                             trackrepo = "ararslan/julia",
                             reportrepo = "ararslan/BaseBenchmarkReports",

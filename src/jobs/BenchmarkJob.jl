@@ -60,6 +60,10 @@ function BenchmarkJob(submission::JobSubmission)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
+        elseif in(TAG_SEPARATOR, againststr)
+            reporef, againsttag = split(againststr, TAG_SEPARATOR)
+            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstbuild = tagref(submission.config, againstrepo, againsttag)
         else
             error("invalid argument to `vs` keyword")
         end
@@ -109,34 +113,28 @@ submission(job::BenchmarkJob) = job.submission
 # Utilities #
 #############
 
-function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
-    shastr = GitHub.branch(reponame, branchname; auth=config.auth).commit.sha
-    return BuildRef(reponame, shastr)
-end
-
-datedirname(date::Dates.Date) = string("daily_", Dates.format(date, dateformat"yyyy_mm_dd"))
-
 function jobdirname(job::BenchmarkJob)
     if job.isdaily
-        return datedirname(job.date)
+        joinpath("by_date", datedirname(job.date))
     else
         primarysha = snipsha(submission(job).build.sha)
-        if job.against === nothing
-            return primarysha
+        tag = if job.against === nothing
+            primarysha
         else
             againstsha = snipsha(job.against.sha)
-            return string(primarysha, "_vs_", againstsha)
+            string(primarysha, "_vs_", againstsha)
         end
+        joinpath("by_hash", tag)
     end
 end
 
-reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), jobdirname(job))
+reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), "benchmark", jobdirname(job))
 tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
 function retrieve_daily_data!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), datedirname(date))
+    dailydir = joinpath(reportdir(cfg), "benchmark", datedirname(date))
     found_previous_date = false
     if isdir(dailydir)
         cd(dailydir) do
@@ -198,6 +196,7 @@ function Base.run(job::BenchmarkJob)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run benchmarks against primary commit", err)
+        results["backtrace"] = catch_backtrace()
     end
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
@@ -224,6 +223,7 @@ function Base.run(job::BenchmarkJob)
                 nodelog(cfg, node, "finished comparison build for $(summary(job))")
             catch err
                 results["error"] = NanosoldierError("failed to run benchmarks against comparison commit", err)
+                results["backtrace"] = catch_backtrace()
             end
         end
         if haskey(results, "against")
@@ -398,8 +398,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     catch
     end
     # shield our CPUs
-    run(`sudo cset shield -c $(join(cfg.cpus, ",")) -k on`)
-    run(`sudo cset set -c $(first(cfg.cpus)) -s /user/child --cpu_exclusive`)
+    cpus = mycpus(cfg)
+    run(`sudo cset shield -c $(join(cpus, ",")) -k on`)
+    run(`sudo cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
@@ -445,7 +446,7 @@ function report(job::BenchmarkJob, results)
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
                       "but no benchmarks were actually executed. Perhaps your tag predicate " *
-                      "contains misspelled tags? cc @ararslan")
+                      "contains misspelled tags? cc @$(cfg.admin)")
     else
         #  prepare report + data and push it to report repo
         target_url = ""
@@ -461,6 +462,7 @@ function report(job::BenchmarkJob, results)
                 rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
+            mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
             target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname),
@@ -470,9 +472,17 @@ function report(job::BenchmarkJob, results)
         end
 
         if haskey(results, "error")
+            # TODO: throw with backtrace?
+            if haskey(results, "backtrace")
+                @error("An exception occurred during job execution",
+                       exception=(results["error"], results["backtrace"]))
+            else
+                @error("An exception occurred during job execution",
+                       exception=results["error"])
+            end
             err = results["error"]
             err.url = target_url
-            rethrow(err)
+            throw(err)
         else
             # determine the job's final status
             if job.against !== nothing || haskey(results, "previous_date")
@@ -488,10 +498,10 @@ function report(job::BenchmarkJob, results)
             reply_status(job, state, status, target_url)
             if isempty(target_url)
                 comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @ararslan"
+                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
             else
                 comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url)). cc @ararslan"
+                          "$(status). A full report can be found [here]($(target_url)). cc @$(cfg.admin)"
             end
             reply_comment(job, comment)
         end
@@ -555,8 +565,15 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                     The build could not finish due to an error:
 
-                    ```
-                    $(results["error"])
+                    ```""")
+
+        Base.showerror(io, results["error"])
+        if haskey(results, "backtrace")
+            Base.show_backtrace(io, results["backtrace"])
+        end
+        println(io)
+
+        println(io, """
                     ```
 
                     Check the logs folder in this directory for more detailed output.
