@@ -615,6 +615,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
             else
                 # just report on all tests
                 println(io, "$(nrow(group)) packages $verb.")
+                println(io)
                 reportgroup(group)
 
                 if status == :fail
