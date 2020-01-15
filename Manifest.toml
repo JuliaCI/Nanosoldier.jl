@@ -28,9 +28,9 @@ version = "0.4.3"
 
 [[BinaryBuilder]]
 deps = ["Base64", "Dates", "GitHub", "HTTP", "InteractiveUtils", "JLD2", "JSON", "LibGit2", "Libdl", "MbedTLS", "ObjectFile", "Pkg", "PkgLicenses", "ProgressMeter", "REPL", "Random", "Registrator", "RegistryTools", "SHA", "Sockets", "ghr_jll"]
-git-tree-sha1 = "777ceefb0b33ff663d373a74b28ca048237b985b"
+git-tree-sha1 = "d995cc425ca973880f5913835673c1289a524cdf"
 uuid = "12aac903-9f7c-5d81-afc2-d9565ea332ae"
-version = "0.2.1"
+version = "0.2.2"
 
 [[BinaryProvider]]
 deps = ["Libdl", "SHA"]
@@ -69,9 +69,9 @@ version = "0.19.4"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "f784254f428fb8fd7ac15982e5862a38a44523d3"
+git-tree-sha1 = "ef162bfe3d872c326c0ecddeb45e3c13c1b74eda"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.7"
+version = "0.17.8"
 
 [[DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -273,7 +273,7 @@ uuid = "fa939f87-e72e-5be4-a000-7fc836dbe307"
 version = "1.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PkgLicenses]]
