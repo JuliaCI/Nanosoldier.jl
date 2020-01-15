@@ -10,7 +10,7 @@ secret = ENV["GITHUB_SECRET"]
 config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
                             workdir = joinpath(dirname(@__DIR__), "workdir"),
                             trackrepo = "JuliaLang/julia",
-                            reportrepo = "maleadt/BasePkgEvalReports",
+                            reportrepo = "JuliaCI/NanosoldierReports",
                             trigger = r"\@nanosoldier\s*`runtests\(.*?\)`",
                             admin = "maleadt")
 
