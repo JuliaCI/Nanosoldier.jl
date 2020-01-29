@@ -8,7 +8,7 @@
 
 abstract type AbstractJob end
 
-reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job), args...; kwargs...)
+reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job), "Nanosoldier/$(nameof(typeof(job)))", args...; kwargs...)
 reply_comment(job::AbstractJob, args...; kwargs...) = reply_comment(submission(job), args...; kwargs...)
 upload_report_repo!(job::AbstractJob, args...; kwargs...) = upload_report_repo!(submission(job), args...; kwargs...)
 

@@ -103,9 +103,9 @@ function parse_submission_string(submission_string)
     return name, args, kwargs
 end
 
-function reply_status(sub::JobSubmission, state, description, url=nothing)
+function reply_status(sub::JobSubmission, context, state, description, url=nothing)
     params = Dict("state" => state,
-                  "context" => "Nanosoldier",
+                  "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
     return GitHub.create_status(sub.config.trackrepo, sub.statussha;
