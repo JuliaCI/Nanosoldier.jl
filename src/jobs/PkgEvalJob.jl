@@ -325,7 +325,7 @@ function report(job::PkgEvalJob, results)
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no tests were executed")
-        reply_comment(job, "[Your test job]($(submission(job).url)) has completed, " *
+        reply_comment(job, "[Your package evaluation job]($(submission(job).url)) has completed, " *
                       "but no tests were actually executed. Perhaps your package selection " *
                       "contains misspelled names? cc @$(cfg.admin)")
     else
@@ -389,10 +389,10 @@ function report(job::PkgEvalJob, results)
             # reply with the job's final status
             reply_status(job, state, status, target_url)
             if isempty(target_url)
-                comment = "[Your test job]($(submission(job).url)) has completed, but " *
+                comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
                           "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
             else
-                comment = "[Your test job]($(submission(job).url)) has completed - " *
+                comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
                           "$(status). A full report can be found [here]($(target_url)). cc @$(cfg.admin)"
             end
             reply_comment(job, comment)
