@@ -135,6 +135,9 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
 function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
     # determine Julia versions to use
     julia_versions = Dict{String,VersionNumber}()
     for (whichbuild, build) in builds
@@ -148,6 +151,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results:
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
                     julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", "JuliaLang/julia")
+                    nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (merge head of PR $pr)")
                 catch err
                     isa(err, LibGit2.GitError) || rethrow()
                     # there might not be a merge commit (e.g. in the case of merge conflicts)
@@ -157,10 +161,11 @@ function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results:
         if julia === nothing
             # fall back to the last commit in the PR
             julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
+            nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
         end
-        NewPkgEval.prepare_julia(julia)
         @assert !in(julia, values(julia_versions)) "Cannot compare identical Julia builds"
         julia_versions[whichbuild] = julia
+        NewPkgEval.prepare_julia(julia)
 
         # get some version info
         try
