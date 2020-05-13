@@ -165,20 +165,22 @@ function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results:
         end
         @assert !in(julia, values(julia_versions)) "Cannot compare identical Julia builds"
         julia_versions[whichbuild] = julia
-        NewPkgEval.prepare_julia(julia)
 
         # get some version info
-        try
-            out = Pipe()
-            NewPkgEval.run_sandboxed_julia(julia, ```-e '
-                    VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
-                    VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
-                    '
-                ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
-            close(out.in)
-            build.vinfo = first(split(read(out, String), "Environment"))
-        catch err
-            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        mktempdir() do install
+            NewPkgEval.prepare_julia(julia, install)
+            try
+                out = Pipe()
+                NewPkgEval.run_sandboxed_julia(install, ```-e '
+                        VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
+                        VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
+                        '
+                    ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
+                close(out.in)
+                build.vinfo = first(split(read(out, String), "Environment"))
+            catch err
+                build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+            end
         end
     end
 
@@ -263,7 +265,6 @@ function Base.run(job::PkgEvalJob)
 
     # prepare NewPkgEval
     NewPkgEval.prepare_registry("General"; update=true)
-    NewPkgEval.prepare_runner()
 
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
