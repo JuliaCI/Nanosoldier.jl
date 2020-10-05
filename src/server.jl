@@ -34,7 +34,7 @@ struct Server
                 end
             end
             if !addedjob
-                reply_status(submission, "error", "invalid job submission; check syntax")
+                reply_status(submission, "Nanosoldier", "error", "invalid job submission; check syntax")
                 HTTP.Response(400, "invalid job submission")
             end
             return HTTP.Response(202, "received job submission")
