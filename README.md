@@ -107,14 +107,14 @@ branch.
 I want to run all benchmarks on the current commit. I want to compare the results
 against a commit on my fork.
 
-@nanosoldier `runbenchmarks(ALL, vs = "ararslan/julia@c70ab26bb677c92f0d8e0ae41c3035217a4b111f")`
+@nanosoldier `runbenchmarks(ALL, vs = "christopher-dG/julia@c70ab26bb677c92f0d8e0ae41c3035217a4b111f")`
 ```
 
 ```
 I want to run all benchmarks on the current commit. I want to compare the results
 against the head commit of my fork's branch.
 
-@nanosoldier `runbenchmarks(ALL, vs = "ararslan/julia:mybranch")`
+@nanosoldier `runbenchmarks(ALL, vs = "christopher-dG/julia:mybranch")`
 ```
 
 ### `PkgEvalJob`

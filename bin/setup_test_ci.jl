@@ -9,8 +9,8 @@ secret = ENV["GITHUB_SECRET"]
 
 config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
                             workdir = joinpath(homedir(), "test_workdir"),
-                            trackrepo = "ararslan/julia",
-                            reportrepo = "ararslan/BaseBenchmarkReports",
+                            trackrepo = "christopher-dG/julia",
+                            reportrepo = "christopher-dG/BaseBenchmarkReports",
                             testmode = true)
 
 server = Nanosoldier.Server(config)
