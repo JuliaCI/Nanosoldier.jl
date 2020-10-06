@@ -4,7 +4,7 @@
 
 This package contains the infrastructure powering the @nanosoldier CI bot used by the Julia language.
 
-## Submitting CI jobs via comments
+## Quick start
 
 If you're a collaborator in the JuliaLang/julia repository, you can submit CI jobs to the Julia Lab's Nanosoldier cluster at MIT by commenting on commits or pull requests. The @nanosoldier bot looks for a special "trigger phrase" in your comment, and if the trigger phrase is found, it is parsed by the bot to configure and submit a CI job.
 
@@ -14,17 +14,32 @@ The trigger phrase syntax is:
 @nanosoldier `command(args..., kwargs...)`
 ```
 
-Here's an example of a comment that might trigger a benchmarking job from a commit:
+There are two kinds of jobs you can invoke: **benchmark jobs**, which run the [BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl) suite, and **package test jobs** which rely on [NewPkgEval.jl](https://github.com/JuliaComputing/NewPkgEval.jl) to run the test suite of all registered packages.
+
+**Note that only one job can be triggered per comment.**
+
+One of the most common invocations runs all benchmarks on your PR, comparing against the current Julia master branch:
 
 ```
-Let's see whether the commit I'm commenting on is faster than the master branch for the linear algebra benchmarks:
+@nanosoldier `runbenchmarks(ALL, vs=":master")`
+```
 
+Similarly, you can run all package tests, e.g. if you suspect your PR might be breaking:
+
+```
+@nanosoldier `runtests(ALL, vs = ":master")`
+```
+
+Both operations take a long time, so it might be wise to restrict which benchmarks you want to run, or which packages you want to test:
+
+```
 @nanosoldier `runbenchmarks("linalg", vs = ":master")`
+
+@nanosoldier `runtests(["JSON", "Crayons"], vs = ":master")`
 ```
 
 When a job is completed, @nanosoldier will reply to your comment to tell you how the job went and link you to any relevant results.
 
-**Note that only one job can be triggered per comment.**
 
 ## Available job types
 
@@ -126,7 +141,7 @@ A `PkgEvalJob` has the following execution cycle:
 1. Pull in the JuliaLang/julia repository and build the commit specified by the context of the trigger phrase.
 2. Using the new Julia build, test the packages from the [General](https://github.com/JuliaRegistries/General) registry as specified by the trigger phrase.
 3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
-4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
+4. Upload a markdown report to the [NanosoldierReports](https://github.com/JuliaCI/NanosoldierReports) repository.
 
 #### Trigger Syntax
 
@@ -140,16 +155,37 @@ The package selection argument is used to decide which packages to test. It shou
 
 The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
 
+Several other optional arguments are supported by this job:
+- `buildflags = ["...", ...]`: a list of build flags that will be put in the `Make.user` for the primary build
+- `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
+
 #### Benchmark Results
 
 Once a `PkgEvalJob` is complete, the results are uploaded to the
-[BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
+[NanosoldierReports](https://github.com/JuliaCI/NanosoldierReports) repository. Each job
 has its own directory for results. This directory contains the following items:
 
 - `report.md` is a markdown report that summarizes the job results
 - `data.tar.gz` contains raw test data as Feather files encoding a DataFrame. To untar this file, run
 `tar -xzvf data.tar.gz`.
 - `logs` is a directory containing the test logs for the job.
+
+#### Comment Examples
+
+Here are some examples of comments that trigger a `PkgEval` in various contexts:
+
+```
+To verify packages against the previous version of Julia:
+
+@nanosoldier `runtests(ALL, vs = "#v1.5.1")`
+```
+
+```
+To see if there are packages that fail tests when enabling assertions:
+
+@nanosoldier `runtests(ALL, vs = ":master", buildflags=["USE_BINARYBUILDER_LLVM=0", "LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
+```
+
 
 ## Acknowledgements
 
