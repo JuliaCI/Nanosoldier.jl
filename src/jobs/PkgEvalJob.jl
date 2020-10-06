@@ -119,7 +119,7 @@ function Base.summary(job::PkgEvalJob)
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :buildflags)
+    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
