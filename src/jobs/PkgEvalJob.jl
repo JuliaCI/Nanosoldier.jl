@@ -322,7 +322,7 @@ function Base.run(job::PkgEvalJob)
     end
 
     # refuse to test against an identical build
-    if job.against !== nothing && job.against.sha == submission(job).build.sha
+    if job.against !== nothing && job.against.sha == submission(job).build.sha && job.against_buildflags == job.buildflags
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
         delete!(results, "against_date")
         job.against = nothing
