@@ -19,6 +19,7 @@ end
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
 
 # if a PR number is included, attempt to build from the PR's merge commit
+# FIXME: re-use NewPkgEval's BinaryBuilder-based build
 function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))

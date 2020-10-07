@@ -18,7 +18,7 @@ using LibGit2
 function is_valid_pkgsel(pkgsel::AbstractString)
     parsed = Meta.parse(pkgsel)
     if isa(parsed, Expr)
-        return is_valid_pkgsel(parsed)
+        return is_valid_stringvector(parsed)
     elseif parsed == :ALL
         return true
     else
@@ -26,7 +26,7 @@ function is_valid_pkgsel(pkgsel::AbstractString)
     end
 end
 
-function is_valid_pkgsel(pkgsel::Expr)
+function is_valid_stringvector(pkgsel::Expr)
     if pkgsel.head != :vect
         return false
     else
@@ -49,6 +49,10 @@ mutable struct PkgEvalJob <: AbstractJob
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
+    buildflags::Vector{String}       # a list of build flags for Make.user generation
+    against_buildflags::Vector{String}
+    # FIXME: put build flags in BuildRef? currently created too early for that (when the
+    #        GitHub event is parsed, while we get the build flags from the comment)
 end
 
 function PkgEvalJob(submission::JobSubmission)
@@ -80,8 +84,28 @@ function PkgEvalJob(submission::JobSubmission)
         isdaily = false
     end
 
+    if haskey(submission.kwargs, :buildflags)
+        expr = Meta.parse(submission.kwargs[:buildflags])
+        if !is_valid_stringvector(expr)
+            error("invalid argument to `buildflags` keyword")
+        end
+        buildflags = eval(expr)
+    else
+        buildflags = String[]
+    end
+
+    if haskey(submission.kwargs, :vs_buildflags)
+        expr = Meta.parse(submission.kwargs[:vs_buildflags])
+        if !is_valid_stringvector(expr)
+            error("invalid argument to `vs_buildflags` keyword")
+        end
+        against_buildflags = eval(expr)
+    else
+        against_buildflags = String[]
+    end
+
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily)
+                      Dates.today(), isdaily, buildflags, against_buildflags)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -95,7 +119,7 @@ function Base.summary(job::PkgEvalJob)
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily)
+    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
@@ -134,7 +158,7 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 ########################
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results::Dict)
+function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dict)
     node = myid()
     cfg = submission(job).config
 
@@ -150,7 +174,9 @@ function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results:
                 try
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
-                    julia = NewPkgEval.obtain_julia_build("pull/$pr/merge", "JuliaLang/julia")
+                    julia =
+                        NewPkgEval.perform_julia_build("pull/$pr/merge", "JuliaLang/julia";
+                                                       buildflags=flags[whichbuild])
                     nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (merge head of PR $pr)")
                 catch err
                     isa(err, LibGit2.GitError) || rethrow()
@@ -160,7 +186,12 @@ function execute_tests!(job::PkgEvalJob, builds::Dict{String,BuildRef}, results:
         end
         if julia === nothing
             # fall back to the last commit in the PR
-            julia = NewPkgEval.obtain_julia_build(build.sha, build.repo)
+            julia = if isempty(flags[whichbuild])
+                NewPkgEval.obtain_julia_build(build.sha, build.repo)
+            else
+                NewPkgEval.perform_julia_build(build.sha, build.repo;
+                                               buildflags=flags[whichbuild])
+            end
             nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
         end
         @assert !in(julia, values(julia_versions)) "Cannot compare identical Julia builds"
@@ -291,7 +322,7 @@ function Base.run(job::PkgEvalJob)
     end
 
     # refuse to test against an identical build
-    if job.against !== nothing && job.against.sha == submission(job).build.sha
+    if job.against !== nothing && job.against.sha == submission(job).build.sha && job.against_buildflags == job.buildflags
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
         delete!(results, "against_date")
         job.against = nothing
@@ -299,12 +330,14 @@ function Base.run(job::PkgEvalJob)
 
     # run tests
     builds = Dict("primary" => submission(job).build)
+    flags = Dict("primary" => job.buildflags)
     if job.against !== nothing
         builds["against"] = job.against
+        flags["against"] = job.against_buildflags
     end
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, results)
+        execute_tests!(job, builds, flags, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run tests", err)
@@ -646,6 +679,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
               ```
               """)
 
+    if !isempty(job.buildflags)
+        println(io, "Build flags: ", join(map(flag->"`$flag`", job.buildflags), ", "))
+    end
+
     if hasagainstbuild
         println(io)
         print(io, """
@@ -655,6 +692,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
                   $(job.against.vinfo)
                   ```
                   """)
+
+        if !isempty(job.against_buildflags)
+            println(io, "Build flags: ", join(map(flag->"`$flag`", job.against_buildflags), ", "))
+        end
     end
 
     println(io, "<!-- Generated on $(now()) -->")
