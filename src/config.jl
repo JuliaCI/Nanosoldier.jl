@@ -15,7 +15,7 @@ struct Config
                     workdir = pwd(),
                     cpus = Dict{Int,Vector{Int}}(),
                     trackrepo = "JuliaLang/julia",
-                    reportrepo = "JuliaCI/BaseBenchmarkReports",
+                    reportrepo = "JuliaCI/NanosoldierReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     admin = "christopher-dG",
                     testmode = false)
