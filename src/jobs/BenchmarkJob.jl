@@ -465,7 +465,7 @@ function report(job::BenchmarkJob, results)
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
-            target_url = upload_report_repo!(job, joinpath(jobdirname(job), reportname),
+            target_url = upload_report_repo!(job, joinpath("benchmark", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
