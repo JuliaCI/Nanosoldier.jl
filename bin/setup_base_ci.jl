@@ -10,7 +10,7 @@ secret = ENV["GITHUB_SECRET"]
 config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
                             workdir = joinpath(homedir(), "workdir"),
                             trackrepo = "JuliaLang/julia",
-                            reportrepo = "JuliaCI/BaseBenchmarkReports",
+                            reportrepo = "JuliaCI/NanosoldierReports",
                             testmode = false)
 
 server = Nanosoldier.Server(config)

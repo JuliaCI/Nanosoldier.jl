@@ -54,7 +54,7 @@ A `BenchmarkJob` has the following execution cycle:
 1. Pull in the JuliaLang/julia repository and build the commit specified by the context of the trigger phrase.
 2. Using the new Julia build, fetch the `nanosoldier` branch of the [BaseBenchmarks](https://github.com/JuliaCI/BaseBenchmarks.jl) repository and run the benchmarks specified by the trigger phrase.
 3. If the trigger phrase specifies a commit to compare against, build that version of Julia and perform step 2 using the comparison build.
-4. Upload a markdown report to the [BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository.
+4. Upload a markdown report to the [NanosoldierReports](https://github.com/JuliaCI/NanosoldierReports) repository.
 
 #### Trigger Syntax
 
@@ -80,13 +80,13 @@ The `vs` keyword argument takes a reference string which can points to a Julia c
 #### Benchmark Results
 
 Once a `BenchmarkJob` is complete, the results are uploaded to the
-[BaseBenchmarkReports](https://github.com/JuliaCI/BaseBenchmarkReports) repository. Each job
+[NanosoldierReports](https://github.com/JuliaCI/NanosoldierReports) repository. Each job
 has its own directory for results. This directory contains the following items:
 
 - `report.md` is a markdown report that summarizes the job results
 - `data.tar.gz` contains raw timing data in JSON format. To untar this file, run
 `tar -xzvf data.tar.gz`. You can analyze this data using the
-[BenchmarkTools](https://github.com/JuliaCI/BaseBenchmarkReports) package.
+[BenchmarkTools](https://github.com/JuliaCI/NanosoldierReports) package.
 - `logs` is a directory containing the build logs and benchmark execution logs for the job.
 
 #### Comment Examples
