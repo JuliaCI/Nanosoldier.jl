@@ -166,7 +166,5 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    open(mdpath, "r") do file
-        read(file, String) == sprint(io -> Nanosoldier.printreport(io, job, results))
-    end
+    chomp.(readlines(mdpath)) == chomp.(eachline(IOBuffer(sprint(io -> Nanosoldier.printreport(io, job, results)))))
 end
