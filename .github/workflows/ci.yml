@@ -43,3 +43,5 @@ jobs:
           git config --global user.name Tester
           git config --global user.email te@st.er
       - uses: julia-actions/julia-runtest@latest
+        env:
+          GITHUB_AUTH: ${{ secrets.GITHUB_TOKEN }}
