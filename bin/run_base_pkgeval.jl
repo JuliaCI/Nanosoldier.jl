@@ -12,7 +12,8 @@ config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
                             trackrepo = "JuliaLang/julia",
                             reportrepo = "JuliaCI/NanosoldierReports",
                             trigger = r"\@nanosoldier\s*`runtests\(.*?\)`",
-                            admin = "maleadt")
+                            admin = "maleadt",
+                            bucket = "julialang-reports/nanosoldier")
 
 server = Nanosoldier.Server(config)
 
