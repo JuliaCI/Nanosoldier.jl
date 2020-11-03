@@ -129,5 +129,5 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
         run(`git push`)
         return headsha
     end
-    return "https://github.com/$(reportrepo(cfg))/blob/$(sha)/$(markdownpath)"
+    return "https://github.com/$(reportrepo(cfg))/blob/master/$(markdownpath)"
 end
