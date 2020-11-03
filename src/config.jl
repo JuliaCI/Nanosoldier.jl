@@ -9,6 +9,7 @@ struct Config
     trigger::Regex                  # a regular expression to match comments against
     workdir::String                 # the server's work directory
     admin::String                   # GitHub handle of the server administrator
+    bucket::Union{Nothing,String}   # AWS bucket to upload large files too
     testmode::Bool                  # if true, jobs will run as test jobs
 
     function Config(user, nodes, auth, secret;
@@ -18,10 +19,11 @@ struct Config
                     reportrepo = "JuliaCI/NanosoldierReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     admin = "christopher-dG",
+                    bucket = nothing,
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
         return new(user, nodes, cpus, auth, secret, trackrepo,
-                   reportrepo, trigger, workdir, admin, testmode)
+                   reportrepo, trigger, workdir, admin, bucket, testmode)
     end
 end
 

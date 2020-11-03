@@ -236,12 +236,24 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
         results[whichbuild] = tests
 
         # write logs
-        cd(tmplogdir(job)) do
+        if cfg.bucket !== nothing
             for test in eachrow(tests)
-                isdir(test.name) || mkdir(test.name)
-                open(joinpath(test.name, "$(test.julia).log"), "w") do io
-                    if !ismissing(test.log)
-                        write(io, test.log)
+                if !ismissing(test.log)
+                    S3.put_object("julialang-reports/nanosoldier",
+                                  "$(test.name).$(test.julia).log",
+                                  Dict("body"       => test.log,
+                                       "x-amz-acl"  => "public-read",
+                                       "headers"    => Dict("Content-Type"=>"text/plain")))
+                end
+            end
+        else
+            cd(tmplogdir(job)) do
+                for test in eachrow(tests)
+                    isdir(test.name) || mkdir(test.name)
+                    open(joinpath(test.name, "$(test.julia).log"), "w") do io
+                        if !ismissing(test.log)
+                            write(io, test.log)
+                        end
                     end
                 end
             end
@@ -289,8 +301,10 @@ function Base.run(job::PkgEvalJob)
     end
     nodelog(cfg, node, "...creating $(tmpdir(job))...")
     mkdir(tmpdir(job))
-    nodelog(cfg, node, "...creating $(tmplogdir(job))...")
-    mkdir(tmplogdir(job))
+    if cfg.bucket === nothing
+        nodelog(cfg, node, "...creating $(tmplogdir(job))...")
+        mkdir(tmplogdir(job))
+    end
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
 
@@ -443,6 +457,7 @@ end
 #----------------------------#
 
 function printreport(io::IO, job::PkgEvalJob, results)
+    cfg = submission(job).config
     build = submission(job).build
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
@@ -562,12 +577,20 @@ function printreport(io::IO, job::PkgEvalJob, results)
             function reportrow(test)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
 
-                primary_log = "logs/$(test.name)/$(test.julia).log"
+                primary_log = if cfg.bucket !== nothing
+                    "https://s3.amazonaws.com/$(cfg.bucket)/$(test.name).$(test.julia).log"
+                else
+                    "logs/$(test.name)/$(test.julia).log"
+                end
                 print(io, "- [$(test.name)$(verstr(test.version))]($primary_log)")
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
-                    against_log = "logs/$(test.name_1)/$(test.julia_1).log"
+                    against_log = if cfg.bucket !== nothing
+                        "https://s3.amazonaws.com/$(cfg.bucket)/$(test.name_1).$(test.julia_1).log"
+                    else
+                        "logs/$(test.name_1)/$(test.julia_1).log"
+                    end
                     print(io, " vs. [$(test.name_1)$(verstr(test.version_1))]($against_log)")
 
                     print(io, " ($(NewPkgEval.statusses[test.status_1])")

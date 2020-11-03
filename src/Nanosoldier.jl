@@ -1,7 +1,9 @@
 module Nanosoldier
 
 using Dates, Distributed, Printf, InteractiveUtils
-import GitHub, BenchmarkTools, JSON, HTTP
+import GitHub, BenchmarkTools, JSON, HTTP, AWS
+
+AWS.@service S3
 
 const SHA_SEPARATOR = '@'
 const BRANCH_SEPARATOR = ':'
