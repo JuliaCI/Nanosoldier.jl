@@ -466,7 +466,7 @@ function report(job::BenchmarkJob, results)
             nodelog(cfg, node, "...tarring data...")
             cd(tmpdir(job)) do
                 run(`tar -cf data.tar data`)
-                run(`xz --compress -9 --extreme --threads=0 data.tar`)
+                run(`xz --compress -9 --extreme data.tar`)
                 rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
