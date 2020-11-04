@@ -140,7 +140,14 @@ function retrieve_daily_data!(results, key, cfg, date)
         cd(dailydir) do
             datapath = joinpath(dailydir, "data")
             try
-                run(`tar -xvzf data.tar.gz`)
+                if isfile("data.tar.gz")
+                    run(`gunzip data.tar.gz`)
+                elseif isfile("data.tar.xz")
+                    run(`xz --decompress data.tar.xz`)
+                else
+                    error("Could not find compressed data tarball")
+                end
+                run(`tar -xf data.tar`)
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
@@ -458,7 +465,8 @@ function report(job::BenchmarkJob, results)
             end
             nodelog(cfg, node, "...tarring data...")
             cd(tmpdir(job)) do
-                run(`tar -zcvf data.tar.gz data`)
+                run(`tar -cf data.tar data`)
+                run(`xz --compress -9 --extreme --threads=0 data.tar`)
                 rm(tmpdatadir(job), recursive=true)
             end
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
