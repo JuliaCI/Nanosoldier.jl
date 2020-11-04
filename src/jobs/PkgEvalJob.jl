@@ -578,7 +578,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
 
                 primary_log = if cfg.bucket !== nothing
-                    "https://s3.amazonaws.com/$(cfg.bucket)/$(test.name).$(test.julia).log"
+                    "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name).$(test.julia).log"
                 else
                     "logs/$(test.name)/$(test.julia).log"
                 end
@@ -587,7 +587,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     against_log = if cfg.bucket !== nothing
-                        "https://s3.amazonaws.com/$(cfg.bucket)/$(test.name_1).$(test.julia_1).log"
+                        "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name_1).$(test.julia_1).log"
                     else
                         "logs/$(test.name_1)/$(test.julia_1).log"
                     end
