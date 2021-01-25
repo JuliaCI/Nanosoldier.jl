@@ -1,4 +1,4 @@
-using NewPkgEval
+using PkgEval
 using DataFrames
 using Feather
 using JSON
@@ -175,7 +175,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
                     julia =
-                        NewPkgEval.perform_julia_build("pull/$pr/merge", "JuliaLang/julia";
+                        PkgEval.perform_julia_build("pull/$pr/merge", "JuliaLang/julia";
                                                        buildflags=flags[whichbuild])
                     nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (merge head of PR $pr)")
                 catch err
@@ -187,9 +187,9 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
         if julia === nothing
             # fall back to the last commit in the PR
             julia = if isempty(flags[whichbuild])
-                NewPkgEval.obtain_julia_build(build.sha, build.repo)
+                PkgEval.obtain_julia_build(build.sha, build.repo)
             else
-                NewPkgEval.perform_julia_build(build.sha, build.repo;
+                PkgEval.perform_julia_build(build.sha, build.repo;
                                                buildflags=flags[whichbuild])
             end
             nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
@@ -199,10 +199,10 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
 
         # get some version info
         mktempdir() do install
-            NewPkgEval.prepare_julia(julia, install)
+            PkgEval.prepare_julia(julia, install)
             try
                 out = Pipe()
-                NewPkgEval.run_sandboxed_julia(install, ```-e '
+                PkgEval.run_sandboxed_julia(install, ```-e '
                         VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
                         VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
                         '
@@ -222,12 +222,12 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
     else
         eval(pkgsel)    # should be safe, it's a :vec of Strings
     end
-    pkgs = NewPkgEval.read_pkgs(pkg_names)
+    pkgs = PkgEval.read_pkgs(pkg_names)
 
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        NewPkgEval.run(collect(values(julia_versions)), pkgs; ninstances=length(cpus))
+        PkgEval.run(collect(values(julia_versions)), pkgs; ninstances=length(cpus))
     end
 
     # process the results for each Julia version separately
@@ -308,8 +308,8 @@ function Base.run(job::PkgEvalJob)
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
 
-    # prepare NewPkgEval
-    NewPkgEval.prepare_registry("General"; update=true)
+    # prepare PkgEval
+    PkgEval.prepare_registry("General"; update=true)
 
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
@@ -358,7 +358,7 @@ function Base.run(job::PkgEvalJob)
         results["backtrace"] = catch_backtrace()
     end
 
-    NewPkgEval.purge()
+    PkgEval.purge()
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
@@ -594,9 +594,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     end
                     print(io, " vs. [$(test.name_1)$(verstr(test.version_1))]($against_log)")
 
-                    print(io, " ($(NewPkgEval.statusses[test.status_1])")
+                    print(io, " ($(PkgEval.statusses[test.status_1])")
                     if !ismissing(test.reason_1)
-                        print(io, ", $(NewPkgEval.reasons[test.reason_1])")
+                        print(io, ", $(PkgEval.reasons[test.reason_1])")
                     end
                     print(io, ")")
                 end
@@ -608,7 +608,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
             function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for subgroup in subgroups
-                    println(io, uppercasefirst(NewPkgEval.reasons[first(subgroup).reason]), ":")
+                    println(io, uppercasefirst(PkgEval.reasons[first(subgroup).reason]), ":")
                     println(io)
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
