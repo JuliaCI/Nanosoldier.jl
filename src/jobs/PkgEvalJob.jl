@@ -243,7 +243,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
                                   "$(test.name).$(test.julia).log",
                                   Dict("body"       => test.log,
                                        "x-amz-acl"  => "public-read",
-                                       "headers"    => Dict("Content-Type"=>"text/plain")))
+                                       "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
                 end
             end
         else
