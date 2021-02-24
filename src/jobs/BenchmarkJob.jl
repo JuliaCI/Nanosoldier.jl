@@ -190,8 +190,10 @@ function Base.run(job::BenchmarkJob)
     mkdir(tmpdir(job))
     nodelog(cfg, node, "...creating $(tmplogdir(job))...")
     mkdir(tmplogdir(job))
+    chmod(tmplogdir(job), 0o777)
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
+    chmod(tmpdatadir(job), 0o777)
 
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
@@ -264,20 +266,29 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         end
         juliapath = joinpath(builddir, "julia")
     end
+    chmod(builddir, 0o775) # open it up to world-readable now for nanosoldier
+
+    # create a hermetic environment (similar to after sudo later)
+    tmpproject = joinpath(builddir, "environment")
+    juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
+        "LANG" => get(ENV, "LANG", "C.UTF-8"),
+        "HOME" => ENV["HOME"],
+        "USER" => ENV["USER"],
+        "PATH" => ENV["PATH"])
 
     nodelog(cfg, node, "...setting up benchmark scripts/environment...")
 
     cd(builddir)
 
     # update local Julia packages for the relevant Julia version
-    run(`$juliapath -e 'VERSION >= v"0.7.0-DEV.3656" && using Pkg; Pkg.update()'`)
+    run(`$juliacmd -e 'VERSION >= v"0.7.0-DEV.3656" && using Pkg; Pkg.update()'`)
 
     # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "test" : "nanosoldier"
     try
         run(```
-            $juliapath -e '
+            $juliacmd -e '
                 VERSION >= v"0.7.0-DEV.3656" && using Pkg
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
                 if VERSION >= v"0.7.0-DEV.5183"
@@ -292,7 +303,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     catch
     end
     cd(read(```
-        $juliapath -e '
+        $juliacmd -e '
             if VERSION >= v"0.7.0-beta2.203"
                 import BaseBenchmarks
                 print(dirname(dirname(pathof(BaseBenchmarks))))
@@ -305,6 +316,9 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         run(`git reset --hard --quiet origin/$(branchname)`)
     end
 
+    run(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate()'`)
+
+    cset = readchomp(`which cset`)
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JSON file so that we can retrieve them.
@@ -330,7 +344,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     open(shscriptpath, "w") do file
         println(file, """
                       #!/bin/sh
-                      $(juliapath) $(jlscriptpath)
+                      exec $(Base.shell_escape_posixly(juliacmd)) $(Base.shell_escape_posixly(jlscriptpath))
                       """)
     end
 
@@ -351,17 +365,17 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       using JSON
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
-                      benchout = open(\"$(benchout)\", "w")
+                      benchout = open($(repr(benchout)), "w")
                       oldout = stdout
                       redirect_stdout(benchout)
-                      bencherr = open(\"$(bencherr)\", "w")
+                      bencherr = open($(repr(bencherr)), "w")
                       olderr = stderr
                       redirect_stderr(bencherr)
 
                       # ensure we don't leak file handles when something goes wrong
                       try
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo cset proc -m -p \$(getpid()) -t /user/child`)
+                          run(`sudo $cset proc -m -p \$(getpid()) -t /user/child`)
 
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
@@ -379,7 +393,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                           results = run(benchmarks; verbose=true)
 
                           println("SAVING RESULT...")
-                          BenchmarkTools.save(\"$(benchresults)\", results)
+                          BenchmarkTools.save($(repr(benchresults)), results)
 
                           println("DONE!")
                       finally
@@ -391,10 +405,10 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                       """)
     end
 
-    # make shscript executable
-    run(`chmod +x $(shscriptpath)`)
-    # make jlscript executable
-    run(`chmod +x $(jlscriptpath)`)
+    # make shscript r-x
+    chmod(shscriptpath, 0o555)
+    # make jlscript r-x
+    chmod(jlscriptpath, 0o555)
     # clean up old cpusets, if they exist
     try
         run(`sudo cset set -d /user/child`)
@@ -406,17 +420,17 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     end
     # shield our CPUs
     cpus = mycpus(cfg)
-    run(`sudo cset shield -c $(join(cpus, ",")) -k on`)
-    run(`sudo cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
+    run(`sudo $cset shield -c $(join(cpus, ",")) -k on`)
+    run(`sudo $cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(`sudo cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
+    run(`sudo $cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
-    run(`sudo cset set -d /user/child`)
-    run(`sudo cset shield --reset`)
+    run(`sudo $cset set -d /user/child`)
+    run(`sudo $cset shield --reset`)
 
     results = BenchmarkTools.load(benchresults)[1]
 
@@ -424,7 +438,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # environment information that is useless/potentially risky to expose.
     try
         build.vinfo = first(split(read(```
-            $juliapath -e '
+            $juliacmd -e '
                 VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
                 VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
                 '
