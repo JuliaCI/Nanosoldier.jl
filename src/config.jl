@@ -61,4 +61,4 @@ function nodelog(config::Config, node, message; error=nothing)
 end
 
 # the list of CPUs for a given node
-mycpus(config::Config, node=getpid()) = get(config.cpus, node, 0:(Sys.CPU_THREADS-1))
+mycpus(config::Config, node=getpid()) = get(config.cpus, node, 1:(Sys.CPU_THREADS-1))
