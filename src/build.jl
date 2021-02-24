@@ -52,8 +52,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
 
     # run the build
     cpus = mycpus(config)
-    run(pipeline(`make -j$(length(cpus)) USECCACHE=1 USE_BINARYBUILDER_LLVM=0`,
-                 stdout=outfile, stderr=errfile))
+    run(pipeline(`make -j$(length(cpus))`, stdout=outfile, stderr=errfile))
     cd(workdir(config))
     return builddir
 end
