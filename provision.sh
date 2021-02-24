@@ -89,3 +89,8 @@ echo "  export JULIA_PROJECT=`dirname $0`"
 echo "  . ../cset/bin/activate"
 echo "  setarch -R ../julia-1.5.3/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
 echo
+echo "or with a helper script:"
+echo "  cp bin/run_base_ci.jl .."
+echo "  chmod 600 ../run_base_ci.jl"
+echo "  \${EDITOR:-vim} ../run_base_ci.jl"
+echo "  ./run_base_ci"
