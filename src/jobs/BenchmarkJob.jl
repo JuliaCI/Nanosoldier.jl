@@ -300,7 +300,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
                 foreach(Pkg.add, ("Compat", "BenchmarkTools", "JSON"))
             '
             ```)
-    catch
+    catch ex
+        @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
     end
     cd(read(```
         $juliacmd -e '
@@ -411,12 +412,14 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     chmod(jlscriptpath, 0o555)
     # clean up old cpusets, if they exist
     try
-        run(`sudo cset set -d /user/child`)
-    catch
+        run(`sudo $cset set -d /user/child`)
+    catch ex
+        @warn "(expected) removing old cset failed" _exception=ex
     end
     try
-        run(`sudo cset shield --reset`)
-    catch
+        run(`sudo $cset shield --reset`)
+    catch ex
+        @warn "(expected) removing old cset failed" _exception=ex
     end
     # shield our CPUs
     cpus = mycpus(cfg)
@@ -645,7 +648,8 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
     try
         entries = entries[sortperm(map(string∘first, entries))]
-    catch
+    catch ex
+        @error "result sorting failed (attempting to continue)" _exception=ex
     end
 
     for (ids, t) in entries
