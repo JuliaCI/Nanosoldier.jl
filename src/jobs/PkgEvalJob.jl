@@ -203,8 +203,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
             try
                 out = Pipe()
                 PkgEval.run_sandboxed_julia(install, ```-e '
-                        VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
-                        VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
+                        using InteractiveUtils
+                        versioninfo(verbose=true)
                         '
                     ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
                 close(out.in)

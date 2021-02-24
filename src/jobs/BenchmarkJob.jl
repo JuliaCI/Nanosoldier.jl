@@ -281,7 +281,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     cd(builddir)
 
     # update local Julia packages for the relevant Julia version
-    run(`$juliacmd -e 'VERSION >= v"0.7.0-DEV.3656" && using Pkg; Pkg.update()'`)
+    run(`$juliacmd -e 'using Pkg; Pkg.update()'`)
 
     # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
@@ -289,29 +289,21 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     try
         run(```
             $juliacmd -e '
-                VERSION >= v"0.7.0-DEV.3656" && using Pkg
+                using Pkg
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
-                if VERSION >= v"0.7.0-DEV.5183"
-                    Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
-                else
-                    Pkg.clone(url)
-                end
+                Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
                 # These are referenced by name so they need to be added explicitly
                 foreach(Pkg.add, ("Compat", "BenchmarkTools", "JSON"))
-            '
+                '
             ```)
     catch ex
         @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
     end
     cd(read(```
         $juliacmd -e '
-            if VERSION >= v"0.7.0-beta2.203"
-                import BaseBenchmarks
-                print(dirname(dirname(pathof(BaseBenchmarks))))
-            else
-                print(Pkg.dir("BaseBenchmarks"))
-            end
-        '
+            import BaseBenchmarks
+            print(dirname(dirname(pathof(BaseBenchmarks))))
+            '
         ```, String)) do
         run(`git fetch --all --quiet`)
         run(`git reset --hard --quiet origin/$(branchname)`)
@@ -442,8 +434,8 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     try
         build.vinfo = first(split(read(```
             $juliacmd -e '
-                VERSION >= v"0.7.0-DEV.3630" && using InteractiveUtils
-                VERSION >= v"0.7.0-DEV.467" ? versioninfo(verbose=true) : versioninfo(true)
+                using InteractiveUtils
+                versioninfo(verbose=true)
                 '
             ```, String), "Environment"))
     catch err
