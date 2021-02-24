@@ -254,7 +254,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     if job.skipbuild
         nodelog(cfg, node, "...skipping julia build...")
         builddir = mktempdir(workdir(cfg))
-        juliapath = joinpath(homedir(), "julia6/julia") # TODO: Rename directory
+        juliapath = joinpath(Sys.BINDIR, "julia")
     else
         nodelog(cfg, node, "...building julia...")
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
@@ -285,7 +285,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
-    branchname = cfg.testmode ? "test" : "nanosoldier"
+    branchname = cfg.testmode ? "master" : "nanosoldier"
     try
         run(```
             $juliacmd -e '
