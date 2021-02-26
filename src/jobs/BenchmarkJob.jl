@@ -691,12 +691,17 @@ function printreport(io::IO, job::BenchmarkJob, results)
     return nothing
 end
 
-function idrepr(id)
-    str = repr(id)
-    ind = findfirst(isequal('['), str)
-    ind === nothing && error("Malformed id")
-    return str[ind:end]
+idrepr(id::Vector) = sprint(idrepr, id)
+function idrepr(io::IO, id::Vector)
+    print(io, "[")
+    first = true
+    for i in id
+        first ? (first = false) : print(io, ", ")
+        show(io, i)
+    end
+    print(io, "]")
 end
+
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
 
