@@ -18,4 +18,4 @@ config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
 server = Nanosoldier.Server(config)
 
 using Sockets
-run(server, IPv4(0,0,0,0), 8888)
+run(server, IPv4(0), 8888)
