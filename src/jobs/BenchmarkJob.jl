@@ -133,9 +133,8 @@ tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresult
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
-function retrieve_daily_data!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), "benchmark", datedirname(date))
-    found_previous_date = false
+function retrieve_daily_data!(cfg, date)
+    dailydir = joinpath(reportdir(cfg), "benchmark", "by_date", datedirname(date))
     if isdir(dailydir)
         cd(dailydir) do
             datapath = joinpath(dailydir, "data")
@@ -152,8 +151,7 @@ function retrieve_daily_data!(results, key, cfg, date)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
                     primary_file = datafiles[primary_index]
-                    results[key] = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
-                    found_previous_date = true
+                    return BenchmarkTools.load(joinpath(datapath, primary_file))[1]
                 end
             catch err
                 nodelog(cfg, myid(),
@@ -162,9 +160,9 @@ function retrieve_daily_data!(results, key, cfg, date)
             finally
                 isdir(datapath) && rm(datapath, recursive=true)
             end
+            nothing
         end
     end
-    return found_previous_date
 end
 
 ##########################
@@ -217,8 +215,12 @@ function Base.run(job::BenchmarkJob)
                 i = 1
                 while !found_previous_date && i < 31
                     check_date = job.date - Dates.Day(i)
-                    found_previous_date = retrieve_daily_data!(results, "against", cfg, check_date)
-                    found_previous_date && (results["previous_date"] = check_date)
+                    check_data = retrieve_daily_data!(cfg, check_date)
+                    if check_data !== nothing
+                        found_previous_date = true
+                        results["against"] = check_data
+                        results["previous_date"] = check_date
+                    end
                     i += 1
                 end
                 found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
