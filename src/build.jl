@@ -90,7 +90,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     cpus = mycpus(config)
     sync_srcs!(mirrordir1, srccache1, true)
     sync_srcs!(mirrordir2, srccache2, true)
-    run(pipeline(`make -j$(length(cpus))`, stdout=outfile, stderr=errfile))
+    run(pipeline(`make -j$(length(cpus)) --output-sync=target`, stdout=outfile, stderr=errfile))
     sync_srcs!(srccache1, mirrordir1, false)
     sync_srcs!(srccache2, mirrordir2, false)
     cd(workdir(config))
