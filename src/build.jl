@@ -86,11 +86,14 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     mirrordir2 = joinpath(workdir(config), "srccache", "stdlib")
     srccache2 = joinpath(builddir, "stdlib", "srccache")
 
+    # TODO: support user build flags (like PkgEval)
+    buildflags = ["JULIA_PRECOMPILE=0"]
+
     # run the build
     cpus = mycpus(config)
     sync_srcs!(mirrordir1, srccache1, true)
     sync_srcs!(mirrordir2, srccache2, true)
-    run(pipeline(`make -j$(length(cpus)) --output-sync=target`, stdout=outfile, stderr=errfile))
+    run(pipeline(`make -j$(length(cpus)) --output-sync=target $buildflags`, stdout=outfile, stderr=errfile))
     sync_srcs!(srccache1, mirrordir1, false)
     sync_srcs!(srccache2, mirrordir2, false)
     cd(workdir(config))
