@@ -168,3 +168,15 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
     mdpath = joinpath(@__DIR__, "report.md")
     chomp.(readlines(mdpath)) == chomp.(eachline(IOBuffer(sprint(io -> Nanosoldier.printreport(io, job, results)))))
 end
+
+@testset "Markdown" begin
+    @test Nanosoldier.markdown_escaped("abc") == "abc"
+    @test Nanosoldier.markdown_escaped(raw"a\`*_#+-.!{}[]()<>|b") == raw"a\\\`\*\_\#\+\-\.\!\{\}\[\]\(\)\<\>\|b"
+
+    @test Nanosoldier.markdown_escaped_code("abc") == "`abc`"
+    @test Nanosoldier.markdown_escaped_code("a`b`c") == "``a`b`c``"
+    @test Nanosoldier.markdown_escaped_code("``ab`c") == "``` ``ab`c```"
+    @test Nanosoldier.markdown_escaped_code("a`bc```") == "````a`bc``` ````"
+end
+
+nothing

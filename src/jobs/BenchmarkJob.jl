@@ -587,7 +587,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                 *Triggered By:* [link]($(submission(job).url))
 
-                *Tag Predicate:* `$(job.tagpred)`
+                *Tag Predicate:* $(markdown_escaped_code(job.tagpred))
                 """)
 
     if job.isdaily
@@ -689,7 +689,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 """)
 
     for id in unique(map(pair -> pair[1][1:end-1], entries))
-        println(io, "- `", idrepr(id), "`")
+        println(io, "- ", idrepr_md(id))
     end
 
     println(io)
@@ -730,6 +730,7 @@ function idrepr(io::IO, id::Vector)
     print(io, "]")
 end
 
+idrepr_md(id::Vector) = markdown_escaped_code(idrepr(id))
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
 
@@ -742,7 +743,7 @@ function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
     allocstr = string(BenchmarkTools.allocs(t))
-    return "| `$(idrepr(ids))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
 function resultrow(ids, t::BenchmarkTools.TrialJudgement)
@@ -754,7 +755,7 @@ function resultrow(ids, t::BenchmarkTools.TrialJudgement)
     m_mark = resultmark(BenchmarkTools.memory(t))
     timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
-    return "| `$(idrepr(ids))` | $(timestr) | $(memstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(memstr) |"
 end
 
 resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")

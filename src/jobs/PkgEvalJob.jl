@@ -488,7 +488,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
                 *Triggered By:* [link]($(submission(job).url))
 
-                *Package Selection:* `$(job.pkgsel)`
+                *Package Selection:* $(markdown_escaped_code(job.pkgsel))
                 """)
 
     if job.isdaily
@@ -704,7 +704,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
               """)
 
     if !isempty(job.buildflags)
-        println(io, "Build flags: ", join(map(flag->"`$flag`", job.buildflags), ", "))
+        println(io, "Build flags: ", join(map(markdown_escaped_code, job.buildflags), ", "))
     end
 
     if hasagainstbuild
@@ -718,7 +718,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                   """)
 
         if !isempty(job.against_buildflags)
-            println(io, "Build flags: ", join(map(flag->"`$flag`", job.against_buildflags), ", "))
+            println(io, "Build flags: ", join(map(markdown_escaped_code, job.against_buildflags), ", "))
         end
     end
 

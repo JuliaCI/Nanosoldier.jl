@@ -25,5 +25,20 @@ end
 datedirname(date::Dates.Date) = joinpath(Dates.format(date, dateformat"yyyy-mm"),
                                          Dates.format(date, dateformat"dd"))
 
+# Put `str` into Markdown literally
+# XXX: In a table, | would instead written with &#124; instead.
+#      Should we make that a bool arg to give the context?
+markdown_escaped(str) = replace(str, r"[\\`*_#+-.!{}[\]()<>|]" => s"\\\0")
+
+# Put `str` inside Markdown code marks
+function markdown_escaped_code(str)
+    ticks = eachmatch(r"`+", str)
+    isempty(ticks) && return "`$str`"
+    ticks = maximum(x -> length(x.match), ticks) + 1
+    ticks = "`"^ticks
+    return string(ticks, startswith(str, '`') ? " " : "", str, endswith(str, '`') ? " " : "", ticks)
+end
+
+
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")
