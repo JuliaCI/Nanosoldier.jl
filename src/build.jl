@@ -23,12 +23,21 @@ Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.
 function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
+    mirrordir = joinpath(workdir(config), "mirrors", config.trackrepo)
+    if ispath(joinpath(mirrordir))
+        cd(mirrordir)
+        run(`git fetch --quiet origin`)
+    else
+        mkpath(mirrordir)
+        gitclone!(config.trackrepo, mirrordir, `--mirror`)
+    end
+
     cd(workdir(config))
 
     # clone/fetch the appropriate Julia version
     if prnumber !== nothing
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
-        gitclone!(config.trackrepo, builddir)
+        gitclone!(config.trackrepo, builddir, `--reference $mirrordir --dissociate`)
         cd(builddir)
         try
             run(`git fetch --quiet origin +refs/pull/$(prnumber)/merge:`)
@@ -40,7 +49,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
         run(`git checkout --quiet --force FETCH_HEAD`)
         build.sha = readchomp(`git rev-parse HEAD`)
     else
-        gitclone!(build.repo, builddir)
+        gitclone!(build.repo, builddir, `--reference $mirrordir --dissociate`)
         cd(builddir)
         run(`git checkout --quiet $(build.sha)`)
     end

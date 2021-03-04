@@ -16,15 +16,16 @@ const TAG_SEPARATOR = '#'
 snip(str, len) = str[1:min(len, end)]
 snipsha(sha) = snip(sha, 7)
 
-function gitclone!(repo, path, auth=nothing)
+function gitclone!(repo, path, auth=nothing, args::Cmd=``)
     if isa(auth, GitHub.OAuth2)
-        run(`git clone https://$(auth.token):x-oauth-basic@github.com/$(repo).git $(path)`)
+        run(`git clone $args https://$(auth.token):x-oauth-basic@github.com/$(repo).git $(path)`)
     elseif isa(auth, GitHub.UsernamePassAuth)
-        run(`git clone https://$(auth.username):$(auth.password)@github.com/$(repo).git $(path)`)
+        run(`git clone $args https://$(auth.username):$(auth.password)@github.com/$(repo).git $(path)`)
     else
-        run(`git clone git@github.com:$(repo).git $(path)`)
+        run(`git clone $args git@github.com:$(repo).git $(path)`)
     end
 end
+gitclone!(repo, path, args::Cmd) = gitclone!(repo, path, nothing, args)
 
 gitreset!() = (run(`git fetch --all`); run(`git reset --hard origin/master`))
 gitreset!(path) = cd(gitreset!, path)
