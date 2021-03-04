@@ -47,33 +47,28 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     builddir = mktempdir(workdir(config))
     mirrordir = joinpath(workdir(config), "mirrors", config.trackrepo)
     if ispath(joinpath(mirrordir))
-        cd(mirrordir)
-        run(`git fetch --quiet origin`)
+        run(setenv(`git fetch --quiet origin`; dir=mirrordir))
     else
         mkpath(mirrordir)
         gitclone!(config.trackrepo, mirrordir, `--mirror`)
     end
 
-    cd(workdir(config))
-
     # clone/fetch the appropriate Julia version
     if prnumber !== nothing
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
         gitclone!(config.trackrepo, builddir, `--reference $mirrordir --dissociate`)
-        cd(builddir)
         try
-            run(`git fetch --quiet origin +refs/pull/$(prnumber)/merge:`)
+            run(setenv(`git fetch --quiet origin +refs/pull/$(prnumber)/merge:`; dir=builddir))
         catch
             # if there's not a merge commit on the remote (likely due to
             # merge conflicts) then fetch the head commit instead.
-            run(`git fetch --quiet origin +refs/pull/$(prnumber)/head:`)
+            run(setenv(`git fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=builddir))
         end
-        run(`git checkout --quiet --force FETCH_HEAD`)
+        run(setenv(`git checkout --quiet --force FETCH_HEAD`; dir=builddir))
         build.sha = readchomp(`git rev-parse HEAD`)
     else
         gitclone!(build.repo, builddir, `--reference $mirrordir --dissociate`)
-        cd(builddir)
-        run(`git checkout --quiet $(build.sha)`)
+        run(setenv(`git checkout --quiet $(build.sha)`; dir=builddir))
     end
 
     # set up logs for STDOUT and STDERR
@@ -93,9 +88,8 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     cpus = mycpus(config)
     sync_srcs!(mirrordir1, srccache1, true)
     sync_srcs!(mirrordir2, srccache2, true)
-    run(pipeline(`make -j$(length(cpus)) --output-sync=target $buildflags`, stdout=outfile, stderr=errfile))
+    run(pipeline(setenv(`make -j$(length(cpus)) --output-sync=target $buildflags`; dir=builddir), stdout=outfile, stderr=errfile))
     sync_srcs!(srccache1, mirrordir1, false)
     sync_srcs!(srccache2, mirrordir2, false)
-    cd(workdir(config))
     return builddir
 end

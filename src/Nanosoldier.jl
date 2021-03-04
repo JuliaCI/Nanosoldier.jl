@@ -16,19 +16,19 @@ const TAG_SEPARATOR = '#'
 snip(str, len) = str[1:min(len, end)]
 snipsha(sha) = snip(sha, 7)
 
-function gitclone!(repo, path, auth=nothing, args::Cmd=``)
+function gitclone!(repo, dir, auth=nothing, args::Cmd=``)
     if isa(auth, GitHub.OAuth2)
-        run(`git clone $args https://$(auth.token):x-oauth-basic@github.com/$(repo).git $(path)`)
+        url = "https://$(auth.token):x-oauth-basic@github.com/"
     elseif isa(auth, GitHub.UsernamePassAuth)
-        run(`git clone $args https://$(auth.username):$(auth.password)@github.com/$(repo).git $(path)`)
+        url = "https://$(auth.username):$(auth.password)@github.com/"
     else
-        run(`git clone $args git@github.com:$(repo).git $(path)`)
+        url = "git@github.com:"
     end
+    run(setenv(`git clone $args $url$repo.git $dir`))
 end
-gitclone!(repo, path, args::Cmd) = gitclone!(repo, path, nothing, args)
+gitclone!(repo, dir, args::Cmd) = gitclone!(repo, dir, nothing, args)
 
-gitreset!() = (run(`git fetch --all`); run(`git reset --hard origin/master`))
-gitreset!(path) = cd(gitreset!, path)
+gitreset!(dir) = (run(setenv(`git fetch --all`; dir)); run(setenv(`git reset --hard origin/master`; dir)))
 
 ##################
 # error handling #
