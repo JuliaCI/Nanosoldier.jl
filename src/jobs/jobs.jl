@@ -22,6 +22,20 @@ function tagref(config::Config, reponame::AbstractString, tagname::AbstractStrin
     return BuildRef(reponame, shastr)
 end
 
+# check that isdaily is well-formed (no extra parameters, on a recent master commit, not a PR)
+# and not accidentally submitted elsewhere
+function validatate_isdaily(submission::JobSubmission)
+    if submission.prnumber === nothing && submission.kwargs == Dict(:isdaily => "true")
+        config = submission.config
+        for commit in GitHub.commits(config.trackrepo; auth=config.auth, page_limit=1, params=Dict("per_page" => 50))[1]
+            if commit.sha == submission.statussha
+                return
+            end
+        end
+    end
+    error("invalid commit to run isdaily")
+end
+
 datedirname(date::Dates.Date) = joinpath(Dates.format(date, dateformat"yyyy-mm"),
                                          Dates.format(date, dateformat"dd"))
 

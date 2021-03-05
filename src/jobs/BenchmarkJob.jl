@@ -80,6 +80,7 @@ function BenchmarkJob(submission::JobSubmission)
 
     if haskey(submission.kwargs, :isdaily)
         isdaily = submission.kwargs[:isdaily] == "true"
+        validatate_isdaily(submission)
     else
         isdaily = false
     end
