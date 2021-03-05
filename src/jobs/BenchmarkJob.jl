@@ -140,14 +140,14 @@ function retrieve_daily_data!(results, key, cfg, date)
         cd(dailydir) do
             datapath = joinpath(dailydir, "data")
             try
-                if isfile("data.tar.gz")
-                    run(`gunzip data.tar.gz`)
-                elseif isfile("data.tar.xz")
-                    run(`xz --decompress data.tar.xz`)
-                else
-                    error("Could not find compressed data tarball")
-                end
-                run(`tar -xf data.tar`)
+                datatar = if isfile("data.tar.gz")
+                        `gzip --decompress --stdout data.tar.gz`
+                    elseif isfile("data.tar.xz")
+                        `xz --decompress --stdout data.tar.xz`
+                    else
+                        error("Could not find compressed data tarball")
+                    end
+                run(pipeline(datatar, `tar -x`))
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
