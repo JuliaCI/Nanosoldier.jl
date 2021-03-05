@@ -150,8 +150,11 @@ function retrieve_daily_data!(cfg, date)
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
+                    against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)", read(joinpath(dailydir, "report.md"), String))
+                    (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
                     primary_file = datafiles[primary_index]
-                    return BenchmarkTools.load(joinpath(datapath, primary_file))[1]
+                    results = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
+                    return results, repo, commit
                 end
             catch err
                 nodelog(cfg, myid(),
@@ -240,7 +243,9 @@ function Base.run(job::BenchmarkJob)
                     check_data = retrieve_daily_data!(cfg, check_date)
                     if check_data !== nothing
                         found_previous_date = true
-                        results["against"] = check_data
+                        results["against"] = check_data[1]
+                        results["previous_repo"] = check_data[2]
+                        results["previous_sha"] = check_data[3]
                         results["previous_date"] = check_date
                     end
                     i += 1
@@ -573,6 +578,22 @@ function printreport(io::IO, job::BenchmarkJob, results)
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
+
+        if build.repo == againstbuild.repo
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.sha)"
+        else
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.repo):$(build.sha)"
+        end
+        joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
+    end
+
+    if job.isdaily && hasprevdate
+        previous_sha = results["previous_sha"]
+        # previous_repo = results["previous_repo"] # unnecessary
+        if !isempty(previous_sha)
+            comparelink = "https://github.com/$(build.repo)/compare/$(previous_sha)...$(build.sha)"
+            joblink = "$(joblink)\n\n*Comparison Range:* [link]($(comparelink))"
+        end
     end
 
     # print report preface + job properties #
@@ -583,7 +604,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                 ## Job Properties
 
-                *Commit(s):* $(joblink)
+                *Commit$(hasagainstbuild ? "s" : ""):* $(joblink)
 
                 *Triggered By:* [link]($(submission(job).url))
 
@@ -592,7 +613,9 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
     if job.isdaily
         if hasprevdate
-            dailystr = string(job.date, " vs ", results["previous_date"])
+            previous_date = results["previous_date"]
+            previous_date = "[$(previous_date)](../../$(datedirname(previous_date))/report.md)"
+            dailystr = string(job.date, " vs ", previous_date)
         else
             dailystr = string(job.date)
         end

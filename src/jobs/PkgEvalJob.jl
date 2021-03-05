@@ -474,6 +474,13 @@ function printreport(io::IO, job::PkgEvalJob, results)
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
+
+        if build.repo == againstbuild.repo
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.sha)"
+        else
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.repo):$(build.sha)"
+        end
+        joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
     end
 
     # print report preface + job properties #
@@ -484,7 +491,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
                 ## Job Properties
 
-                *Commit(s):* $(joblink)
+                *Commit$(hasagainstbuild ? "s" : ""):* $(joblink)
 
                 *Triggered By:* [link]($(submission(job).url))
 
@@ -493,7 +500,13 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     if job.isdaily
         if hasagainstbuild
-            dailystr = string(job.date, " vs ", results["against_date"])
+            latest_dir = reportdir(job; latest=true)
+            against_date = results["against_date"]
+            if isdir(latest_dir) && islink(latest_dir)
+                prev_reportlink = "../../$(readlink(latest_dir))/report.md"
+                against_date = "[$(against_date)]($(prev_reportlink))"
+            end
+            dailystr = string(job.date, " vs ", against_date)
         else
             dailystr = string(job.date)
         end
