@@ -22,8 +22,37 @@ function tagref(config::Config, reponame::AbstractString, tagname::AbstractStrin
     return BuildRef(reponame, shastr)
 end
 
+# check that isdaily is well-formed (no extra parameters, on a recent master commit, not a PR)
+# and not accidentally submitted elsewhere
+function validatate_isdaily(submission::JobSubmission)
+    if submission.prnumber === nothing && submission.kwargs == Dict(:isdaily => "true")
+        config = submission.config
+        for commit in GitHub.commits(config.trackrepo; auth=config.auth, page_limit=1, params=Dict("per_page" => 50))[1]
+            if commit.sha == submission.statussha
+                return
+            end
+        end
+    end
+    error("invalid commit to run isdaily")
+end
+
 datedirname(date::Dates.Date) = joinpath(Dates.format(date, dateformat"yyyy-mm"),
                                          Dates.format(date, dateformat"dd"))
+
+# Put `str` into Markdown literally
+# XXX: In a table, | would instead written with &#124; instead.
+#      Should we make that a bool arg to give the context?
+markdown_escaped(str) = replace(str, r"[\\`*_#+-.!{}[\]()<>|]" => s"\\\0")
+
+# Put `str` inside Markdown code marks
+function markdown_escaped_code(str)
+    ticks = eachmatch(r"`+", str)
+    isempty(ticks) && return "`$str`"
+    ticks = maximum(x -> length(x.match), ticks) + 1
+    ticks = "`"^ticks
+    return string(ticks, startswith(str, '`') ? " " : "", str, endswith(str, '`') ? " " : "", ticks)
+end
+
 
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")

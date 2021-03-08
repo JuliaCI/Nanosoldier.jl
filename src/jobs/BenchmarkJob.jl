@@ -80,6 +80,7 @@ function BenchmarkJob(submission::JobSubmission)
 
     if haskey(submission.kwargs, :isdaily)
         isdaily = submission.kwargs[:isdaily] == "true"
+        validatate_isdaily(submission)
     else
         isdaily = false
     end
@@ -133,27 +134,28 @@ tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresult
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
-function retrieve_daily_data!(results, key, cfg, date)
-    dailydir = joinpath(reportdir(cfg), "benchmark", datedirname(date))
-    found_previous_date = false
+function retrieve_daily_data!(cfg, date)
+    dailydir = joinpath(reportdir(cfg), "benchmark", "by_date", datedirname(date))
     if isdir(dailydir)
         cd(dailydir) do
             datapath = joinpath(dailydir, "data")
             try
-                if isfile("data.tar.gz")
-                    run(`gunzip data.tar.gz`)
-                elseif isfile("data.tar.xz")
-                    run(`xz --decompress data.tar.xz`)
-                else
-                    error("Could not find compressed data tarball")
-                end
-                run(`tar -xf data.tar`)
+                datatar = if isfile("data.tar.gz")
+                        `gzip --decompress --stdout data.tar.gz`
+                    elseif isfile("data.tar.xz")
+                        `xz --decompress --stdout data.tar.xz`
+                    else
+                        error("Could not find compressed data tarball")
+                    end
+                run(pipeline(datatar, `tar -x`))
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
                 if primary_index > 0
+                    against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)", read(joinpath(dailydir, "report.md"), String))
+                    (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
                     primary_file = datafiles[primary_index]
-                    results[key] = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
-                    found_previous_date = true
+                    results = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
+                    return results, repo, commit
                 end
             catch err
                 nodelog(cfg, myid(),
@@ -162,9 +164,9 @@ function retrieve_daily_data!(results, key, cfg, date)
             finally
                 isdir(datapath) && rm(datapath, recursive=true)
             end
+            nothing
         end
     end
-    return found_previous_date
 end
 
 ##########################
@@ -197,11 +199,33 @@ function Base.run(job::BenchmarkJob)
 
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
+    cleanup = String[]
+
+    # build jobs in parallel to better utilize machine cores
+    julia_primary = @async build_benchmarksjulia!(job, :primary, cleanup)
+    local julia_against
+    try
+        @sync begin
+            julia_against = @async begin
+                if job.isdaily || job.against === nothing
+                    nothing
+                else
+                    build_benchmarksjulia!(job, :against, cleanup)
+                end
+            end
+        end
+    catch ex
+        # we'll handle Task errors individually later
+        # right now we just wanted to make sure they've all ended
+        # before we start benchmarking
+        ex isa TaskFailedException || rethrow()
+    end
 
     # run primary job
     try
+        julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
-        results["primary"] = execute_benchmarks!(job, :primary)
+        results["primary"] = execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run benchmarks against primary commit", err)
@@ -217,8 +241,14 @@ function Base.run(job::BenchmarkJob)
                 i = 1
                 while !found_previous_date && i < 31
                     check_date = job.date - Dates.Day(i)
-                    found_previous_date = retrieve_daily_data!(results, "against", cfg, check_date)
-                    found_previous_date && (results["previous_date"] = check_date)
+                    check_data = retrieve_daily_data!(cfg, check_date)
+                    if check_data !== nothing
+                        found_previous_date = true
+                        results["against"] = check_data[1]
+                        results["previous_repo"] = check_data[2]
+                        results["previous_sha"] = check_data[3]
+                        results["previous_date"] = check_date
+                    end
                     i += 1
                 end
                 found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
@@ -227,8 +257,9 @@ function Base.run(job::BenchmarkJob)
             end
         elseif job.against !== nothing # run comparison build
             try
+                julia_against = fetch(julia_against)
                 nodelog(cfg, node, "running comparison build for $(summary(job))")
-                results["against"] = execute_benchmarks!(job, :against)
+                results["against"] = execute_benchmarks!(job, julia_against, :against)
                 nodelog(cfg, node, "finished comparison build for $(summary(job))")
             catch err
                 results["error"] = NanosoldierError("failed to run benchmarks against comparison commit", err)
@@ -240,33 +271,43 @@ function Base.run(job::BenchmarkJob)
         end
     end
 
+    for dir in cleanup
+        rm(dir, recursive=true)
+    end
+
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
     report(job, results)
     nodelog(cfg, node, "completed $(summary(job))")
 end
 
-function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
+function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::Vector{String})
     node = myid()
     cfg = submission(job).config
     build = whichbuild == :against ? job.against : submission(job).build
-
     if job.skipbuild
         nodelog(cfg, node, "...skipping julia build...")
-        builddir = mktempdir(workdir(cfg))
         juliapath = joinpath(Sys.BINDIR, "julia")
     else
         nodelog(cfg, node, "...building julia...")
         # If we're doing the primary build from a PR, feed `build_julia!` the PR number
         # so that it knows to attempt a build from the merge commit
         if whichbuild == :primary && submission(job).fromkind == :pr
-            builddir = build_julia!(cfg, build, tmplogdir(job), submission(job).prnumber)
+            juliadir = build_julia!(cfg, build, tmplogdir(job), submission(job).prnumber)
         else
-            builddir = build_julia!(cfg, build, tmplogdir(job))
+            juliadir = build_julia!(cfg, build, tmplogdir(job))
         end
-        juliapath = joinpath(builddir, "julia")
+        push!(cleanup, juliadir)
+        juliapath = joinpath(juliadir, "julia")
     end
-    chmod(builddir, 0o775) # open it up to world-readable now for nanosoldier
+    return juliapath
+end
+
+function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
+    node = myid()
+    cfg = submission(job).config
+    build = whichbuild == :against ? job.against : submission(job).build
+    builddir = mktempdir(workdir(cfg))
 
     # create a hermetic environment (similar to after sudo later)
     tmpproject = joinpath(builddir, "environment")
@@ -274,42 +315,37 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],
         "USER" => ENV["USER"],
-        "PATH" => ENV["PATH"])
+        "PATH" => ENV["PATH"];
+        dir = builddir)
 
     nodelog(cfg, node, "...setting up benchmark scripts/environment...")
-
-    cd(builddir)
-
-    # update local Julia packages for the relevant Julia version
-    run(`$juliacmd -e 'using Pkg; Pkg.update()'`)
 
     # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "master" : "nanosoldier"
     try
-        run(```
-            $juliacmd -e '
+        run(```$juliacmd -e '
                 using Pkg
+                # update local Julia packages for the relevant Julia version
+                Pkg.update()
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
                 Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
                 # These are referenced by name so they need to be added explicitly
                 foreach(Pkg.add, ("Compat", "BenchmarkTools", "JSON"))
-                '
-            ```)
+                ' ```)
     catch ex
         @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
     end
-    cd(read(```
-        $juliacmd -e '
-            import BaseBenchmarks
-            print(dirname(dirname(pathof(BaseBenchmarks))))
-            '
-        ```, String)) do
-        run(`git fetch --all --quiet`)
-        run(`git reset --hard --quiet origin/$(branchname)`)
+    let BaseBenchmarks = read(```
+            $juliacmd -e '
+                import BaseBenchmarks
+                print(dirname(dirname(pathof(BaseBenchmarks))))
+                ' ```, String)
+        run(setenv(`git fetch --all --quiet`, dir=BaseBenchmarks))
+        run(setenv(`git reset --hard --quiet origin/$(branchname)`, dir=BaseBenchmarks))
     end
 
-    run(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate()'`)
+    run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate()'`; dir=builddir))
 
     cset = readchomp(`which cset`)
     # The following code sets up a CPU shield, then spins up a new julia process on the
@@ -330,21 +366,21 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     # server workspace. Thus, we start a subshell as the server user on the shielded CPU
     # using `su`, and then call our scripts from there.
 
-    shscriptname = "benchscript.sh"
-    shscriptpath = joinpath(builddir, shscriptname)
+    shscriptpath = joinpath(builddir, "benchscript.sh")
     jlscriptpath = joinpath(builddir, "benchscript.jl")
-
-    open(shscriptpath, "w") do file
-        println(file, """
-                      #!/bin/sh
-                      exec $(Base.shell_escape_posixly(juliacmd)) $(Base.shell_escape_posixly(jlscriptpath))
-                      """)
-    end
 
     benchname = string(build.sha, "_", whichbuild)
     benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
     bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
     benchresults = joinpath(tmpdatadir(job), string(benchname, ".json"))
+
+    open(shscriptpath, "w") do file
+        println(file, """
+                      #!/bin/sh
+                      cd \$(dirname \$0)
+                      exec $(Base.shell_escape_posixly(juliacmd)) $(Base.shell_escape_posixly(jlscriptpath))
+                      """)
+    end
 
     open(jlscriptpath, "w") do file
         println(file, """
@@ -402,6 +438,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     chmod(shscriptpath, 0o555)
     # make jlscript r-x
     chmod(jlscriptpath, 0o555)
+
     # clean up old cpusets, if they exist
     try
         run(`sudo $cset set -d /user/child`)
@@ -420,7 +457,7 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(`sudo $cset shield -e su $(cfg.user) -- -c ./$(shscriptname)`)
+    run(`sudo $cset shield -e su $(cfg.user) -- -c $(shscriptpath)`)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
@@ -441,8 +478,6 @@ function execute_benchmarks!(job::BenchmarkJob, whichbuild::Symbol)
     catch err
         build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
-
-    cd(workdir(cfg))
 
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
@@ -473,11 +508,10 @@ function report(job::BenchmarkJob, results)
                 printreport(file, job, results)
             end
             nodelog(cfg, node, "...tarring data...")
-            cd(tmpdir(job)) do
-                run(`tar -cf data.tar data`)
-                run(`xz --compress -9 --extreme data.tar`)
-                rm(tmpdatadir(job), recursive=true)
-            end
+            dir = tmpdir(job)
+            run(setenv(`tar -cf data.tar data`; dir))
+            run(setenv(`xz --compress -9 --extreme data.tar`; dir))
+            rm(tmpdatadir(job), recursive=true)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
@@ -545,6 +579,22 @@ function printreport(io::IO, job::BenchmarkJob, results)
         againstname = string(againstbuild.repo, SHA_SEPARATOR, againstbuild.sha)
         againstlink = "https://github.com/$(againstbuild.repo)/commit/$(againstbuild.sha)"
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
+
+        if build.repo == againstbuild.repo
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.sha)"
+        else
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.repo):$(build.sha)"
+        end
+        joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
+    end
+
+    if job.isdaily && hasprevdate
+        previous_sha = results["previous_sha"]
+        # previous_repo = results["previous_repo"] # unnecessary
+        if !isempty(previous_sha)
+            comparelink = "https://github.com/$(build.repo)/compare/$(previous_sha)...$(build.sha)"
+            joblink = "$(joblink)\n\n*Comparison Range:* [link]($(comparelink))"
+        end
     end
 
     # print report preface + job properties #
@@ -555,16 +605,18 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
                 ## Job Properties
 
-                *Commit(s):* $(joblink)
+                *Commit$(hasagainstbuild ? "s" : ""):* $(joblink)
 
                 *Triggered By:* [link]($(submission(job).url))
 
-                *Tag Predicate:* `$(job.tagpred)`
+                *Tag Predicate:* $(markdown_escaped_code(job.tagpred))
                 """)
 
     if job.isdaily
         if hasprevdate
-            dailystr = string(job.date, " vs ", results["previous_date"])
+            previous_date = results["previous_date"]
+            previous_date = "[$(previous_date)](../../$(datedirname(previous_date))/report.md)"
+            dailystr = string(job.date, " vs ", previous_date)
         else
             dailystr = string(job.date)
         end
@@ -661,7 +713,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                 """)
 
     for id in unique(map(pair -> pair[1][1:end-1], entries))
-        println(io, "- `", idrepr(id), "`")
+        println(io, "- ", idrepr_md(id))
     end
 
     println(io)
@@ -702,6 +754,7 @@ function idrepr(io::IO, id::Vector)
     print(io, "]")
 end
 
+idrepr_md(id::Vector) = markdown_escaped_code(idrepr(id))
 
 intpercent(p) = string(ceil(Int, p * 100), "%")
 
@@ -714,7 +767,7 @@ function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
     allocstr = string(BenchmarkTools.allocs(t))
-    return "| `$(idrepr(ids))` | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
 function resultrow(ids, t::BenchmarkTools.TrialJudgement)
@@ -726,7 +779,7 @@ function resultrow(ids, t::BenchmarkTools.TrialJudgement)
     m_mark = resultmark(BenchmarkTools.memory(t))
     timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
-    return "| `$(idrepr(ids))` | $(timestr) | $(memstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(memstr) |"
 end
 
 resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")

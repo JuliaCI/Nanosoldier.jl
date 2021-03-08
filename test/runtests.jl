@@ -31,14 +31,14 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LLVM: libLLVM-3.3
 """
 
-primary = BuildRef("christopher-dG/julia", "25c3659d6cec2ebf6e6c7d16b03adac76a47b42a", vinfo)
+primary = BuildRef("christopher-dG/julia", "4c805d2310111d65dbff9ac96d475dd6b9ea47cc", vinfo)
 against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
 auth = if haskey(ENV, "GITHUB_AUTH")
     GitHub.authenticate(ENV["GITHUB_AUTH"])
 else
     GitHub.AnonymousAuth()
 end
-config = Config("user", Dict(Any => [getpid()]), auth, "test");
+config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
 
@@ -61,13 +61,13 @@ build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"Jul
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia:master\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia:master\")`")
 
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, isdaily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL; isdaily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia#v1.0.0\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia#v1.0.0\")`")
@@ -168,3 +168,15 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
     mdpath = joinpath(@__DIR__, "report.md")
     chomp.(readlines(mdpath)) == chomp.(eachline(IOBuffer(sprint(io -> Nanosoldier.printreport(io, job, results)))))
 end
+
+@testset "Markdown" begin
+    @test Nanosoldier.markdown_escaped("abc") == "abc"
+    @test Nanosoldier.markdown_escaped(raw"a\`*_#+-.!{}[]()<>|b") == raw"a\\\`\*\_\#\+\-\.\!\{\}\[\]\(\)\<\>\|b"
+
+    @test Nanosoldier.markdown_escaped_code("abc") == "`abc`"
+    @test Nanosoldier.markdown_escaped_code("a`b`c") == "``a`b`c``"
+    @test Nanosoldier.markdown_escaped_code("``ab`c") == "``` ``ab`c```"
+    @test Nanosoldier.markdown_escaped_code("a`bc```") == "````a`bc``` ````"
+end
+
+nothing

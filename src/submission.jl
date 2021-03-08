@@ -121,13 +121,11 @@ end
 
 function upload_report_repo!(sub::JobSubmission, markdownpath, message)
     cfg = sub.config
-    sha = cd(reportdir(cfg)) do
-        run(`git add -A`)
-        run(`git commit -m $message`)
-        headsha = readchomp(`git rev-parse HEAD`)
-        run(`git pull -X ours`)
-        run(`git push`)
-        return headsha
-    end
+    dir = reportdir(cfg)
+    run(setenv(`git add -A`; dir))
+    run(setenv(`git commit -m $message`; dir))
+    sha = readchomp(setenv(`git rev-parse HEAD`; dir))
+    run(setenv(`git pull -X ours`; dir))
+    run(setenv(`git push`; dir))
     return "https://github.com/$(reportrepo(cfg))/blob/master/$(markdownpath)"
 end
