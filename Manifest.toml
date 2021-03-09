@@ -37,14 +37,6 @@ version = "0.2.0"
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
-[[BaseBenchmarks]]
-deps = ["BenchmarkTools", "Dates", "Distributed", "LinearAlgebra", "Printf", "Random", "Serialization", "SparseArrays", "Statistics"]
-git-tree-sha1 = "1d106473368e6feae2e54cdfb11d52ba8f7a85c9"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
-uuid = "d7f09723-0a21-57e2-b9ef-316b714b6879"
-version = "0.0.0"
-
 [[BenchmarkTools]]
 deps = ["JSON", "Printf", "Statistics"]
 git-tree-sha1 = "90b73db83791c5f83155016dd1cc1f684d4e1361"
