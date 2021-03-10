@@ -150,7 +150,7 @@ function retrieve_daily_data!(cfg, date)
                 run(pipeline(datatar, `tar -x`))
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
-                if primary_index > 0
+                if primary_index !== nothing
                     against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)", read(joinpath(dailydir, "report.md"), String))
                     (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
                     primary_file = datafiles[primary_index]
