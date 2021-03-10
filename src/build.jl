@@ -46,11 +46,13 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
     mirrordir = joinpath(workdir(config), "mirrors", config.trackrepo)
-    if ispath(joinpath(mirrordir))
-        run(setenv(`git fetch --quiet origin`; dir=mirrordir))
-    else
-        mkpath(mirrordir)
-        gitclone!(config.trackrepo, mirrordir, `--mirror`)
+    mkpidlock(mirrordir * ".lock") do
+        if ispath(joinpath(mirrordir))
+            run(setenv(`git fetch --quiet --all`; dir=mirrordir))
+        else
+            mkpath(mirrordir)
+            gitclone!(config.trackrepo, mirrordir, `--mirror`)
+        end
     end
 
     # clone/fetch the appropriate Julia version

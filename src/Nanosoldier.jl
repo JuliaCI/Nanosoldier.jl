@@ -1,6 +1,6 @@
 module Nanosoldier
 
-using Dates, Distributed, Printf, InteractiveUtils
+using Dates, Distributed, Printf, InteractiveUtils, Pidfile
 import GitHub, BenchmarkTools, JSON, HTTP, AWS
 
 AWS.@service S3
