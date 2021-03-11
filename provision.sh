@@ -18,9 +18,9 @@ pip install cpuset-py3
 deactivate
 echo "ALL ALL= NOPASSWD: `pwd`/cset/bin/cset" | sudo tee /etc/sudoers.d/99-nanosoldier
 
-[ -d julia-1.5.3 ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz | tar xz
+[ -d julia-1.6.2 ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.2-linux-x86_64.tar.gz | tar xz
 [ -d PkgEval.jl ] || git clone git@github.com:JuliaCI/PkgEval.jl.git
-julia-1.5.3/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
+julia-1.6.2/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
 #sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
@@ -87,7 +87,7 @@ echo "  export GITHUB_SECRET=<random-string>"
 echo "  export GITHUB_PORT=<random-port>"
 echo "  export JULIA_PROJECT=`dirname $0`"
 echo "  . ../cset/bin/activate"
-echo "  setarch -R ../julia-1.5.3/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
+echo "  setarch -R ../julia-1.6.2/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
 echo
 echo "or with a helper script:"
 echo "  cp bin/run_base_ci.jl .."
