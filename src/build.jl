@@ -67,7 +67,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
             run(setenv(`git fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=builddir))
         end
         run(setenv(`git checkout --quiet --force FETCH_HEAD`; dir=builddir))
-        build.sha = readchomp(`git rev-parse HEAD`)
+        build.sha = readchomp(setenv(`git rev-parse HEAD`; dir=builddir))
     else
         gitclone!(build.repo, builddir, `--reference $mirrordir --dissociate`)
         run(setenv(`git checkout --quiet $(build.sha)`; dir=builddir))
