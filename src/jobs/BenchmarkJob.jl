@@ -351,7 +351,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         run(setenv(`git reset --hard --quiet origin/$(branchname)`, dir=BaseBenchmarks))
     end
 
-    run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate()'`; dir=builddir))
+    run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
 
     cset = readchomp(`which cset`)
     # The following code sets up a CPU shield, then spins up a new julia process on the
@@ -409,17 +409,17 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                       # ensure we don't leak file handles when something goes wrong
                       try
-                          # move ourselves onto the first CPU in the shielded set
-                          run(`sudo $cset proc -m -p \$(getpid()) -t /user/child`)
-
-                          BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
-                          addprocs(1)             # add worker that can be used by parallel benchmarks
-
                           println("LOADING SUITE...")
                           BaseBenchmarks.loadall!()
 
                           println("FILTERING SUITE...")
                           benchmarks = BaseBenchmarks.SUITE[@tagged($(job.tagpred))]
+
+                          println("SETTING UP FOR RUN...")
+                          # move ourselves onto the first CPU in the shielded set
+                          run(`sudo $cset proc -m -p \$(getpid()) -t /user/child`)
+                          BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
+                          addprocs(1)             # add worker that can be used by parallel benchmarks
 
                           println("WARMING UP BENCHMARKS...")
                           warmup(benchmarks)
