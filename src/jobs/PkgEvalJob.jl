@@ -407,7 +407,7 @@ function report(job::PkgEvalJob, results)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
-            if job.isdaily
+            if job.isdaily && !haskey(results, "error")
                 latest = reportdir(job; latest=true)
                 islink(latest) && rm(latest)
                 symlink(datedirname(job.date), latest)
