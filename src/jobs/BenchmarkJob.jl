@@ -558,7 +558,7 @@ function report(job::BenchmarkJob, results)
                           "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
             else
                 comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url)). cc @$(cfg.admin)"
+                          "$(status). A full report can be found [here]($(target_url))."
             end
             reply_comment(job, comment)
         end
