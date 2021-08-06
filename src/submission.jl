@@ -108,8 +108,10 @@ function reply_status(sub::JobSubmission, context, state, description, url=nothi
                   "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.config.trackrepo, sub.statussha;
-                                auth = sub.config.auth, params = params)
+    
+    # return GitHub.create_status(sub.config.trackrepo, sub.statussha;
+    #                             auth = sub.config.auth, params = params)
+    return nothing
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
