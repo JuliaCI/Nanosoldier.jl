@@ -104,7 +104,7 @@ function parse_submission_string(submission_string)
 end
 
 function reply_status(sub::JobSubmission, context, state, description, url=nothing)
-    if state in ["failure", "error"]
+    if state == "failure"
         new_state = "success"
     else
         new_state = state
