@@ -104,7 +104,12 @@ function parse_submission_string(submission_string)
 end
 
 function reply_status(sub::JobSubmission, context, state, description, url=nothing)
-    params = Dict("state" => state,
+    if state == "failure"
+        new_state = "success"
+    else
+        new_state = state
+    end
+    params = Dict("state" => new_state,
                   "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
