@@ -345,7 +345,7 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PkgEval]]
 deps = ["BinaryBuilder", "DataFrames", "Dates", "Downloads", "LazyArtifacts", "LibGit2", "Pkg", "ProgressMeter", "Random", "SHA", "Sandbox"]
-git-tree-sha1 = "c2bedcd52836db433da575c6519a50dbd8245ed9"
+git-tree-sha1 = "e343d4e15f30140cad52c791100b0a82c59cc560"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
