@@ -207,7 +207,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
                         using InteractiveUtils
                         versioninfo(verbose=true)
                         '
-                    ```; stdout=out, stderr=out, stdin=devnull, interactive=false)
+                    ```; stdout=out, stderr=out, stdin=devnull)
                 close(out.in)
                 build.vinfo = first(split(read(out, String), "Environment"))
             catch err
