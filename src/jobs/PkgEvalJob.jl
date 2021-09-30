@@ -240,11 +240,15 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
         if cfg.bucket !== nothing
             for test in eachrow(tests)
                 if !ismissing(test.log)
-                    S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
-                                  "$(test.name).$(test.julia).log",
-                                  Dict("body"       => test.log,
-                                       "x-amz-acl"  => "public-read",
-                                       "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
+                    try
+                        S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
+                                      "$(test.name).$(test.julia).log",
+                                      Dict("body"       => test.log,
+                                           "x-amz-acl"  => "public-read",
+                                           "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
+                    catch err
+                        rethrow(NanosoldierError("failed to upload test log", err))
+                    end
                 end
             end
         else
