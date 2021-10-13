@@ -18,7 +18,7 @@ struct Config
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/NanosoldierReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
-                    admin = "christopher-dG",
+                    admin = "",
                     bucket = nothing,
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))

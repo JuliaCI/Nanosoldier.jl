@@ -114,7 +114,7 @@ function delegate_job(server::Server, job::AbstractJob, node)
                 message *= "Logs and partial data can be found [here]($(err.url))\n"
             end
         end
-        message *= "cc @$(server.config.admin)"
+        isempty(server.config.admin) || (message *= "cc @$(server.config.admin)")
         nodelog(server.config, node, err_str, error=(err, stacktrace(catch_backtrace())))
         reply_status(job, "error", err_str)
         reply_comment(job, message)
