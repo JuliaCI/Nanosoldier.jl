@@ -236,12 +236,12 @@ function Base.run(job::BenchmarkJob)
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
     if !haskey(results, "error")
-        if job.isdaily # get results from previous day (if it exists, check the past 30 days)
+        if job.isdaily # get results from previous day (if it exists, check the past 120 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !found_previous_date && i < 31
+                while !found_previous_date && i < 121
                     check_date = job.date - Dates.Day(i)
                     check_data = retrieve_daily_data!(cfg, check_date)
                     if check_data !== nothing
