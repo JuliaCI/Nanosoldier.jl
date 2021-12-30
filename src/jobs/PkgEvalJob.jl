@@ -4,6 +4,7 @@ using Feather
 using JSON
 using Base: UUID
 using LibGit2
+using Markdown
 
 
 ################################
@@ -392,9 +393,8 @@ function report(job::PkgEvalJob, results)
         try
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
-            open(joinpath(tmpdir(job), reportname), "w") do file
-                printreport(file, job, results)
-            end
+            report_md = sprint(io->printreport(io, job, results))
+            write(joinpath(tmpdir(job), reportname), report_md)
             if job.isdaily && !haskey(results, "error")
                 nodelog(cfg, node, "...generating database...")
                 dbname = "db.json"
@@ -419,6 +419,22 @@ function report(job::PkgEvalJob, results)
             nodelog(cfg, node, "...pushing $(reportdir(job)) to GitHub...")
             target_url = upload_report_repo!(job, joinpath("pkgeval", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
+
+            # if we have a working S3 bucket, put a rendered version of the report there
+            if cfg.bucket !== nothing
+                reportname = "report.html"
+                report_html = Markdown.html(Markdown.parse(report_md))
+                try
+                    S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
+                                  "report.html",
+                                  Dict("body"       => report_html,
+                                       "x-amz-acl"  => "public-read",
+                                       "headers"    => Dict("Content-Type"=>"text/html; charset=utf-8")))
+                    target_url = "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(reportname)"
+                catch err
+                    rethrow(NanosoldierError("failed to upload test report", err))
+                end
+            end
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
@@ -582,9 +598,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
     results["has_issues"] = false
 
     # report test results in groups based on the test status
-    for (status, (verb, emoji)) in (:fail   => ("failed tests", ":heavy_multiplication_x:"),
-                                    :ok     => ("passed tests", ":heavy_check_mark:"),
-                                    :skip   => ("were skipped", ":heavy_minus_sign:"))
+    for (status, (verb, emoji)) in (:fail   => ("failed tests", "✖"),
+                                    :ok     => ("passed tests", "✔"),
+                                    :skip   => ("were skipped", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
         sort!(group, :name)
@@ -739,8 +755,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
             println(io, "Build flags: ", join(map(markdown_escaped_code, job.against_buildflags), ", "))
         end
     end
-
-    println(io, "<!-- Generated on $(now()) -->")
 
     return nothing
 end
