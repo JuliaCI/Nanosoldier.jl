@@ -582,9 +582,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
     results["has_issues"] = false
 
     # report test results in groups based on the test status
-    for (status, (verb, emoji)) in (:fail   => ("failed tests", ":heavy_multiplication_x:"),
-                                    :ok     => ("passed tests", ":heavy_check_mark:"),
-                                    :skip   => ("were skipped", ":heavy_minus_sign:"))
+    for (status, (verb, emoji)) in (:fail   => ("failed tests", "✖"),
+                                    :ok     => ("passed tests", "✔"),
+                                    :skip   => ("were skipped", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
         sort!(group, :name)
@@ -739,8 +739,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
             println(io, "Build flags: ", join(map(markdown_escaped_code, job.against_buildflags), ", "))
         end
     end
-
-    println(io, "<!-- Generated on $(now()) -->")
 
     return nothing
 end
