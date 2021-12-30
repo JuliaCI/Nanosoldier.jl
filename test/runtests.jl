@@ -2,6 +2,7 @@ import GitHub
 using Nanosoldier, Test, BenchmarkTools
 using Nanosoldier: BuildRef, JobSubmission, Config, BenchmarkJob, PkgEvalJob, AbstractJob
 using BenchmarkTools: TrialEstimate, Parameters
+using DataFrames
 
 #########
 # setup #
@@ -178,5 +179,29 @@ end
     @test Nanosoldier.markdown_escaped_code("``ab`c") == "``` ``ab`c```"
     @test Nanosoldier.markdown_escaped_code("a`bc```") == "````a`bc``` ````"
 end
+
+
+@testset "PkgEvalJob" begin
+    job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
+    @test job.against == nothing
+
+    results = Dict{String,Any}(
+        "primary" => DataFrame(
+            julia=v"1.6",
+            name="Example",
+            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            version=v"0.1.0",
+            status=:ok,
+            reason=missing,
+            duration=0.0,
+            log="everything is fine",
+        )
+    )
+
+    report = sprint(io -> Nanosoldier.printreport(io, job, results))
+
+    # XXX: actually test contents?
+end
+
 
 nothing
