@@ -200,6 +200,20 @@ end
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
 
+    job.against = against
+    results["against"] = DataFrame(
+            julia=v"1.7",
+            name="Example",
+            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            version=v"0.1.0",
+            status=:fail,
+            reason=:test_failures,
+            duration=0.0,
+            log="this one failed",
+        )
+
+    report = sprint(io -> Nanosoldier.printreport(io, job, results))
+
     # XXX: actually test contents?
 end
 

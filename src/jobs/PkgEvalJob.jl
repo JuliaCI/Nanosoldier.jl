@@ -588,8 +588,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
     #-------------------#
 
     if hasagainstbuild
-        package_results = join(results["primary"], results["against"],
-                               on=:uuid, kind=:left, makeunique=true, indicator=:source)
+        package_results = leftjoin(results["primary"], results["against"],
+                                   on=:uuid,  makeunique=true, indicator=:source)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join
