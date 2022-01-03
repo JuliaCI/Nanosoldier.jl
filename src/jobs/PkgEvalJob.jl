@@ -4,7 +4,7 @@ using Feather
 using JSON
 using Base: UUID
 using LibGit2
-using Markdown
+using CommonMark
 
 
 ################################
@@ -423,7 +423,19 @@ function report(job::PkgEvalJob, results)
             # if we have a working S3 bucket, put a rendered version of the report there
             if cfg.bucket !== nothing
                 reportname = "report.html"
-                report_html = Markdown.html(Markdown.parse(report_md))
+                parser = Parser()
+                ast = parser(report_md)
+                body = html(ast)
+                report_html = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>PkgEval - $(summary(job))</title>
+                    </head>
+                    <body>$body</body>
+                    </html>
+                """
                 try
                     S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
                                   "report.html",
@@ -755,6 +767,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
             println(io, "Build flags: ", join(map(markdown_escaped_code, job.against_buildflags), ", "))
         end
     end
+
+    println(io, "<!-- Generated on $(now()) -->")
 
     return nothing
 end
