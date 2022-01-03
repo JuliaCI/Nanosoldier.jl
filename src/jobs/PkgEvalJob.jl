@@ -431,7 +431,7 @@ function report(job::PkgEvalJob, results)
                     <html>
                     <head>
                         <meta charset="utf-8">
-                        <title>PkgEval - $(summary(job))</title>
+                        <title>$(summary(job))</title>
                     </head>
                     <body>$body</body>
                     </html>
