@@ -40,15 +40,15 @@ version = "1.2.2"
 
 [[BinaryBuilder]]
 deps = ["ArgParse", "BinaryBuilderBase", "Dates", "Downloads", "GitHub", "HTTP", "JLD2", "JSON", "LibGit2", "Libdl", "Logging", "LoggingExtras", "ObjectFile", "OutputCollectors", "Pkg", "PkgLicenses", "ProgressMeter", "REPL", "Random", "Registrator", "RegistryTools", "SHA", "Scratch", "Sockets", "UUIDs", "ghr_jll"]
-git-tree-sha1 = "3412f6ef0e3dc3f4d4eda931f94f17a8cd9d1d3e"
+git-tree-sha1 = "8acb1c4caf51b51fc44f5e947bbde0135531d922"
 uuid = "12aac903-9f7c-5d81-afc2-d9565ea332ae"
-version = "0.4.4"
+version = "0.4.6"
 
 [[BinaryBuilderBase]]
 deps = ["CodecZlib", "Downloads", "InteractiveUtils", "JSON", "LibGit2", "Libdl", "Logging", "OutputCollectors", "Pkg", "Random", "SHA", "Scratch", "SimpleBufferStream", "TOML", "Tar", "UUIDs", "p7zip_jll", "pigz_jll"]
-git-tree-sha1 = "66c3eb2778203fb29254cfa1ba5a780c528f389f"
+git-tree-sha1 = "bfd1411db1d052e529f54435f2e5b9a70f2a0df5"
 uuid = "7f725544-6523-48cd-82d1-3fa08ff4056e"
-version = "1.2.0"
+version = "1.2.2"
 
 [[CategoricalArrays]]
 deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Unicode"]
@@ -75,9 +75,9 @@ uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
 version = "3.41.0"
 
 [[Crayons]]
-git-tree-sha1 = "3f71217b538d7aaee0b69ab47d9b7724ca8afa0d"
+git-tree-sha1 = "b618084b49e78985ffa8422f32b9838e397b9fc2"
 uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
-version = "4.0.4"
+version = "4.1.0"
 
 [[DataAPI]]
 git-tree-sha1 = "cc70b17275652eb47bc9e5f81635981f13cea5c8"
@@ -136,9 +136,9 @@ version = "0.5.10"
 
 [[FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
-git-tree-sha1 = "2db648b6712831ecb333eae76dbfd1c156ca13bb"
+git-tree-sha1 = "67551df041955cc6ee2ed098718c8fcd7fc7aebe"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.11.2"
+version = "1.12.0"
 
 [[FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -367,7 +367,7 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PkgEval]]
 deps = ["BinaryBuilder", "DataFrames", "Dates", "Downloads", "LazyArtifacts", "LibGit2", "Pkg", "ProgressMeter", "Random", "SHA", "Sandbox"]
-git-tree-sha1 = "c08395a2f7887152b1e0f48d20454dee5fa3670a"
+git-tree-sha1 = "95a3493bd20029f5606338c62488a5a64820e62c"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
