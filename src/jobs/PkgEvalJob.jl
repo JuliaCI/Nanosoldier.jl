@@ -50,9 +50,10 @@ mutable struct PkgEvalJob <: AbstractJob
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
-    buildflags::Vector{String}       # a list of build flags for Make.user generation
+    buildflags::Vector{String}       # a list of flags for Make.user generation
     against_buildflags::Vector{String}
-    # FIXME: put build flags in BuildRef? currently created too early for that (when the
+    compiled::Bool
+    # FIXME: put flags in BuildRef? currently created too early for that (when the
     #        GitHub event is parsed, while we get the build flags from the comment)
 end
 
@@ -106,8 +107,18 @@ function PkgEvalJob(submission::JobSubmission)
         against_buildflags = String[]
     end
 
+    if haskey(submission.kwargs, :compiled)
+        val = Meta.parse(submission.kwargs[:compiled])
+        if !isa(val, Bool)
+            error("invalid argument to `compiled` keyword")
+        end
+        compiled = val
+    else
+        compiled = false
+    end
+
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily, buildflags, against_buildflags)
+                      Dates.today(), isdaily, buildflags, against_buildflags, compiled)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -117,11 +128,14 @@ function Base.summary(job::PkgEvalJob)
     elseif job.against !== nothing
         result *= " vs. $(summary(job.against))"
     end
+    if job.compiled
+        result *= " using PackageCompiler.jl"
+    end
     return result
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags)
+    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags, :compiled)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
@@ -160,7 +174,8 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 ########################
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dict)
+function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compiled::Bool,
+                        results::Dict)
     node = myid()
     cfg = submission(job).config
 
@@ -178,7 +193,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
                     #       and not in the repository where the pull request originated.
                     julia =
                         PkgEval.perform_julia_build("pull/$pr/merge", "JuliaLang/julia";
-                                                       buildflags=flags[whichbuild])
+                                                       buildflags=buildflags[whichbuild])
                     nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (merge head of PR $pr)")
                 catch err
                     isa(err, LibGit2.GitError) || rethrow()
@@ -188,11 +203,11 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
         end
         if julia === nothing
             # fall back to the last commit in the PR
-            julia = if isempty(flags[whichbuild])
+            julia = if isempty(buildflags[whichbuild])
                 PkgEval.obtain_julia_build(build.sha, build.repo)
             else
                 PkgEval.perform_julia_build(build.sha, build.repo;
-                                               buildflags=flags[whichbuild])
+                                               buildflags=buildflags[whichbuild])
             end
             nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
         end
@@ -226,10 +241,15 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, flags::Dict, results::Dic
     end
     pkgs = PkgEval.read_pkgs(pkg_names)
 
+    # determine evaluation configurations
+    configs = map(values(julia_versions)) do julia_version
+        Configuration(; julia=julia_version, compiled)
+    end
+
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        PkgEval.run(collect(values(julia_versions)), pkgs; ninstances=length(cpus))
+        PkgEval.run(configs, pkgs; ninstances=length(cpus))
     end
 
     # process the results for each Julia version separately
@@ -350,14 +370,14 @@ function Base.run(job::PkgEvalJob)
 
     # run tests
     builds = Dict("primary" => submission(job).build)
-    flags = Dict("primary" => job.buildflags)
+    buildflags = Dict("primary" => job.buildflags)
     if job.against !== nothing
         builds["against"] = job.against
-        flags["against"] = job.against_buildflags
+        buildflags["against"] = job.against_buildflags
     end
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, flags, results)
+        execute_tests!(job, builds, buildflags, job.compiled, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run tests", err)
@@ -531,6 +551,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 *Package Selection:* $(markdown_escaped_code(job.pkgsel))
                 """)
 
+    if job.compiled
+        println(io, """
+                    *Using PackageCompiler.jl*
+                    """)
+    end
+
     if job.isdaily
         if hasagainstbuild
             latest_dir = reportdir(job; latest=true)
@@ -601,7 +627,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     if hasagainstbuild
         package_results = leftjoin(results["primary"], results["against"],
-                                   on=:uuid,  makeunique=true, indicator=:source)
+                                   on=:uuid,  makeunique=true, source=:source)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join
