@@ -156,8 +156,9 @@ The package selection argument is used to decide which packages to test. It shou
 The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
 
 Several other optional arguments are supported by this job:
-- `buildflags = ["...", ...]`: a list of build flags that will be put in the `Make.user` for the primary build
+- `buildflags = ["...", ...]`: a list of flags that will be put in the `Make.user` for the primary build
 - `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
+- `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to embed the package in a custom system image
 
 #### Benchmark Results
 
