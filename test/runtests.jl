@@ -88,11 +88,13 @@ build_test_submission(PkgEvalJob, "@nanosoldier `runtests(\"pkg\")`")
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
 
 job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
-@test !job.compiled
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=false)`")
-@test !job.compiled
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=true)`")
-@test job.compiled
+@test job.compiled == :none
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:primary)`")
+@test job.compiled == :primary
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:against)`")
+@test job.compiled == :against
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:both)`")
+@test job.compiled == :both
 
 #############################
 # retrieval from job queue  #

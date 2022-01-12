@@ -159,7 +159,11 @@ The `vs` keyword argument is optional, and is used to determine whether or not t
 Several other optional arguments are supported by this job:
 - `buildflags = ["...", ...]`: a list of flags that will be put in the `Make.user` for the primary build
 - `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
-- `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to embed the package in a custom system image
+- `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to generate a custom system image before testing with it on a slightly different system. The value needs to be one of the following symbols:
+  - `:primary`: to compile tests for the primary build
+  - `:against`: to compile tests for the comparison build specified in the `vs` argument
+  - `:both`: to compile tests for both builds
+  - `:none` (default): do not use PackageCompiler.jl
 
 #### Benchmark Results
 

@@ -52,7 +52,7 @@ mutable struct PkgEvalJob <: AbstractJob
     isdaily::Bool                    # is the job a daily job?
     buildflags::Vector{String}       # a list of flags for Make.user generation
     against_buildflags::Vector{String}
-    compiled::Bool
+    compiled::Symbol
     # FIXME: put flags in BuildRef? currently created too early for that (when the
     #        GitHub event is parsed, while we get the build flags from the comment)
 end
@@ -110,13 +110,16 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     if haskey(submission.kwargs, :compiled)
-        val = Meta.parse(submission.kwargs[:compiled])
-        if !isa(val, Bool)
-            error("invalid argument to `compiled` keyword")
+        expr = Meta.parse(submission.kwargs[:compiled])
+        if !isa(expr, QuoteNode)
+            error("invalid argument to `compiled` keyword (should be a Symbol)")
         end
-        compiled = val
+        compiled = expr.value
+        if !in(compiled, [:none, :primary, :against, :both])
+            error("invalid argument to `compiled` keyword (should be a valid Symbol)")
+        end
     else
-        compiled = false
+        compiled = :none
     end
 
     return PkgEvalJob(submission, first(submission.args), against,
@@ -130,8 +133,8 @@ function Base.summary(job::PkgEvalJob)
     elseif job.against !== nothing
         result *= " vs. $(summary(job.against))"
     end
-    if job.compiled
-        result *= " using PackageCompiler.jl"
+    if job.compiled !== :none
+        result *= ", using PackageCompiler.jl"
     end
     return result
 end
@@ -176,7 +179,7 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 ########################
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compiled::Bool,
+function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compiled::Symbol,
                         results::Dict)
     node = myid()
     cfg = submission(job).config
@@ -244,8 +247,9 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
     pkgs = PkgEval.read_pkgs(pkg_names)
 
     # determine evaluation configurations
-    configs = map(values(julia_versions)) do julia_version
-        Configuration(; julia=julia_version, compiled)
+    configs = map(julia_versions) do (build, julia_version)
+        Configuration(; julia = julia_version,
+                        compiled = (compiled === :both || String(compiled) == build))
     end
 
     # run tests
@@ -364,7 +368,8 @@ function Base.run(job::PkgEvalJob)
     end
 
     # refuse to test against an identical build
-    if job.against !== nothing && job.against.sha == submission(job).build.sha && job.against_buildflags == job.buildflags
+    if job.against !== nothing && job.against.sha == submission(job).build.sha &&
+       job.against_buildflags == job.buildflags && job.compiled in [:both, :none]
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
         delete!(results, "against_date")
         job.against = nothing
@@ -553,9 +558,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 *Package Selection:* $(markdown_escaped_code(job.pkgsel))
                 """)
 
-    if job.compiled
+    if job.compiled !== :none
         println(io, """
-                    *Using PackageCompiler.jl*
+                    *Using PackageCompiler.jl*: $(job.compiled) build(s)
                     """)
     end
 
