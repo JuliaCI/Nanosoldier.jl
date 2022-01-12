@@ -72,6 +72,8 @@ function PkgEvalJob(submission::JobSubmission)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
             againstbuild = tagref(submission.config, againstrepo, againsttag)
+        elseif againststr == SPECIAL_SELF
+            againstbuild = deepcopy(submission.build)
         else
             error("invalid argument to `vs` keyword")
         end

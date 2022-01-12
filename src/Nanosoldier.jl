@@ -8,6 +8,7 @@ AWS.@service S3
 const SHA_SEPARATOR = '@'
 const BRANCH_SEPARATOR = ':'
 const TAG_SEPARATOR = '#'
+const SPECIAL_SELF = "%self"
 
 #####################
 # utility functions #
