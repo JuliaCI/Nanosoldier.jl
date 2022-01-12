@@ -682,10 +682,17 @@ function printreport(io::IO, job::PkgEvalJob, results)
             function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for subgroup in subgroups
-                    println(io, uppercasefirst(PkgEval.reasons[first(subgroup).reason]), ":")
+                    println(io, """
+                        <details open><summary>$(uppercasefirst(PkgEval.reasons[first(subgroup).reason])) ($(nrow(subgroup)):</summary>
+                        <p>
+                        """)
                     println(io)
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
+                    println(io, """
+                        </p>
+                        </details>
+                        """)
                 end
 
                 # print tests without a reason separately, at the end
