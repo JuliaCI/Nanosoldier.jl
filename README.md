@@ -186,7 +186,7 @@ has its own directory for results. This directory contains the following items:
 `tar -xzvf data.tar.gz`.
 - `logs` is a directory containing the test logs for the job.
 
-## Initial Setup
+## Initial Setup for BenchmarksJob
 
 ```
 [ -f ~/.ssh/id_rsa ] || ssh-keygen -N '' -f ~/.ssh/id_rsa
@@ -197,11 +197,33 @@ sudo mkdir /nanosoldier
 sudo chown `whoami` /nanosoldier
 cd /nanosoldier
 git clone <URL>
+cd ./Nanosoldier.jl
 git checkout <branch>
-./Nanosoldier.jl/provision.sh
-sudo chown -R nanosoldier:nanosoldier .
+./provision-<worker|server>.sh
+sudo chown -R nanosoldier:nanosoldier ..
 su -u nanosoldier
 ```
+
+## Upgrading for BenchmarksJob
+
+# on server
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+sudo -u nanosoldier ../julia-1.6.3/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+./provision-server.sh
+git add -u
+git commit
+git push
+```
+
+# on each worker
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+./provision-worker.sh
+```
+
 
 ## Acknowledgements
 

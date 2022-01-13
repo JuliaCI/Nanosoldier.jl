@@ -10,10 +10,6 @@ MAJOR=`echo $VERSION | cut -d . -f 1`
 MINOR=`echo $VERSION | cut -d . -f 2`
 PATCH=`echo $VERSION | cut -d . -f 3`
 
-[ -d julia-$VERSION ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/$MAJOR.$MINOR/julia-$VERSION-linux-x86_64.tar.gz | tar xz
-[ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
-julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
-
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
 sudo usermod -aG nanosoldier `whoami`
@@ -21,6 +17,10 @@ sudo usermod -aG nanosoldier `whoami`
 sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_rsa
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
+
+[ -d julia-$VERSION ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/$MAJOR.$MINOR/julia-$VERSION-linux-x86_64.tar.gz | tar xz
+[ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
+sudo -u nanosoldier julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
 set +v
 
@@ -62,6 +62,6 @@ echo "  setarch -R ../julia-$VERSION/bin/julia -L bin/setup_test_ci.jl -e 'using
 echo
 echo "or with a helper script:"
 echo "  cp bin/run_base_ci.jl .."
-echo "  chmod 600 ../run_base_ci.jl"
+echo "  chmod 660 ../run_base_ci.jl"
 echo "  \${EDITOR:-vim} ../run_base_ci.jl"
-echo "  ./run_base_ci"
+echo "  sudo -u nanosoldier nohup ./run_base_ci"
