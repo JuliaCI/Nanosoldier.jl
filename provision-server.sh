@@ -6,20 +6,6 @@ cd "$HERE/.."
 
 VERSION=1.6.3
 
-# See https://github.com/JuliaCI/BenchmarkTools.jl/blob/master/doc/linuxtips.md#introduction
-# for an explanation of these configuration options
-
-sudo apt update
-sudo apt install build-essential libatomic1 python3 gfortran perl wget m4 cmake pkg-config curl ninja-build ccache
-sudo apt install virtualenv
-virtualenv cset
-set +v
-. cset/bin/activate
-set -v
-pip install cpuset-py3
-deactivate
-echo "ALL ALL= NOPASSWD: `pwd`/cset/bin/cset" | sudo tee /etc/sudoers.d/99-nanosoldier
-
 MAJOR=`echo $VERSION | cut -d . -f 1`
 MINOR=`echo $VERSION | cut -d . -f 2`
 PATCH=`echo $VERSION | cut -d . -f 3`
@@ -28,39 +14,13 @@ PATCH=`echo $VERSION | cut -d . -f 3`
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
 julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
-#sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
-sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
-sudo service procps force-reload
-echo "1" | sudo tee /sys/devices/system/cpu/cpu*/online > /dev/null
-echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-#echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
-
-(cd /sys/devices/system/cpu &&
-for cpu in {0..255}; do
-    if [ -f cpu$cpu/topology/thread_siblings_list ]; then
-        for other in `sed -e 's/,/ /' < cpu$cpu/topology/thread_siblings_list`; do
-            [ $other == $cpu ] && continue
-            echo "disabling cpu $other (shared with $cpu)"
-            echo 0 | sudo tee /sys/devices/system/cpu/cpu$other/online > /dev/null
-        done
-    fi
-done)
-
-echo "informational status:"
-cat /proc/interrupts
-# echo 0-2 | sudo tee /proc/irq/22/smp_affinity_list
-# irqbalance
-
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
 sudo usermod -aG nanosoldier `whoami`
 
-sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~/.ssh/id_rsa
+sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_rsa
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
-
-# create a (non-privileged) user to run the build and test:
-sudo useradd nanosoldier-worker || true
 
 set +v
 
@@ -71,7 +31,7 @@ echo "-------------"
 echo
 echo "install this ssh key in github for user @nanosoldier at"
 echo "  https://github.com/settings/ssh/new"
-echo "  and on any worker machines at ~/.ssh/authorized_keys"
+echo "  and on all worker machines at ~nanosoldier/.ssh/authorized_keys"
 sudo -u nanosoldier cat ~nanosoldier/.ssh/id_rsa.pub
 echo
 echo "and generate an auth-token for later at"
