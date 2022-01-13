@@ -65,7 +65,7 @@ function BenchmarkJob(submission::JobSubmission)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
             againstbuild = tagref(submission.config, againstrepo, againsttag)
         elseif againststr == SPECIAL_SELF
-            againstbuild = deepcopy(submission.build)
+            againstbuild = copy(submission.build)
         else
             error("invalid argument to `vs` keyword")
         end

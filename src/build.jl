@@ -10,6 +10,8 @@ end
 
 BuildRef(repo, sha) = BuildRef(repo, sha, "retrieving versioninfo() failed")
 
+Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.vinfo)
+
 function Base.:(==)(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
