@@ -54,13 +54,20 @@ function build_test_submission(jobtyp, submission_string)
     return jobtyp(submission)
 end
 
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL)`")
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL)`")
+@test job.against === nothing
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred)`")
 
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia:master\")`")
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia:master\")`")
+@test job.against !== nothing
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia:master\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia:master\")`")
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"%self\")`")
+@test job.against == primary
+build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"%self\")`")
+build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"%self\")`")
 
 @test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, isdaily = true, vs = \"JuliaLang/julia:master\")`")
 @test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
@@ -70,11 +77,13 @@ build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = 
 @test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 @test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
-build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia#v1.0.0\")`")
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(ALL, vs = \"JuliaLang/julia#v1.0.0\")`")
+@test job.against !== nothing
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"JuliaLang/julia#v1.0.0\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"JuliaLang/julia#v1.0.0\")`")
 
-build_test_submission(PkgEvalJob, "@nanosoldier `runtests(ALL)`")
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests(ALL)`")
+@test job.against === nothing
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests(\"pkg\")`")
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
 
