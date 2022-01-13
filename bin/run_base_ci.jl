@@ -6,10 +6,9 @@ nodes = Dict(Any => addprocs(1))
 
 auth = GitHub.authenticate("GITHUB_AUTH00000000000000000000000000000")
 secret = GITHUB_SECRET
-user = GITHUB_USER
-port = 0xffff
+port = Int(0xffff)
 
-config = Nanosoldier.Config(user, nodes, auth, secret;
+config = Nanosoldier.Config("nanosoldier-worker", nodes, auth, secret;
                             workdir = joinpath(homedir(), "workdir"),
                             trackrepo = "JuliaLang/julia",
                             reportrepo = "JuliaCI/NanosoldierReports",

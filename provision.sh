@@ -25,16 +25,16 @@ MINOR=`echo $VERSION | cut -d . -f 2`
 PATCH=`echo $VERSION | cut -d . -f 3`
 
 [ -d julia-$VERSION ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/$MAJOR.$MINOR/julia-$VERSION-linux-x86_64.tar.gz | tar xz
-[ -d PkgEval.jl ] || git clone git@github.com:JuliaCI/PkgEval.jl.git
+[ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
 julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
 #sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo service procps force-reload
-# echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-# echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+echo "1" | sudo tee /sys/devices/system/cpu/cpu*/online > /dev/null
+echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+#echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
 
-# echo 0 | sudo tee /sys/devices/system/cpu/cpu{8..15}/online
 (cd /sys/devices/system/cpu &&
 for cpu in {0..255}; do
     if [ -f cpu$cpu/topology/thread_siblings_list ]; then
@@ -51,23 +51,27 @@ cat /proc/interrupts
 # echo 0-2 | sudo tee /proc/irq/22/smp_affinity_list
 # irqbalance
 
-[ -f ~/.ssh/id_rsa.pub ] || ssh-keygen
-git config --global user.name "nanosoldier"
-git config --global user.email "nanosoldierjulia@gmail.com"
+# create a (non-privileged) user to run the server:
+sudo useradd nanosoldier || true
+
+sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen
+sudo -u nanosoldier git config --global user.name "nanosoldier"
+sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
 
 # create a (non-privileged) user to run the build and test:
-sudo useradd nanosoldier || true
+sudo useradd nanosoldier-worker || true
 
 set +v
 
 echo
 echo "-------------"
-echo "manual steps:"
+echo "manual steps (for master machine, not workers):"
 echo "-------------"
 echo
 echo "install this ssh key in github for user @nanosoldier at"
 echo "  https://github.com/settings/ssh/new"
-cat ~/.ssh/id_rsa.pub
+echo "  and on any worker machines at ~/.ssh/authorized_keys"
+sudo -u nanosoldier cat ~nanosoldier/.ssh/id_rsa.pub
 echo
 echo "and generate an auth-token for later at"
 echo "  https://github.com/settings/tokens/new"
