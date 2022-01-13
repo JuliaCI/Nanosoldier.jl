@@ -53,8 +53,9 @@ cat /proc/interrupts
 
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
+sudo usermod -aG nanosoldier `whoami`
 
-sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen
+sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~/.ssh/id_rsa
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
 

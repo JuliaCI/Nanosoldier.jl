@@ -186,6 +186,22 @@ has its own directory for results. This directory contains the following items:
 `tar -xzvf data.tar.gz`.
 - `logs` is a directory containing the test logs for the job.
 
+## Initial Setup
+
+```
+[ -f ~/.ssh/id_rsa ] || ssh-keygen -N '' -f ~/.ssh/id_rsa
+echo "add to https://github.com/settings/keys:"
+cat ~/.ssh/id_rsa.pub
+EDITOR=vim git config --global --edit
+sudo mkdir /nanosoldier
+sudo chown `whoami` /nanosoldier
+cd /nanosoldier
+git clone <URL>
+git checkout <branch>
+./Nanosoldier.jl/provision.sh
+sudo chown -R nanosoldier:nanosoldier .
+su -u nanosoldier
+```
 
 ## Acknowledgements
 
