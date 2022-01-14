@@ -201,7 +201,6 @@ git clone <URL>
 cd ./Nanosoldier.jl
 git checkout <branch>
 ./provision-<worker|server>.sh
-sudo chown -R nanosoldier:nanosoldier ..
 ```
 
 On main server:
@@ -220,7 +219,7 @@ To run:
 
 ```
 cd /nanosoldier/Nanosoldier.jl
-sudo -u nanosoldier byobu
+byobu
 ./run_base_ci
 ```
 
