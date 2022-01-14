@@ -23,7 +23,7 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``)
     elseif isa(auth, GitHub.UsernamePassAuth)
         url = "https://$(auth.username):$(auth.password)@github.com/"
     else
-        url = "git@github.com:"
+        url = "https://github.com/"
     end
     run(setenv(`git clone $args $url$repo.git $dir`))
 end
