@@ -13,17 +13,19 @@ PATCH=`echo $VERSION | cut -d . -f 3`
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
 sudo usermod -aG nanosoldier `whoami`
+echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/99-nanosoldier
+echo "`whoami` ALL= (nanosoldier-worker) NOPASSWD: ALL" | sudo tee -a /etc/sudoers.d/99-nanosoldier
 
 sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_rsa
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
-sudo -u nanosoldier ssh -T git@github.com
+sudo -u nanosoldier ssh -T git@github.com || true
 
 [ -d julia-$VERSION ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/$MAJOR.$MINOR/julia-$VERSION-linux-x86_64.tar.gz | tar xz
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
 sudo -u nanosoldier julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
-mkdir workdir
+[ -d workdir ] || mkdir workdir
 sudo chown nanosoldier:nanosoldier workdir
 
 set +v
