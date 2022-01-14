@@ -353,7 +353,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         run(setenv(`git reset --hard --quiet origin/$(branchname)`, dir=BaseBenchmarks))
     end
 
-    run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
+    run(setenv(`sudo -n -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
 
     cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
@@ -419,7 +419,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo $cset proc -m -p \$(getpid()) -t /user/child`)
+                          run(`sudo -n $cset proc -m -p \$(getpid()) -t /user/child`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
@@ -449,28 +449,28 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # clean up old cpusets, if they exist
     try
-        run(`sudo $cset set -d /user/child`)
+        run(`sudo -n $cset set -d /user/child`)
     catch ex
         @warn "(expected) removing old cset failed" _exception=ex
     end
     try
-        run(`sudo $cset shield --reset`)
+        run(`sudo -n $cset shield --reset`)
     catch ex
         @warn "(expected) removing old cset failed" _exception=ex
     end
     # shield our CPUs
     cpus = mycpus(cfg)
-    run(`sudo $cset shield -c $(join(cpus, ",")) -k on`)
-    run(`sudo $cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
+    run(`sudo -n $cset shield -c $(join(cpus, ",")) -k on`)
+    run(`sudo -n $cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(`sudo $cset shield -e sudo -u $(cfg.user) $(shscriptpath)`)
+    run(`sudo -n $cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
-    run(`sudo $cset set -d /user/child`)
-    run(`sudo $cset shield --reset`)
+    run(`sudo -n $cset set -d /user/child`)
+    run(`sudo -n $cset shield --reset`)
 
     results = BenchmarkTools.load(benchresults)[1]
 
