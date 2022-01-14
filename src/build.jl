@@ -47,9 +47,10 @@ end
 function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
     builddir = mktempdir(workdir(config))
-    mirrordir = joinpath(workdir(config), "mirrors", config.trackrepo)
+    mirrordir = joinpath(workdir(config), "mirrors", split(config.trackrepo, "/")...)
+    mkpath(dirname(mirrordir))
     mkpidlock(mirrordir * ".lock") do
-        if ispath(joinpath(mirrordir))
+        if ispath(mirrordir)
             run(setenv(`git fetch --quiet --all`; dir=mirrordir))
         else
             mkpath(mirrordir)
