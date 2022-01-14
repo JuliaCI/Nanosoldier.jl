@@ -190,7 +190,8 @@ has its own directory for results. This directory contains the following items:
 
 On all computers:
 ```
-[ -f ~/.ssh/id_rsa ] || ssh-keygen -N '' -f ~/.ssh/id_rsa
+echo "if this is a shared machine, you must use a password to secure this:"
+[ -f ~/.ssh/id_rsa ] || ssh-keygen -f ~/.ssh/id_rsa
 echo "add to https://github.com/settings/keys:"
 cat ~/.ssh/id_rsa.pub
 EDITOR=vim git config --global --edit
