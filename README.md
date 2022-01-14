@@ -230,7 +230,7 @@ byobu
 ```
 cd /nanosoldier/Nanosoldier.jl
 git pull
-sudo -u nanosoldier ../julia-1.6.3/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+sudo -u nanosoldier ../julia-1.6.4/bin/julia --project=. -e 'using Pkg; Pkg.update()'
 ./provision-server.sh
 git add -u
 git commit
