@@ -304,7 +304,7 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
         end
         push!(cleanup, juliadir)
         juliapath = joinpath(juliadir, "julia")
-        chmod(juliadir, 0o555) # make it r-x to other than owner
+        chmod(juliadir, 0o555) # make it r-x to all
     end
     return juliapath
 end
@@ -314,11 +314,13 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     cfg = submission(job).config
     build = whichbuild == :against ? job.against : submission(job).build
     builddir = mktempdir(workdir(cfg))
+    gid = parse(Int, readchomp(`id -g $(cfg.user)`))
     chmod(builddir, 0o755) # make it r-x to other than owner
 
     # create a hermetic environment (similar to after sudo later)
     tmpproject = joinpath(builddir, "environment")
-    mkdir(tmpproject, mode=0o777) # make it rwx to all
+    mkdir(tmpproject, mode=0o775)
+    chown(tmpproject, -1, gid)
     juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],

@@ -53,6 +53,8 @@ cat /proc/interrupts
 
 # create a (non-privileged) user to run the build and test:
 sudo useradd nanosoldier-worker || true
+sudo usermod -aG nanosoldier-worker `whoami`
+sudo usermod -aG nanosoldier-worker nanosoldier
 
 set +v
 
