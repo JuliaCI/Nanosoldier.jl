@@ -19,6 +19,7 @@ set -v
 pip install cpuset-py3
 deactivate
 echo "ALL ALL= NOPASSWD: `pwd`/cset/bin/cset" | sudo tee /etc/sudoers.d/99-nanosoldier
+echo "ALL ALL= (nanosoldier-worker) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/99-nanosoldier
 
 #sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf

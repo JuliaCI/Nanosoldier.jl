@@ -465,7 +465,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(`sudo $cset shield -e su $(cfg.user) -- -c $(shscriptpath)`)
+    run(`sudo $cset shield -e sudo -u $(cfg.user) $(shscriptpath)`)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
