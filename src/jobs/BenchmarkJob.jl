@@ -355,7 +355,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
 
-    cset = readchomp(`which cset`)
+    cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JSON file so that we can retrieve them.

@@ -4,11 +4,6 @@ set -eux -o pipefail
 cd "`dirname $0`"
 export JULIA_PROJECT=~+
 cd ..
-if [ -f cset/bin/activate ]; then
-    set +euv +o pipefail
-    . cset/bin/activate
-    set -euv -o pipefail
-fi
 echo $JULIA_PROJECT
 exec sudo -u nanosoldier --preserve-env=JULIA_PROJECT \
     setarch -R julia-1.6.3/bin/julia run_base_ci.jl \
