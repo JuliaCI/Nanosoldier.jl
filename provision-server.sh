@@ -13,8 +13,8 @@ PATCH=`echo $VERSION | cut -d . -f 3`
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
 sudo usermod -aG nanosoldier `whoami`
-echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/99-nanosoldier
-echo "`whoami` ALL= (nanosoldier-worker) NOPASSWD: ALL" | sudo tee -a /etc/sudoers.d/99-nanosoldier
+echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL
+Defaults> nanosoldier umask=0777" | sudo tee -a /etc/sudoers.d/99-nanosoldier
 
 sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_rsa
 sudo -u nanosoldier git config --global user.name "nanosoldier"

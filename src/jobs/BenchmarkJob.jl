@@ -275,6 +275,7 @@ function Base.run(job::BenchmarkJob)
 
     for dir in cleanup
         if ispath(dir)
+            run(`sudo -n -u $(cfg.user) -- chmod -R ug+rwX $dir/julia`) # make it rwx
             Base.Filesystem.prepare_for_deletion(dir)
             rm(dir, recursive=true)
         end
@@ -303,8 +304,7 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
             juliadir = build_julia!(cfg, build, tmplogdir(job))
         end
         push!(cleanup, juliadir)
-        juliapath = joinpath(juliadir, "julia")
-        chmod(juliadir, 0o555) # make it r-x to all
+        juliapath = joinpath(juliadir, "julia", "julia")
     end
     return juliapath
 end

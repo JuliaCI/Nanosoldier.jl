@@ -17,17 +17,19 @@ const SPECIAL_SELF = "%self"
 snip(str, len) = str[1:min(len, end)]
 snipsha(sha) = snip(sha, 7)
 
-function gitclone!(repo, dir, auth=nothing, args::Cmd=``)
+function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
     if isa(auth, GitHub.OAuth2)
         url = "https://$(auth.token):x-oauth-basic@github.com/"
     elseif isa(auth, GitHub.UsernamePassAuth)
         url = "https://$(auth.username):$(auth.password)@github.com/"
     else
+        auth = auth::Nothing
         url = "https://github.com/"
     end
-    run(setenv(`git clone $args $url$repo.git $dir`))
+    sudo = user === nothing ? `` : `sudo -n -u $user --`
+    run(setenv(`$sudo git clone $args $url$repo.git $dir`))
 end
-gitclone!(repo, dir, args::Cmd) = gitclone!(repo, dir, nothing, args)
+gitclone!(repo, dir, args::Cmd; user=nothing) = gitclone!(repo, dir, nothing, args; user)
 
 gitreset!(dir) = (run(setenv(`git fetch --all`; dir)); run(setenv(`git reset --hard origin/master`; dir)))
 

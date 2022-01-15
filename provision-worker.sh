@@ -18,15 +18,6 @@ set +v
 set -v
 pip install cpuset-py3
 deactivate
-echo "nanosoldier ALL= NOPASSWD:\\
-        /nanosoldier/cset/bin/cset set *,\\
-        /nanosoldier/cset/bin/cset shield *,\\
-       !/nanosoldier/cset/bin/cset shield *-e*,\\
-        /nanosoldier/cset/bin/cset shield -e -- sudo -n -u nanosoldier-worker -- *
-nanosoldier,nanosoldier-worker ALL= NOPASSWD:\\
-        /nanosoldier/cset/bin/cset proc *,\\
-       !/nanosoldier/cset/bin/cset proc *-e*
-nanosoldier ALL= (nanosoldier-worker) NOPASSWD: ALL" | sudo tee -a /etc/sudoers.d/99-nanosoldier
 
 #sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
@@ -55,6 +46,18 @@ cat /proc/interrupts
 sudo useradd nanosoldier-worker || true
 sudo usermod -aG nanosoldier-worker `whoami`
 sudo usermod -aG nanosoldier-worker nanosoldier
+
+echo "nanosoldier ALL= NOPASSWD:\\
+        /nanosoldier/cset/bin/cset set *,\\
+        /nanosoldier/cset/bin/cset shield *,\\
+       !/nanosoldier/cset/bin/cset shield *-e*,\\
+        /nanosoldier/cset/bin/cset shield -e -- sudo -n -u nanosoldier-worker -- *
+nanosoldier,nanosoldier-worker ALL= NOPASSWD:\\
+        /nanosoldier/cset/bin/cset proc *,\\
+       !/nanosoldier/cset/bin/cset proc *-e*
+nanosoldier ALL= (nanosoldier-worker) NOPASSWD: ALL
+`whoami` ALL= (nanosoldier-worker) NOPASSWD: ALL
+Defaults> nanosoldier-worker umask=0777" | sudo tee /etc/sudoers.d/99-nanosoldier-worker
 
 set +v
 
