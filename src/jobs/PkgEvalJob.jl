@@ -216,7 +216,6 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
             end
             nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
         end
-        @assert !in(julia, values(julia_versions)) "Cannot compare identical Julia builds"
         julia_versions[whichbuild] = julia
 
         # get some version info
