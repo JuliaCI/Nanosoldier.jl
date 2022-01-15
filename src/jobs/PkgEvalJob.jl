@@ -246,9 +246,12 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
     pkgs = PkgEval.read_pkgs(pkg_names)
 
     # determine evaluation configurations
-    configs = map(julia_versions) do (build, julia_version)
-        Configuration(; julia = julia_version,
-                        compiled = (compiled === :both || String(compiled) == build))
+    configs = Configuration[]
+    for (whichbuild, build) in builds
+        push!(configs,
+              Configuration(; julia = julia_versions[whichbuild],
+                              compiled = (compiled === :both ||
+                                          String(compiled) == whichbuild)))
     end
 
     # run tests
