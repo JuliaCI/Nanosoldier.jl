@@ -157,13 +157,23 @@ The package selection argument is used to decide which packages to test. It shou
 The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
 
 Several other optional arguments are supported by this job:
-- `buildflags = ["...", ...]`: a list of flags that will be put in the `Make.user` for the primary build
+- `buildflags = ["...", ...]`: a list of flags that will be put in the `Make.user` for the primary build.
+
+  This option can be used to, e.g., find packages that fail with assertions enabled:
+  ```
+  @nanosoldier `runtests(ALL, vs = "%self", buildflags=["USE_BINARYBUILDER_LLVM=0", "LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
+  ```
 - `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
 - `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to generate a custom system image before testing with it on a slightly different system. The value needs to be one of the following symbols:
   - `:primary`: to compile tests for the primary build
   - `:against`: to compile tests for the comparison build specified in the `vs` argument
   - `:both`: to compile tests for both builds
   - `:none` (default): do not use PackageCompiler.jl
+  
+  This option can be used to assess compileability of the ecosystem:
+  ```
+  @nanosoldier `runtests(ALL, vs = "%self", compiled = :primary)`
+  ```
 
 #### Benchmark Results
 
