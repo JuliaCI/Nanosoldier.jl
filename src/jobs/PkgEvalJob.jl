@@ -690,7 +690,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for subgroup in subgroups
                     println(io, """
-                        <details open><summary>$(uppercasefirst(PkgEval.reasons[first(subgroup).reason])) ($(nrow(subgroup)):</summary>
+                        <details open><summary>$(uppercasefirst(PkgEval.reasons[first(subgroup).reason])) ($(nrow(subgroup)) packages):</summary>
                         <p>
                         """)
                     println(io)
