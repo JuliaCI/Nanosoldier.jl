@@ -161,7 +161,7 @@ Several other optional arguments are supported by this job:
 
   This option can be used to, e.g., find packages that fail with assertions enabled:
   ```
-  @nanosoldier `runtests(ALL, vs = "%self", buildflags=["USE_BINARYBUILDER_LLVM=0", "LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
+  @nanosoldier `runtests(ALL, vs = "%self", buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
   ```
 - `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
 - `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to generate a custom system image before testing with it on a slightly different system. The value needs to be one of the following symbols:
@@ -185,22 +185,6 @@ has its own directory for results. This directory contains the following items:
 - `data.tar.gz` contains raw test data as Feather files encoding a DataFrame. To untar this file, run
 `tar -xzvf data.tar.gz`.
 - `logs` is a directory containing the test logs for the job.
-
-#### Comment Examples
-
-Here are some examples of comments that trigger a `PkgEval` in various contexts:
-
-```
-To verify packages against the previous version of Julia:
-
-@nanosoldier `runtests(ALL, vs = "#v1.5.1")`
-```
-
-```
-To see if there are packages that fail tests when enabling assertions:
-
-@nanosoldier `runtests(ALL, vs = ":master", buildflags=["USE_BINARYBUILDER_LLVM=0", "LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
-```
 
 
 ## Acknowledgements
