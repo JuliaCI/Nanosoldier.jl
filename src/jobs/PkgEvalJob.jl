@@ -183,6 +183,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
                         results::Dict)
     node = myid()
     cfg = submission(job).config
+    is_compiled(whichbuild) = compiled === :both || String(compiled) == whichbuild
 
     # determine Julia versions to use
     julia_versions = Dict{String,VersionNumber}()
@@ -250,8 +251,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
     for (whichbuild, build) in builds
         push!(configs,
               Configuration(; julia = julia_versions[whichbuild],
-                              compiled = (compiled === :both ||
-                                          String(compiled) == whichbuild)))
+                              compiled = is_compiled(whichbuild)))
     end
 
     # run tests
@@ -262,7 +262,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
 
     # process the results for each Julia version separately
     for (whichbuild, build) in builds
-        tests = all_tests[all_tests[!, :julia] .== julia_versions[whichbuild], :]
+        tests = all_tests[(all_tests[!, :julia] .== julia_versions[whichbuild]) .&
+                          (all_tests[!, :compiled] .== is_compiled(whichbuild)), :]
         results[whichbuild] = tests
 
         # write logs
@@ -636,7 +637,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     if hasagainstbuild
         package_results = leftjoin(results["primary"], results["against"],
-                                   on=:uuid,  makeunique=true, source=:source)
+                                   on=:uuid, makeunique=true, source=:source)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join

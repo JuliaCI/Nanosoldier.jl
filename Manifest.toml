@@ -1,5 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
+julia_version = "1.7.1"
 manifest_format = "2.0"
 
 [[deps.AWS]]
@@ -381,8 +382,8 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[deps.PkgEval]]
 deps = ["BinaryBuilder", "DataFrames", "Dates", "Downloads", "LazyArtifacts", "LibGit2", "Pkg", "ProgressMeter", "Random", "SHA", "Sandbox"]
-git-tree-sha1 = "b1198d746364c0e69db4c56846509effec2fc587"
-repo-rev = "9a92658"
+git-tree-sha1 = "c96bdf9b10982dcdca90c49a91982e8f5be44472"
+repo-rev = "14f4d1ee"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 version = "0.1.0"
