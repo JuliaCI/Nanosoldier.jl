@@ -2,9 +2,9 @@
 
 ## Job Properties
 
-*Commits:* [christopher-dG/julia@4c805d2310111d65dbff9ac96d475dd6b9ea47cc](https://github.com/christopher-dG/julia/commit/4c805d2310111d65dbff9ac96d475dd6b9ea47cc) vs [JuliaLang/julia@bb73f3489d837e3339fce2c1aab283d3b2e97a4c](https://github.com/JuliaLang/julia/commit/bb73f3489d837e3339fce2c1aab283d3b2e97a4c)
+*Commits:* [JuliaLang/julia@PRIMARY](https://github.com/JuliaLang/julia/commit/PRIMARY) vs [JuliaLang/julia@bb73f3489d837e3339fce2c1aab283d3b2e97a4c](https://github.com/JuliaLang/julia/commit/bb73f3489d837e3339fce2c1aab283d3b2e97a4c)
 
-*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/bb73f3489d837e3339fce2c1aab283d3b2e97a4c..christopher-dG/julia:4c805d2310111d65dbff9ac96d475dd6b9ea47cc)
+*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/bb73f3489d837e3339fce2c1aab283d3b2e97a4c..PRIMARY)
 
 *Triggered By:* [link](https://www.test.com)
 

@@ -31,14 +31,14 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LIBM: libopenlibm
   LLVM: libLLVM-3.3
 """
-
-primary = BuildRef("christopher-dG/julia", "4c805d2310111d65dbff9ac96d475dd6b9ea47cc", vinfo)
-against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
 auth = if haskey(ENV, "GITHUB_AUTH")
     GitHub.authenticate(ENV["GITHUB_AUTH"])
 else
     GitHub.AnonymousAuth()
 end
+latest_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][1].sha
+primary = BuildRef("JuliaLang/julia", latest_commit, vinfo)
+against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
 config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
@@ -185,7 +185,9 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    chomp.(readlines(mdpath)) == chomp.(eachline(IOBuffer(sprint(io -> Nanosoldier.printreport(io, job, results)))))
+    md = replace(read(mdpath, String), "PRIMARY" => latest_commit)
+    md2 = sprint(io->Nanosoldier.printreport(io, job, results))
+    chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
 end
 
 @testset "Markdown" begin
