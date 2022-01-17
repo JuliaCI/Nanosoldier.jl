@@ -271,7 +271,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
                 if !ismissing(test.log)
                     try
                         S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
-                                      "$(test.name).$(test.julia).log",
+                                      "$(test.name).$(whichbuild).log",
                                       Dict("body"       => test.log,
                                            "x-amz-acl"  => "public-read",
                                            "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
@@ -284,7 +284,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
             cd(tmplogdir(job)) do
                 for test in eachrow(tests)
                     isdir(test.name) || mkdir(test.name)
-                    open(joinpath(test.name, "$(test.julia).log"), "w") do io
+                    open(joinpath(test.name, "$(whichbuild).log"), "w") do io
                         if !ismissing(test.log)
                             write(io, test.log)
                         end
@@ -660,18 +660,18 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
 
                 primary_log = if cfg.bucket !== nothing
-                    "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name).$(test.julia).log"
+                    "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name).primary.log"
                 else
-                    "logs/$(test.name)/$(test.julia).log"
+                    "logs/$(test.name)/primary.log"
                 end
                 print(io, "- [$(test.name)$(verstr(test.version))]($primary_log)")
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     against_log = if cfg.bucket !== nothing
-                        "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name_1).$(test.julia_1).log"
+                        "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name_1).against.log"
                     else
-                        "logs/$(test.name_1)/$(test.julia_1).log"
+                        "logs/$(test.name_1)/against.log"
                     end
                     print(io, " vs. [$(test.name_1)$(verstr(test.version_1))]($against_log)")
 
