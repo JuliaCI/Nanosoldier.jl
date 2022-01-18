@@ -53,7 +53,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     chmod(tmpdir, 0o555)
 
     mirrordir = joinpath(workdir(config), "mirrors", split(config.trackrepo, "/")...)
-    mkpath(dirname(mirrordir))
+    mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
         if ispath(mirrordir)
             run(setenv(`git fetch --quiet --all`; dir=mirrordir))
@@ -88,8 +88,8 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
 
     mirrordir1 = joinpath(workdir(config), "srccache", "deps")
     mirrordir2 = joinpath(workdir(config), "srccache", "stdlib")
-    mkpath(mirrordir1)
-    mkpath(mirrordir2)
+    mkpath(mirrordir1, mode=0o755)
+    mkpath(mirrordir2, mode=0o755)
     srccache1 = joinpath(srcdir, "deps", "srccache")
     srccache2 = joinpath(srcdir, "stdlib", "srccache")
     run(`sudo -n -u $(config.user) -- mkdir -m 775 $srccache2 $srccache1`)

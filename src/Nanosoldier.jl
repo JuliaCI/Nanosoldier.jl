@@ -27,6 +27,9 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
         url = "https://github.com/"
     end
     sudo = user === nothing ? `` : `sudo -n -u $user --`
+    if auth !== nothing
+        run(setenv(`$sudo mkdir -m 770 $dir`)) # hide auth from everybody
+    end
     run(setenv(`$sudo git clone $args $url$repo.git $dir`))
 end
 gitclone!(repo, dir, args::Cmd; user=nothing) = gitclone!(repo, dir, nothing, args; user)

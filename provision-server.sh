@@ -68,6 +68,7 @@ echo "  setarch -R ../julia-$VERSION/bin/julia -L bin/setup_test_ci.jl -e 'using
 echo
 echo "or with a helper script:"
 echo "  cp bin/run_base_ci.jl .."
+echo "  chgrp nanosoldier ../run_base_ci.jl"
 echo "  chmod 660 ../run_base_ci.jl"
 echo "  \${EDITOR:-vim} ../run_base_ci.jl"
 echo "  sudo -u nanosoldier nohup ./run_base_ci"

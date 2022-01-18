@@ -55,7 +55,9 @@ function nodelog(config::Config, node, message; error=nothing)
         @info "[Node $node | $time]: $message"
     end
     persistdir!(workdir(config))
-    open(joinpath(workdir(config), "node$(node).log"), "a") do file
+    path = joinpath(workdir(config), "node$(node).log")
+    open(path, "a") do file
+        chmod(path, 0o660)
         println(file, time, " | ", node, " | ", message)
     end
 end
