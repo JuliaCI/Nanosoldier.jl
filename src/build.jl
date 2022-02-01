@@ -23,8 +23,6 @@ Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.
 # reduce download bandwidth and time by keeping copies after the build
 # TODO: intercept JLDOWNLOAD instead?
 function sync_srcs!(fromdir, todir, link::Bool)
-    mkpath(fromdir)
-    mkpath(todir)
     for n in readdir(fromdir)
         endswith(n, ".tmp") && continue
         src = abspath(fromdir, n)
@@ -43,13 +41,21 @@ function sync_srcs!(fromdir, todir, link::Bool)
 end
 
 # if a PR number is included, attempt to build from the PR's merge commit
-# FIXME: re-use PkgEval's BinaryBuilder-based build
+# TODO: re-use PkgEval's BinaryBuilder-based build?
 function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
-    builddir = mktempdir(workdir(config))
-    mirrordir = joinpath(workdir(config), "mirrors", config.trackrepo)
+    gid = parse(Int, readchomp(`id -g $(config.user)`))
+    tmpdir = mktempdir(workdir(config))
+    chown(tmpdir, -1, gid)
+    chmod(tmpdir, 0o775)
+    srcdir = joinpath(tmpdir, "julia")
+    run(`sudo -n -u $(config.user) -- mkdir -m 775 $srcdir`)
+    chmod(tmpdir, 0o555)
+
+    mirrordir = joinpath(workdir(config), "mirrors", split(config.trackrepo, "/")...)
+    mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
-        if ispath(joinpath(mirrordir))
+        if ispath(mirrordir)
             run(setenv(`git fetch --quiet --all`; dir=mirrordir))
         else
             mkpath(mirrordir)
@@ -60,19 +66,19 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     # clone/fetch the appropriate Julia version
     if prnumber !== nothing
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
-        gitclone!(config.trackrepo, builddir, `--reference $mirrordir --dissociate`)
+        gitclone!(config.trackrepo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
         try
-            run(setenv(`git fetch --quiet origin +refs/pull/$(prnumber)/merge:`; dir=builddir))
+            run(setenv(`sudo -n -u $(config.user) -- git fetch --quiet origin +refs/pull/$(prnumber)/merge:`; dir=srcdir))
         catch
             # if there's not a merge commit on the remote (likely due to
             # merge conflicts) then fetch the head commit instead.
-            run(setenv(`git fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=builddir))
+            run(setenv(`sudo -n -u $(config.user) -- git fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=srcdir))
         end
-        run(setenv(`git checkout --quiet --force FETCH_HEAD`; dir=builddir))
-        build.sha = readchomp(setenv(`git rev-parse HEAD`; dir=builddir))
+        run(setenv(`sudo -n -u $(config.user) -- git checkout --quiet --force FETCH_HEAD`; dir=srcdir))
+        build.sha = readchomp(setenv(`sudo -n -u $(config.user) -- git rev-parse HEAD`; dir=srcdir))
     else
-        gitclone!(build.repo, builddir, `--reference $mirrordir --dissociate`)
-        run(setenv(`git checkout --quiet $(build.sha)`; dir=builddir))
+        gitclone!(build.repo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
+        run(setenv(`sudo -n -u $(config.user) -- git checkout --quiet $(build.sha)`; dir=srcdir))
     end
 
     # set up logs for STDOUT and STDERR
@@ -81,9 +87,12 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     errfile = joinpath(logpath, string(logname, ".err"))
 
     mirrordir1 = joinpath(workdir(config), "srccache", "deps")
-    srccache1 = joinpath(builddir, "deps", "srccache")
     mirrordir2 = joinpath(workdir(config), "srccache", "stdlib")
-    srccache2 = joinpath(builddir, "stdlib", "srccache")
+    mkpath(mirrordir1, mode=0o755)
+    mkpath(mirrordir2, mode=0o755)
+    srccache1 = joinpath(srcdir, "deps", "srccache")
+    srccache2 = joinpath(srcdir, "stdlib", "srccache")
+    run(`sudo -n -u $(config.user) -- mkdir -m 775 $srccache2 $srccache1`)
 
     # TODO: support user build flags (like PkgEval)
     buildflags = ["JULIA_PRECOMPILE=0"]
@@ -92,8 +101,11 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     cpus = mycpus(config)
     sync_srcs!(mirrordir1, srccache1, true)
     sync_srcs!(mirrordir2, srccache2, true)
-    run(pipeline(setenv(`make -j$(length(cpus)) --output-sync=target $buildflags`; dir=builddir), stdout=outfile, stderr=errfile))
+    run(pipeline(setenv(`sudo -n -u $(config.user) -- make -j$(length(cpus)) --output-sync=target $buildflags`; dir=srcdir), stdout=outfile, stderr=errfile))
     sync_srcs!(srccache1, mirrordir1, false)
     sync_srcs!(srccache2, mirrordir2, false)
-    return builddir
+    run(`sudo -n -u $(config.user) -- rm -rf $srccache2 $srccache1`) # erase the cloned files (which might have difficult permissions)
+    run(`sudo -n -u $(config.user) -- chmod -R a-w $srcdir`) # make it r-x to all
+    # TODO: symlink("bin/julia", joinpath(tmpdir, "julia"))
+    return tmpdir
 end

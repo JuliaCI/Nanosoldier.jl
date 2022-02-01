@@ -236,12 +236,12 @@ function Base.run(job::BenchmarkJob)
 
     # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
     if !haskey(results, "error")
-        if job.isdaily # get results from previous day (if it exists, check the past 30 days)
+        if job.isdaily # get results from previous day (if it exists, check the past 120 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !found_previous_date && i < 31
+                while !found_previous_date && i < 121
                     check_date = job.date - Dates.Day(i)
                     check_data = retrieve_daily_data!(cfg, check_date)
                     if check_data !== nothing
@@ -275,6 +275,7 @@ function Base.run(job::BenchmarkJob)
 
     for dir in cleanup
         if ispath(dir)
+            run(`sudo -n -u $(cfg.user) -- chmod -R ug+rwX $dir/julia`) # make it rwx
             Base.Filesystem.prepare_for_deletion(dir)
             rm(dir, recursive=true)
         end
@@ -303,8 +304,7 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
             juliadir = build_julia!(cfg, build, tmplogdir(job))
         end
         push!(cleanup, juliadir)
-        juliapath = joinpath(juliadir, "julia")
-        chmod(juliadir, 0o555) # make it r-x to other than owner
+        juliapath = joinpath(juliadir, "julia", "julia")
     end
     return juliapath
 end
@@ -314,11 +314,13 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     cfg = submission(job).config
     build = whichbuild == :against ? job.against : submission(job).build
     builddir = mktempdir(workdir(cfg))
+    gid = parse(Int, readchomp(`id -g $(cfg.user)`))
     chmod(builddir, 0o755) # make it r-x to other than owner
 
     # create a hermetic environment (similar to after sudo later)
     tmpproject = joinpath(builddir, "environment")
-    mkdir(tmpproject, mode=0o777) # make it rwx to all
+    mkdir(tmpproject, mode=0o775)
+    chown(tmpproject, -1, gid)
     juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],
@@ -353,9 +355,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         run(setenv(`git reset --hard --quiet origin/$(branchname)`, dir=BaseBenchmarks))
     end
 
-    run(setenv(`sudo -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
+    run(setenv(`sudo -n -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))
 
-    cset = readchomp(`which cset`)
+    cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JSON file so that we can retrieve them.
@@ -419,7 +421,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo $cset proc -m -p \$(getpid()) -t /user/child`)
+                          run(`sudo -n $cset proc -m -p \$(getpid()) -t /user/child`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
@@ -449,28 +451,28 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # clean up old cpusets, if they exist
     try
-        run(`sudo $cset set -d /user/child`)
+        run(`sudo -n $cset set -d /user/child`)
     catch ex
         @warn "(expected) removing old cset failed" _exception=ex
     end
     try
-        run(`sudo $cset shield --reset`)
+        run(`sudo -n $cset shield --reset`)
     catch ex
         @warn "(expected) removing old cset failed" _exception=ex
     end
     # shield our CPUs
     cpus = mycpus(cfg)
-    run(`sudo $cset shield -c $(join(cpus, ",")) -k on`)
-    run(`sudo $cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
+    run(`sudo -n $cset shield -c $(join(cpus, ",")) -k on`)
+    run(`sudo -n $cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(`sudo $cset shield -e su $(cfg.user) -- -c $(shscriptpath)`)
+    run(`sudo -n $cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
-    run(`sudo $cset set -d /user/child`)
-    run(`sudo $cset shield --reset`)
+    run(`sudo -n $cset set -d /user/child`)
+    run(`sudo -n $cset shield --reset`)
 
     results = BenchmarkTools.load(benchresults)[1]
 

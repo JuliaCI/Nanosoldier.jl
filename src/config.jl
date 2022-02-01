@@ -18,7 +18,7 @@ struct Config
                     trackrepo = "JuliaLang/julia",
                     reportrepo = "JuliaCI/NanosoldierReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
-                    admin = "christopher-dG",
+                    admin = "",
                     bucket = nothing,
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
@@ -55,7 +55,9 @@ function nodelog(config::Config, node, message; error=nothing)
         @info "[Node $node | $time]: $message"
     end
     persistdir!(workdir(config))
-    open(joinpath(workdir(config), "node$(node).log"), "a") do file
+    path = joinpath(workdir(config), "node$(node).log")
+    open(path, "a") do file
+        chmod(path, 0o660)
         println(file, time, " | ", node, " | ", message)
     end
 end

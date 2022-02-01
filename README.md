@@ -186,6 +186,66 @@ has its own directory for results. This directory contains the following items:
 `tar -xzvf data.tar.gz`.
 - `logs` is a directory containing the test logs for the job.
 
+## Initial Setup for BenchmarksJob
+
+On all computers:
+```
+echo "if this is a shared machine, you must use a password to secure this:"
+[ -f ~/.ssh/id_rsa ] || ssh-keygen -f ~/.ssh/id_rsa
+echo "add to https://github.com/settings/keys:"
+cat ~/.ssh/id_rsa.pub
+EDITOR=vim git config --global --edit
+sudo mkdir /nanosoldier
+sudo chown `whoami` /nanosoldier
+cd /nanosoldier
+git clone <URL>
+cd ./Nanosoldier.jl
+git checkout <branch>
+./provision-<worker|server>.sh
+```
+
+On main server:
+```
+scp ~nanosoldier/.ssh/id_rsa ~nanosoldier/.ssh/id_rsa.pub <workers>:
+ssh -t <workers> sudo chown nanosoldier:nanosoldier id_rsa id_rsa.pub
+ssh -t <workers> sudo mv id_rsa id_rsa.pub ~nanosoldier/.ssh
+ssh -t <workers> sudo -u nanosoldier cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+ssh -t <workers> sudo -u nanosoldier "bash -c 'cat ~nanosoldier/.ssh/id_rsa.pub >> ~nanosoldier/.ssh/authorized_keys'"
+sudo -u nanosoldier ssh <workers> exit
+# repeat above for every worker, then:
+sudo -u nanosoldier scp ~nanosoldier/.ssh/known_hosts <workers>:.ssh
+```
+
+To run:
+
+```
+cd /nanosoldier/Nanosoldier.jl
+byobu
+./run_base_ci
+```
+
+## Upgrading for BenchmarksJob
+
+# on server
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+chmod 666 *.toml
+sudo -u nanosoldier ../julia-1.6.4/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+chmod 664 *.toml
+./provision-server.sh
+git add -u
+git commit
+git push
+```
+
+# on each worker
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+./provision-worker.sh
+```
+
 
 ## Acknowledgements
 
