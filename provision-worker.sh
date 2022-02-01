@@ -6,7 +6,7 @@ cd "$HERE/.."
 "$HERE/provision-server.sh"
 set +v
 
-# See https://github.com/JuliaCI/BenchmarkTools.jl/blob/master/doc/linuxtips.md#introduction
+# See https://juliaci.github.io/BenchmarkTools.jl/stable/linuxtips/
 # for an explanation of these configuration options
 
 sudo apt update
