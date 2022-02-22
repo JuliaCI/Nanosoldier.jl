@@ -462,6 +462,12 @@ function report(job::PkgEvalJob, results)
                     <head>
                         <meta charset="utf-8">
                         <title>$(summary(job))</title>
+                        <style>
+                        body {
+                            font-family: sans-serif;
+                            max-width: 65rem;
+                        }
+                        </style>
                     </head>
                     <body>$body</body>
                     </html>
