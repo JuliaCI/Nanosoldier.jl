@@ -341,7 +341,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
                 Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
                 # These are referenced by name so they need to be added explicitly
-                foreach(Pkg.add, ("Compat", "BenchmarkTools", "JSON"))
+                foreach(Pkg.add, ("BenchmarkTools", "JSON"))
                 ' ```)
     catch ex
         @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
@@ -394,11 +394,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     open(jlscriptpath, "w") do file
         println(file, """
-                      using Compat
-                      using Compat.Dates # needed for `now`
-                      using Compat.Distributed # needed for `addprocs`
-                      using Compat.LinearAlgebra # needed for `BLAS.set_num_threads`
-
+                      using Dates # needed for `now`
+                      using Distributed # needed for `addprocs`
+                      using LinearAlgebra # needed for `BLAS.set_num_threads`
                       using BaseBenchmarks
                       using BenchmarkTools
                       using JSON
