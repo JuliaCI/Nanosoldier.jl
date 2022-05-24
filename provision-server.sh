@@ -4,7 +4,7 @@ set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
 cd "$HERE/.."
 
-VERSION=1.6.4
+VERSION=1.6.6
 
 MAJOR=`echo $VERSION | cut -d . -f 1`
 MINOR=`echo $VERSION | cut -d . -f 2`
