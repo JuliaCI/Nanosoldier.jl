@@ -2,9 +2,9 @@ using PkgEval
 using DataFrames
 using Feather
 using JSON
-using Base: UUID
 using LibGit2
 using CommonMark
+using Pkg
 
 
 ################################
@@ -53,6 +53,7 @@ mutable struct PkgEvalJob <: AbstractJob
     buildflags::Vector{String}       # a list of flags for Make.user generation
     against_buildflags::Vector{String}
     compiled::Symbol
+    rr::Symbol
     # FIXME: put flags in BuildRef? currently created too early for that (when the
     #        GitHub event is parsed, while we get the build flags from the comment)
 end
@@ -122,8 +123,23 @@ function PkgEvalJob(submission::JobSubmission)
         compiled = :none
     end
 
+    if haskey(submission.kwargs, :rr)
+        expr = Meta.parse(submission.kwargs[:rr])
+        if !isa(expr, QuoteNode)
+            error("invalid argument to `rr` keyword (should be a Symbol)")
+        end
+        rr = expr.value
+        if !in(rr, [:none, :primary, :against, :both])
+            error("invalid argument to `rr` keyword (should be a valid Symbol)")
+        end
+    elseif compiled == :none
+        rr = :primary
+    else
+        rr = :none
+    end
+
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily, buildflags, against_buildflags, compiled)
+                      Dates.today(), isdaily, buildflags, against_buildflags, compiled, rr)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -134,13 +150,16 @@ function Base.summary(job::PkgEvalJob)
         result *= " vs. $(summary(job.against))"
     end
     if job.compiled !== :none
-        result *= ", using PackageCompiler.jl"
+        result *= ", using PackageCompiler.jl for $(job.compiled) build"
+    end
+    if job.rr !== :none
+        result *= ", using rr for $(job.rr) build"
     end
     return result
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags, :compiled)
+    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags, :compiled, :rr)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
@@ -179,16 +198,16 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 ########################
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compiled::Symbol,
+function execute_tests!(job::PkgEvalJob, builds::Dict,
+                        buildflags::Dict, compiled::Symbol, rr::Symbol,
                         results::Dict)
     node = myid()
     cfg = submission(job).config
-    is_compiled(whichbuild) = compiled === :both || String(compiled) == whichbuild
 
-    # determine Julia versions to use
-    julia_versions = Dict{String,VersionNumber}()
+    # determine configurations to use
+    configs = Dict{String,Configuration}()
     for (whichbuild, build) in builds
-        # obtain Julia version matching requested BuildRef
+        # determine Julia version matching requested BuildRef
         julia = nothing
         if whichbuild == "primary" && submission(job).fromkind == :pr
             # if we're dealing with a PR, try the merge commit
@@ -197,10 +216,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
                 try
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
-                    julia =
-                        PkgEval.perform_julia_build("pull/$pr/merge", "JuliaLang/julia";
-                                                       buildflags=buildflags[whichbuild])
-                    nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (merge head of PR $pr)")
+                    julia = "pull/$pr/merge"
+                    nodelog(cfg, node, "Resolved $whichbuild build to Julia merge head of PR $pr")
                 catch err
                     isa(err, LibGit2.GitError) || rethrow()
                     # there might not be a merge commit (e.g. in the case of merge conflicts)
@@ -208,62 +225,52 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
             end
         end
         if julia === nothing
-            # fall back to the last commit in the PR
-            julia = if isempty(buildflags[whichbuild])
-                PkgEval.obtain_julia_build(build.sha, build.repo)
-            else
-                PkgEval.perform_julia_build(build.sha, build.repo;
-                                               buildflags=buildflags[whichbuild])
-            end
-            nodelog(cfg, node, "Resolved $whichbuild build to Julia $julia (commit $(build.sha) at $(build.repo))")
+            julia = "$(build.repo)#$(build.sha)"
+            nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
         end
-        julia_versions[whichbuild] = julia
+
+        # create a configuration
+        is_compiled(whichbuild) = compiled === :both || String(compiled) == whichbuild
+        needs_rr(whichbuild) = rr === :both || String(rr) == whichbuild
+        configs[whichbuild] = Configuration(;
+            julia,
+            buildflags = buildflags[whichbuild],
+            compiled = is_compiled(whichbuild),
+            rr = needs_rr(whichbuild))
 
         # get some version info
-        mktempdir() do install
-            PkgEval.prepare_julia(julia, install)
-            try
-                out = Pipe()
-                PkgEval.run_sandboxed_julia(install, ```-e '
-                        using InteractiveUtils
-                        versioninfo(verbose=true)
-                        '
-                    ```; stdout=out, stderr=out, stdin=devnull)
-                close(out.in)
-                build.vinfo = first(split(read(out, String), "Environment"))
-            catch err
-                build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
-            end
+        try
+            out = Pipe()
+            PkgEval.sandboxed_julia(configs[whichbuild], ```-e '
+                    using InteractiveUtils
+                    versioninfo(verbose=true)
+                    '
+                ```; stdout=out, stderr=out, stdin=devnull)
+            close(out.in)
+            build.vinfo = first(split(read(out, String), "Environment"))
+        catch err
+            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
         end
     end
 
     # determine packages to test
     pkgsel = Meta.parse(job.pkgsel)
-    pkg_names = if pkgsel == :ALL
-        String[]
+    pkgs = if pkgsel == :ALL
+        PkgEval.registry_packages()
     else
-        eval(pkgsel)    # should be safe, it's a :vec of Strings
-    end
-    pkgs = PkgEval.read_pkgs(pkg_names)
-
-    # determine evaluation configurations
-    configs = Configuration[]
-    for (whichbuild, build) in builds
-        push!(configs,
-              Configuration(; julia = julia_versions[whichbuild],
-                              compiled = is_compiled(whichbuild)))
+        # safe to evaluate, it's a :vec of Strings
+        [Package(; name) for name in eval(pkgsel)]
     end
 
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        PkgEval.run(configs, pkgs; ninstances=length(cpus))
+        PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
     end
 
     # process the results for each Julia version separately
     for (whichbuild, build) in builds
-        tests = all_tests[(all_tests[!, :julia] .== julia_versions[whichbuild]) .&
-                          (all_tests[!, :compiled] .== is_compiled(whichbuild)), :]
+        tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
         results[whichbuild] = tests
 
         # write logs
@@ -272,7 +279,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
                 if !ismissing(test.log)
                     try
                         S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
-                                      "$(test.name).$(whichbuild).log",
+                                      "$(test.package).$(whichbuild).log",
                                       Dict("body"       => test.log,
                                            "x-amz-acl"  => "public-read",
                                            "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
@@ -284,8 +291,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
         else
             cd(tmplogdir(job)) do
                 for test in eachrow(tests)
-                    isdir(test.name) || mkdir(test.name)
-                    open(joinpath(test.name, "$(whichbuild).log"), "w") do io
+                    isdir(test.package) || mkdir(test.package)
+                    open(joinpath(test.package, "$(whichbuild).log"), "w") do io
                         if !ismissing(test.log)
                             write(io, test.log)
                         end
@@ -299,7 +306,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, buildflags::Dict, compile
             # dataframe with test results
             let tests = copy(tests)
                 # Feather can't handle non-primitive types, so stringify them
-                for col in (:julia, :version, :status, :reason, :uuid)
+                for col in (:version, :status, :reason)
                     tests[!, col] = map(repr, tests[!, col])
                 end
                 Feather.write("$(whichbuild).feather", tests)
@@ -343,8 +350,8 @@ function Base.run(job::PkgEvalJob)
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
 
-    # prepare PkgEval
-    PkgEval.prepare_registry("General"; update=true)
+    # update packages
+    Pkg.Registry.update()
 
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
@@ -371,6 +378,7 @@ function Base.run(job::PkgEvalJob)
     end
 
     # refuse to test against an identical build
+    # TODO: create and compare PkgEval.Configuration objects
     if job.against !== nothing && job.against.sha == submission(job).build.sha &&
        job.against_buildflags == job.buildflags && job.compiled in [:both, :none]
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
@@ -387,7 +395,7 @@ function Base.run(job::PkgEvalJob)
     end
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, buildflags, job.compiled, results)
+        execute_tests!(job, builds, buildflags, job.compiled, job.rr, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
     catch err
         results["error"] = NanosoldierError("failed to run tests", err)
@@ -567,6 +575,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     """)
     end
 
+    if job.rr !== :none
+        println(io, """
+                    *Running under rr*: $(job.rr) build(s)
+                    """)
+    end
+
     if job.isdaily
         if hasagainstbuild
             latest_dir = reportdir(job; latest=true)
@@ -637,7 +651,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     if hasagainstbuild
         package_results = leftjoin(results["primary"], results["against"],
-                                   on=:uuid, makeunique=true, source=:source)
+                                   on=:package, makeunique=true, source=:source)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join
@@ -651,7 +665,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                                     :skip   => ("were skipped", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
-        sort!(group, :name)
+        sort!(group, :package)
 
         if !isempty(group)
             println(io, "## $emoji Packages that $verb\n")
@@ -661,20 +675,20 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 verstr(version) = ismissing(version) ? "" : " v$(version)"
 
                 primary_log = if cfg.bucket !== nothing
-                    "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name).primary.log"
+                    "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.package).primary.log"
                 else
-                    "logs/$(test.name)/primary.log"
+                    "logs/$(test.package)/primary.log"
                 end
-                print(io, "- [$(test.name)$(verstr(test.version))]($primary_log)")
+                print(io, "- [$(test.package)$(verstr(test.version))]($primary_log)")
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     against_log = if cfg.bucket !== nothing
-                        "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.name_1).against.log"
+                        "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.package).against.log"
                     else
-                        "logs/$(test.name_1)/against.log"
+                        "logs/$(test.package)/against.log"
                     end
-                    print(io, " vs. [$(test.name_1)$(verstr(test.version_1))]($against_log)")
+                    print(io, " vs. [$(test.package)$(verstr(test.version_1))]($against_log)")
 
                     print(io, " ($(PkgEval.statusses[test.status_1])")
                     if !ismissing(test.reason_1)
@@ -736,7 +750,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                                 <p>
 
                                 ```
-                                @nanosoldier `runtests($(repr(changed_tests.name)), vs = $vs)`
+                                @nanosoldier `runtests($(repr(changed_tests.package)), vs = $vs)`
                                 ```
 
                                 </p>
@@ -822,11 +836,20 @@ end
 function printdb(io::IO, job::PkgEvalJob, results)
     build = submission(job).build
 
+    # parse Julia version info
+    m = match(r"Julia Version (.+)", build.vinfo)
+    build_version = if m !== nothing
+        tryparse(VersionNumber, m.captures[1])
+    else
+        nothing
+    end
+
     # build information
     json = Dict{String,Any}(
         "build" => Dict(
-            "repo"  => build.repo,
-            "sha"   => build.sha,
+            "repo"      => build.repo,
+            "sha"       => build.sha,
+            "version"   => something(build_version, "unknown")
         ),
         "date" => job.date,
     )
@@ -834,9 +857,7 @@ function printdb(io::IO, job::PkgEvalJob, results)
     # test results
     tests = Dict()
     for test in eachrow(results["primary"])
-        tests[test.uuid] = Dict(
-            "julia"         => test.julia,
-            "name"          => test.name,
+        tests[test.package] = Dict(
             "version"       => test.version,
             "status"        => test.status,
             "reason"        => test.reason,

@@ -97,6 +97,15 @@ job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compile
 job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:both)`")
 @test job.compiled == :both
 
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
+@test job.rr == :primary
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:primary)`")
+@test job.rr == :primary
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:against)`")
+@test job.rr == :against
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:both)`")
+@test job.rr == :both
+
 #############################
 # retrieval from job queue  #
 #############################
@@ -204,13 +213,12 @@ end
 
 @testset "PkgEvalJob" begin
     job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
-    @test job.against == nothing
+    @test job.against === nothing
 
     results = Dict{String,Any}(
         "primary" => DataFrame(
-            julia=v"1.6",
-            name="Example",
-            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            configuration="primary",
+            package="Example",
             version=v"0.1.0",
             status=:ok,
             reason=missing,
@@ -223,9 +231,8 @@ end
 
     job.against = against
     results["against"] = DataFrame(
-            julia=v"1.7",
-            name="Example",
-            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            configuration="against",
+            package="Example",
             version=v"0.1.0",
             status=:fail,
             reason=:test_failures,
