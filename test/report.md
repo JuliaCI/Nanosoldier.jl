@@ -2,9 +2,9 @@
 
 ## Job Properties
 
-*Commits:* [JuliaLang/julia@PRIMARY](https://github.com/JuliaLang/julia/commit/PRIMARY) vs [JuliaLang/julia@bb73f3489d837e3339fce2c1aab283d3b2e97a4c](https://github.com/JuliaLang/julia/commit/bb73f3489d837e3339fce2c1aab283d3b2e97a4c)
+*Commits:* [JuliaLang/julia@PRIMARY](https://github.com/JuliaLang/julia/commit/PRIMARY) vs [JuliaLang/julia@AGAINST](https://github.com/JuliaLang/julia/commit/AGAINST)
 
-*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/bb73f3489d837e3339fce2c1aab283d3b2e97a4c..PRIMARY)
+*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/AGAINST..PRIMARY)
 
 *Triggered By:* [link](https://www.test.com)
 

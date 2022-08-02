@@ -104,6 +104,11 @@ function parse_submission_string(submission_string)
 end
 
 function reply_status(sub::JobSubmission, context, state, description, url=nothing)
+    if haskey(ENV, "NANOSOLDIER_DRYRUN")
+        @info "Running as part of test suite, not uploading status" state description url
+        return ""
+    end
+
     if state == "failure"
         new_state = "success"
     else
@@ -118,6 +123,11 @@ function reply_status(sub::JobSubmission, context, state, description, url=nothi
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
+    if haskey(ENV, "NANOSOLDIER_DRYRUN")
+        @info "Running as part of test suite, not replying comment" message
+        return
+    end
+
     commentplace = sub.prnumber === nothing ? sub.statussha : sub.prnumber
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
     return GitHub.create_comment(sub.config.trackrepo, commentplace, commentkind;
@@ -125,6 +135,11 @@ function reply_comment(sub::JobSubmission, message::AbstractString)
 end
 
 function upload_report_repo!(sub::JobSubmission, markdownpath, message)
+    if haskey(ENV, "NANOSOLDIER_DRYRUN")
+        @info "Running as part of test suite, not uploading report" message
+        return ""
+    end
+
     cfg = sub.config
     dir = reportdir(cfg)
     run(setenv(`git add -A`; dir))

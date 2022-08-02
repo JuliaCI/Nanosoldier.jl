@@ -132,7 +132,7 @@ function jobdirname(job::BenchmarkJob)
 end
 
 reportdir(job::BenchmarkJob) = joinpath(reportdir(submission(job).config), "benchmark", jobdirname(job))
-tmpdir(job::BenchmarkJob) = joinpath(workdir(submission(job).config), "tmpresults")
+tmpdir(job::BenchmarkJob) = joinpath(workdir, "tmpresults")
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
@@ -313,7 +313,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     node = myid()
     cfg = submission(job).config
     build = whichbuild == :against ? job.against : submission(job).build
-    builddir = mktempdir(workdir(cfg))
+    builddir = mktempdir(workdir)
     gid = parse(Int, readchomp(`id -g $(cfg.user)`))
     chmod(builddir, 0o755) # make it r-x to other than owner
 

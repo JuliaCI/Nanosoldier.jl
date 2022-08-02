@@ -8,6 +8,8 @@ using DataFrames
 # setup #
 #########
 
+ENV["NANOSOLDIER_DRYRUN"] = true
+
 vinfo = """
 Julia Version 0.4.3-pre+6
 Commit adffe19 (2015-12-11 00:38 UTC)
@@ -36,9 +38,10 @@ auth = if haskey(ENV, "GITHUB_AUTH")
 else
     GitHub.AnonymousAuth()
 end
-latest_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][1].sha
-primary = BuildRef("JuliaLang/julia", latest_commit, vinfo)
-against = BuildRef("JuliaLang/julia", "bb73f3489d837e3339fce2c1aab283d3b2e97a4c", vinfo*"_against")
+primary_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][10].sha
+against_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][11].sha
+primary = BuildRef("JuliaLang/julia", primary_commit, vinfo)
+against = BuildRef("JuliaLang/julia", against_commit, vinfo*"_against")
 config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
@@ -95,6 +98,15 @@ job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compile
 @test job.compiled == :against
 job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:both)`")
 @test job.compiled == :both
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
+@test job.rr == :primary
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:primary)`")
+@test job.rr == :primary
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:against)`")
+@test job.rr == :against
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:both)`")
+@test job.rr == :both
 
 #############################
 # retrieval from job queue  #
@@ -154,7 +166,7 @@ job = Nanosoldier.retrieve_job!(queue, Any, false)
 
 job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred)`")
 @test job.tagpred == tagpred
-@test job.against == nothing
+@test job.against === nothing
 job.against = against
 
 results = Dict(
@@ -185,7 +197,7 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    md = replace(read(mdpath, String), "PRIMARY" => latest_commit)
+    md = replace(read(mdpath, String), "PRIMARY" => primary_commit, "AGAINST" => against_commit)
     md2 = sprint(io->Nanosoldier.printreport(io, job, results))
     chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
 end
@@ -203,13 +215,12 @@ end
 
 @testset "PkgEvalJob" begin
     job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
-    @test job.against == nothing
+    @test job.against === nothing
 
     results = Dict{String,Any}(
         "primary" => DataFrame(
-            julia=v"1.6",
-            name="Example",
-            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            configuration="primary",
+            package="Example",
             version=v"0.1.0",
             status=:ok,
             reason=missing,
@@ -222,9 +233,8 @@ end
 
     job.against = against
     results["against"] = DataFrame(
-            julia=v"1.7",
-            name="Example",
-            uuid=Base.UUID("12345678-1234-1234-1234-123456789abc"),
+            configuration="against",
+            package="Example",
             version=v"0.1.0",
             status=:fail,
             reason=:test_failures,
@@ -233,9 +243,14 @@ end
         )
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
-
-    # XXX: actually test contents?
 end
 
+
+##################
+# actual testing #
+##################
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$against_commit\")`")
+run(job)
 
 nothing

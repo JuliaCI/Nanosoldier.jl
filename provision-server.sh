@@ -25,9 +25,6 @@ sudo -u nanosoldier ssh -T git@github.com || true
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
 sudo -u nanosoldier julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
 
-[ -d workdir ] || mkdir workdir
-sudo chown nanosoldier:nanosoldier workdir
-
 set +v
 
 echo
