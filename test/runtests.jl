@@ -8,6 +8,8 @@ using DataFrames
 # setup #
 #########
 
+ENV["NANOSOLDIER_DRYRUN"] = true
+
 vinfo = """
 Julia Version 0.4.3-pre+6
 Commit adffe19 (2015-12-11 00:38 UTC)
@@ -241,9 +243,14 @@ end
         )
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
-
-    # XXX: actually test contents?
 end
 
+
+##################
+# actual testing #
+##################
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$against_commit\")`")
+run(job)
 
 nothing
