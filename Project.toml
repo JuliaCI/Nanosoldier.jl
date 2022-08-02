@@ -19,6 +19,7 @@ Pidfile = "fa939f87-e72e-5be4-a000-7fc836dbe307"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PkgEval = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 
 [compat]
 PkgEval = "0.2"

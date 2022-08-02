@@ -166,7 +166,7 @@ job = Nanosoldier.retrieve_job!(queue, Any, false)
 
 job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred)`")
 @test job.tagpred == tagpred
-@test job.against == nothing
+@test job.against === nothing
 job.against = against
 
 results = Dict(

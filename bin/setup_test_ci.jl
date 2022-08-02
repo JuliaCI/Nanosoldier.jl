@@ -8,7 +8,6 @@ auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
 secret = ENV["GITHUB_SECRET"]
 
 config = Nanosoldier.Config("nanosoldier-worker", nodes, auth, secret;
-                            workdir = joinpath(homedir(), "test_workdir"),
                             trackrepo = "vtjnash/julia",
                             reportrepo = "vtjnash/NanosoldierReports",
                             admin = "vtjnash",

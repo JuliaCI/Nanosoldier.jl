@@ -189,7 +189,7 @@ function jobdirname(job::PkgEvalJob; latest::Bool=false)
 end
 
 reportdir(job::PkgEvalJob; kwargs...) = joinpath(reportdir(submission(job).config), "pkgeval", jobdirname(job; kwargs...))
-tmpdir(job::PkgEvalJob) = joinpath(workdir(submission(job).config), "tmpresults")
+tmpdir(job::PkgEvalJob) = joinpath(workdir, "tmpresults")
 tmplogdir(job::PkgEvalJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 

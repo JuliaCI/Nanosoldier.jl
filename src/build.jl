@@ -45,14 +45,14 @@ end
 function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
     # make a temporary workdir for our build
     gid = parse(Int, readchomp(`id -g $(config.user)`))
-    tmpdir = mktempdir(workdir(config))
+    tmpdir = mktempdir(workdir)
     chown(tmpdir, -1, gid)
     chmod(tmpdir, 0o775)
     srcdir = joinpath(tmpdir, "julia")
     run(`sudo -n -u $(config.user) -- mkdir -m 775 $srcdir`)
     chmod(tmpdir, 0o555)
 
-    mirrordir = joinpath(workdir(config), "mirrors", split(config.trackrepo, "/")...)
+    mirrordir = joinpath(workdir, "mirrors", split(config.trackrepo, "/")...)
     mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
         if ispath(mirrordir)
@@ -86,8 +86,8 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     outfile = joinpath(logpath, string(logname, ".out"))
     errfile = joinpath(logpath, string(logname, ".err"))
 
-    mirrordir1 = joinpath(workdir(config), "srccache", "deps")
-    mirrordir2 = joinpath(workdir(config), "srccache", "stdlib")
+    mirrordir1 = joinpath(workdir, "srccache", "deps")
+    mirrordir2 = joinpath(workdir, "srccache", "stdlib")
     mkpath(mirrordir1, mode=0o755)
     mkpath(mirrordir2, mode=0o755)
     srccache1 = joinpath(srcdir, "deps", "srccache")

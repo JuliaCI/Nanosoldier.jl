@@ -50,7 +50,10 @@ end
 
 function Base.run(server::Server, args...; kwargs...)
     @assert myid() == 1 "Nanosoldier server must be run from the master node"
-    persistdir!(workdir(server.config))
+
+    nodelog(server.config, 1, "starting Nanosoldier server (working directory: $workdir)")
+    persistdir!(workdir)
+
     # Schedule a task for each node that feeds the node a job from the
     # queque once the node has completed its primary job. If the queue is
     # empty, then the task will call `yield` in order to avoid a deadlock.
