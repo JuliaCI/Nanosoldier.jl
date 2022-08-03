@@ -216,11 +216,14 @@ function execute_tests!(job::PkgEvalJob, builds::Dict,
                 try
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
+                    # TODO: do this without reaching into PkgEval internals
+                    install = PkgEval.get_julia_repo("pull/$pr/merge")
                     julia = "pull/$pr/merge"
                     nodelog(cfg, node, "Resolved $whichbuild build to Julia merge head of PR $pr")
+                    rm(install; recursive=true)
                 catch err
-                    isa(err, LibGit2.GitError) || rethrow()
                     # there might not be a merge commit (e.g. in the case of merge conflicts)
+                    nodelog(cfg, node, "Could not check-out merge head of PR $pr"; error=err)
                 end
             end
         end
