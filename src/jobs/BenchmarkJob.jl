@@ -501,13 +501,22 @@ end
 function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
-    if haskey(results, "primary") && isempty(results["primary"])
+    if haskey(results, "error")
+        if haskey(results, "backtrace")
+            @error("An exception occurred during job execution",
+                   exception=(results["error"], results["backtrace"]))
+        else
+            @error("An exception occurred during job execution",
+                   exception=results["error"])
+        end
+        reply_comment(job, "[Your benchmark job]($(submission(job).url)) failed. cc @$(cfg.admin)")
+    elseif haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no benchmarks were executed")
         reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
                       "but no benchmarks were actually executed. Perhaps your tag predicate " *
                       "contains misspelled tags? cc @$(cfg.admin)")
     else
-        #  prepare report + data and push it to report repo
+        # prepare report + data and push it to report repo
         target_url = ""
         try
             nodelog(cfg, node, "...generating report...")
@@ -530,40 +539,26 @@ function report(job::BenchmarkJob, results)
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
 
-        if haskey(results, "error")
-            # TODO: throw with backtrace?
-            if haskey(results, "backtrace")
-                @error("An exception occurred during job execution",
-                       exception=(results["error"], results["backtrace"]))
-            else
-                @error("An exception occurred during job execution",
-                       exception=results["error"])
-            end
-            err = results["error"]
-            err.url = target_url
-            throw(err)
+        # determine the job's final status
+        if job.against !== nothing || haskey(results, "previous_date")
+            found_regressions = BenchmarkTools.isregression(results["judged"])
+            state = found_regressions ? "failure" : "success"
+            status = found_regressions ? "possible performance regressions were detected" :
+                                            "no performance regressions were detected"
         else
-            # determine the job's final status
-            if job.against !== nothing || haskey(results, "previous_date")
-                found_regressions = BenchmarkTools.isregression(results["judged"])
-                state = found_regressions ? "failure" : "success"
-                status = found_regressions ? "possible performance regressions were detected" :
-                                             "no performance regressions were detected"
-            else
-                state = "success"
-                status = "successfully executed benchmarks"
-            end
-            # reply with the job's final status
-            reply_status(job, state, status, target_url)
-            if isempty(target_url)
-                comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-            else
-                comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url))."
-            end
-            reply_comment(job, comment)
+            state = "success"
+            status = "successfully executed benchmarks"
         end
+        # reply with the job's final status
+        reply_status(job, state, status, target_url)
+        if isempty(target_url)
+            comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
+                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
+        else
+            comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
+                        "$(status). A full report can be found [here]($(target_url))."
+        end
+        reply_comment(job, comment)
     end
 end
 
@@ -631,31 +626,6 @@ function printreport(io::IO, job::BenchmarkJob, results)
         println(io, """
                     *Daily Job:* $(dailystr)
                     """)
-    end
-
-    # if errors are found, end the report now #
-    #-----------------------------------------#
-
-    if haskey(results, "error")
-        println(io, """
-                    ## Error
-
-                    The build could not finish due to an error:
-
-                    ```""")
-
-        Base.showerror(io, results["error"])
-        if haskey(results, "backtrace")
-            Base.show_backtrace(io, results["backtrace"])
-        end
-        println(io)
-
-        println(io, """
-                    ```
-
-                    Check the logs folder in this directory for more detailed output.
-                    """)
-        return nothing
     end
 
     # print result table #

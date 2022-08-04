@@ -423,7 +423,16 @@ end
 function report(job::PkgEvalJob, results)
     node = myid()
     cfg = submission(job).config
-    if haskey(results, "primary") && isempty(results["primary"])
+    if haskey(results, "error")
+        if haskey(results, "backtrace")
+            @error("An exception occurred during job execution",
+                    exception=(results["error"], results["backtrace"]))
+        else
+            @error("An exception occurred during job execution",
+                    exception=results["error"])
+        end
+        reply_comment(job, "[Your package evaluation job]($(submission(job).url)) failed. cc @$(cfg.admin)")
+    elseif haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no tests were executed")
         reply_comment(job, "[Your package evaluation job]($(submission(job).url)) has completed, " *
                       "but no tests were actually executed. Perhaps your package selection " *
@@ -498,39 +507,26 @@ function report(job::PkgEvalJob, results)
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
 
-        if haskey(results, "error")
-            # TODO: throw with backtrace?
-            if haskey(results, "backtrace")
-                @error("An exception occurred during job execution",
-                       exception=(results["error"], results["backtrace"]))
-            else
-                @error("An exception occurred during job execution",
-                       exception=results["error"])
-            end
-            err = results["error"]
-            err.url = target_url
-            throw(err)
+        # determine the job's final status
+        state = results["has_issues"] ? "failure" : "success"
+        if job.against !== nothing
+            status = results["has_issues"] ? "possible new issues were detected" :
+                                                "no new issues were detected"
         else
-            # determine the job's final status
-            state = results["has_issues"] ? "failure" : "success"
-            if job.against !== nothing
-                status = results["has_issues"] ? "possible new issues were detected" :
-                                                 "no new issues were detected"
-            else
-                status = results["has_issues"] ? "possible issues were detected" :
-                                                 "no issues were detected"
-            end
-            # reply with the job's final status
-            reply_status(job, state, status, target_url)
-            if isempty(target_url)
-                comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-            else
-                comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url))."
-            end
-            reply_comment(job, comment)
+            status = results["has_issues"] ? "possible issues were detected" :
+                                                "no issues were detected"
         end
+
+        # reply with the job's final status
+        reply_status(job, state, status, target_url)
+        if isempty(target_url)
+            comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
+                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
+        else
+            comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
+                        "$(status). A full report can be found [here]($(target_url))."
+        end
+        reply_comment(job, comment)
     end
 end
 
@@ -605,31 +601,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
         println(io, """
                     *Daily Job:* $(dailystr)
                     """)
-    end
-
-    # if errors are found, end the report now #
-    #-----------------------------------------#
-
-    if haskey(results, "error")
-        println(io, """
-                    ## Error
-
-                    The build could not finish due to an error:
-
-                    ```""")
-
-        Base.showerror(io, results["error"])
-        if haskey(results, "backtrace")
-            Base.show_backtrace(io, results["backtrace"])
-        end
-        println(io)
-
-        println(io, """
-                    ```
-
-                    Check the logs folder in this directory for more detailed output.
-                    """)
-        return nothing
     end
 
     # print summary of tested packages #
