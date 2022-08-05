@@ -223,7 +223,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict,
                     rm(install; recursive=true)
                 catch err
                     # there might not be a merge commit (e.g. in the case of merge conflicts)
-                    nodelog(cfg, node, "Could not check-out merge head of PR $pr"; error=err)
+                    nodelog(cfg, node, "Could not check-out merge head of PR $pr";
+                            error=(err, catch_backtrace()))
                 end
             end
         end
@@ -400,12 +401,9 @@ function Base.run(job::PkgEvalJob)
         nodelog(cfg, node, "running tests for $(summary(job))")
         execute_tests!(job, builds, buildflags, job.compiled, job.rr, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
-    catch err
-        results["error"] = NanosoldierError("failed to run tests", err)
-        results["backtrace"] = catch_backtrace()
+    finally
+        PkgEval.purge()
     end
-
-    PkgEval.purge()
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
@@ -423,16 +421,7 @@ end
 function report(job::PkgEvalJob, results)
     node = myid()
     cfg = submission(job).config
-    if haskey(results, "error")
-        if haskey(results, "backtrace")
-            @error("An exception occurred during job execution",
-                    exception=(results["error"], results["backtrace"]))
-        else
-            @error("An exception occurred during job execution",
-                    exception=results["error"])
-        end
-        reply_comment(job, "[Your package evaluation job]($(submission(job).url)) failed. cc @$(cfg.admin)")
-    elseif haskey(results, "primary") && isempty(results["primary"])
+    if haskey(results, "primary") && isempty(results["primary"])
         reply_status(job, "error", "no tests were executed")
         reply_comment(job, "[Your package evaluation job]($(submission(job).url)) has completed, " *
                       "but no tests were actually executed. Perhaps your package selection " *
@@ -445,7 +434,7 @@ function report(job::PkgEvalJob, results)
             reportname = "report.md"
             report_md = sprint(io->printreport(io, job, results))
             write(joinpath(tmpdir(job), reportname), report_md)
-            if job.isdaily && !haskey(results, "error")
+            if job.isdaily
                 nodelog(cfg, node, "...generating database...")
                 dbname = "db.json"
                 open(joinpath(tmpdir(job), dbname), "w") do file
@@ -461,7 +450,7 @@ function report(job::PkgEvalJob, results)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
-            if job.isdaily && !haskey(results, "error")
+            if job.isdaily
                 latest = reportdir(job; latest=true)
                 islink(latest) && rm(latest)
                 symlink(datedirname(job.date), latest)
