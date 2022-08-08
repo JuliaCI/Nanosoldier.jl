@@ -160,9 +160,8 @@ function retrieve_daily_data!(cfg, date)
                     return results, repo, commit
                 end
             catch err
-                nodelog(cfg, myid(),
-                        "encountered error when retrieving daily data: " * sprint(showerror, err),
-                        error=(err, stacktrace(catch_backtrace())))
+                nodelog(cfg, myid(), "encountered error when retrieving daily data";
+                        error=(err, catch_backtrace()))
             finally
                 isdir(datapath) && rm(datapath, recursive=true)
             end
@@ -223,19 +222,14 @@ function Base.run(job::BenchmarkJob)
         ex isa TaskFailedException || rethrow()
     end
 
-    # run primary job
     try
+        # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
         results["primary"] = execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
-    catch err
-        results["error"] = NanosoldierError("failed to run benchmarks against primary commit", err)
-        results["backtrace"] = catch_backtrace()
-    end
 
-    # as long as our primary job didn't error, run the comparison job (or if it's a daily job, gather results to compare against)
-    if !haskey(results, "error")
+        # run the comparison job (or if it's a daily job, gather results to compare against)
         if job.isdaily # get results from previous day (if it exists, check the past 120 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
@@ -258,26 +252,21 @@ function Base.run(job::BenchmarkJob)
                 rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
             end
         elseif job.against !== nothing # run comparison build
-            try
-                julia_against = fetch(julia_against)
-                nodelog(cfg, node, "running comparison build for $(summary(job))")
-                results["against"] = execute_benchmarks!(job, julia_against, :against)
-                nodelog(cfg, node, "finished comparison build for $(summary(job))")
-            catch err
-                results["error"] = NanosoldierError("failed to run benchmarks against comparison commit", err)
-                results["backtrace"] = catch_backtrace()
-            end
+            julia_against = fetch(julia_against)
+            nodelog(cfg, node, "running comparison build for $(summary(job))")
+            results["against"] = execute_benchmarks!(job, julia_against, :against)
+            nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
         if haskey(results, "against")
             results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
         end
-    end
-
-    for dir in cleanup
-        if ispath(dir)
-            run(`sudo -n -u $(cfg.user) -- chmod -R ug+rwX $dir/julia`) # make it rwx
-            Base.Filesystem.prepare_for_deletion(dir)
-            rm(dir, recursive=true)
+    finally
+        for dir in cleanup
+            if ispath(dir)
+                run(`sudo -n -u $(cfg.user) -- chmod -R ug+rwX $dir/julia`) # make it rwx
+                Base.Filesystem.prepare_for_deletion(dir)
+                rm(dir, recursive=true)
+            end
         end
     end
 
@@ -507,7 +496,7 @@ function report(job::BenchmarkJob, results)
                       "but no benchmarks were actually executed. Perhaps your tag predicate " *
                       "contains misspelled tags? cc @$(cfg.admin)")
     else
-        #  prepare report + data and push it to report repo
+        # prepare report + data and push it to report repo
         target_url = ""
         try
             nodelog(cfg, node, "...generating report...")
@@ -530,40 +519,26 @@ function report(job::BenchmarkJob, results)
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
 
-        if haskey(results, "error")
-            # TODO: throw with backtrace?
-            if haskey(results, "backtrace")
-                @error("An exception occurred during job execution",
-                       exception=(results["error"], results["backtrace"]))
-            else
-                @error("An exception occurred during job execution",
-                       exception=results["error"])
-            end
-            err = results["error"]
-            err.url = target_url
-            throw(err)
+        # determine the job's final status
+        if job.against !== nothing || haskey(results, "previous_date")
+            found_regressions = BenchmarkTools.isregression(results["judged"])
+            state = found_regressions ? "failure" : "success"
+            status = found_regressions ? "possible performance regressions were detected" :
+                                            "no performance regressions were detected"
         else
-            # determine the job's final status
-            if job.against !== nothing || haskey(results, "previous_date")
-                found_regressions = BenchmarkTools.isregression(results["judged"])
-                state = found_regressions ? "failure" : "success"
-                status = found_regressions ? "possible performance regressions were detected" :
-                                             "no performance regressions were detected"
-            else
-                state = "success"
-                status = "successfully executed benchmarks"
-            end
-            # reply with the job's final status
-            reply_status(job, state, status, target_url)
-            if isempty(target_url)
-                comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-            else
-                comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url))."
-            end
-            reply_comment(job, comment)
+            state = "success"
+            status = "successfully executed benchmarks"
         end
+        # reply with the job's final status
+        reply_status(job, state, status, target_url)
+        if isempty(target_url)
+            comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
+                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
+        else
+            comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
+                        "$(status). A full report can be found [here]($(target_url))."
+        end
+        reply_comment(job, comment)
     end
 end
 
@@ -631,31 +606,6 @@ function printreport(io::IO, job::BenchmarkJob, results)
         println(io, """
                     *Daily Job:* $(dailystr)
                     """)
-    end
-
-    # if errors are found, end the report now #
-    #-----------------------------------------#
-
-    if haskey(results, "error")
-        println(io, """
-                    ## Error
-
-                    The build could not finish due to an error:
-
-                    ```""")
-
-        Base.showerror(io, results["error"])
-        if haskey(results, "backtrace")
-            Base.show_backtrace(io, results["backtrace"])
-        end
-        println(io)
-
-        println(io, """
-                    ```
-
-                    Check the logs folder in this directory for more detailed output.
-                    """)
-        return nothing
     end
 
     # print result table #

@@ -107,19 +107,14 @@ function delegate_job(server::Server, job::AbstractJob, node)
         remotecall_fetch(run, node, job)
         nodelog(server.config, node, "completed job: $(summary(job))")
     catch err
-        err = isa(err, RemoteException) ? err.captured.ex : err
-        err_str = string(err)
-        message = "Something went wrong when running [your job]($(submission(job).url)):\n```\n$(err_str)\n```\n"
-        if isa(err, NanosoldierError)
-            if isempty(err.url)
-                message *= "Unfortunately, the logs could not be uploaded.\n"
-            else
-                message *= "Logs and partial data can be found [here]($(err.url))\n"
-            end
-        end
-        isempty(server.config.admin) || (message *= "cc @$(server.config.admin)")
-        nodelog(server.config, node, err_str, error=(err, stacktrace(catch_backtrace())))
-        reply_status(job, "error", err_str)
+        # report a simple message to the user (to prevent leaking secrets)
+        message = "[Your job]($(submission(job).url)) failed."
+        isempty(server.config.admin) || (message *= " cc @$(server.config.admin)")
         reply_comment(job, message)
+        reply_status(job, "error", "Job failed")
+
+        # but put all details in the server log
+        err_str = sprint(io->showerror(io, err))
+        nodelog(server.config, node, "failed job: $(summary(job))\n$err_str")
     end
 end

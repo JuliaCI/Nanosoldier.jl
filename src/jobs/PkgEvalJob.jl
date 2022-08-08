@@ -216,11 +216,15 @@ function execute_tests!(job::PkgEvalJob, builds::Dict,
                 try
                     # NOTE: the merge head only exists in the upstream Julia repository,
                     #       and not in the repository where the pull request originated.
+                    # TODO: do this without reaching into PkgEval internals
+                    install = PkgEval.get_julia_repo("pull/$pr/merge")
                     julia = "pull/$pr/merge"
                     nodelog(cfg, node, "Resolved $whichbuild build to Julia merge head of PR $pr")
+                    rm(install; recursive=true)
                 catch err
-                    isa(err, LibGit2.GitError) || rethrow()
                     # there might not be a merge commit (e.g. in the case of merge conflicts)
+                    nodelog(cfg, node, "Could not check-out merge head of PR $pr";
+                            error=(err, catch_backtrace()))
                 end
             end
         end
@@ -397,12 +401,9 @@ function Base.run(job::PkgEvalJob)
         nodelog(cfg, node, "running tests for $(summary(job))")
         execute_tests!(job, builds, buildflags, job.compiled, job.rr, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
-    catch err
-        results["error"] = NanosoldierError("failed to run tests", err)
-        results["backtrace"] = catch_backtrace()
+    finally
+        PkgEval.purge()
     end
-
-    PkgEval.purge()
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
@@ -433,7 +434,7 @@ function report(job::PkgEvalJob, results)
             reportname = "report.md"
             report_md = sprint(io->printreport(io, job, results))
             write(joinpath(tmpdir(job), reportname), report_md)
-            if job.isdaily && !haskey(results, "error")
+            if job.isdaily
                 nodelog(cfg, node, "...generating database...")
                 dbname = "db.json"
                 open(joinpath(tmpdir(job), dbname), "w") do file
@@ -449,7 +450,7 @@ function report(job::PkgEvalJob, results)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)
-            if job.isdaily && !haskey(results, "error")
+            if job.isdaily
                 latest = reportdir(job; latest=true)
                 islink(latest) && rm(latest)
                 symlink(datedirname(job.date), latest)
@@ -495,39 +496,26 @@ function report(job::PkgEvalJob, results)
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
 
-        if haskey(results, "error")
-            # TODO: throw with backtrace?
-            if haskey(results, "backtrace")
-                @error("An exception occurred during job execution",
-                       exception=(results["error"], results["backtrace"]))
-            else
-                @error("An exception occurred during job execution",
-                       exception=results["error"])
-            end
-            err = results["error"]
-            err.url = target_url
-            throw(err)
+        # determine the job's final status
+        state = results["has_issues"] ? "failure" : "success"
+        if job.against !== nothing
+            status = results["has_issues"] ? "possible new issues were detected" :
+                                                "no new issues were detected"
         else
-            # determine the job's final status
-            state = results["has_issues"] ? "failure" : "success"
-            if job.against !== nothing
-                status = results["has_issues"] ? "possible new issues were detected" :
-                                                 "no new issues were detected"
-            else
-                status = results["has_issues"] ? "possible issues were detected" :
-                                                 "no issues were detected"
-            end
-            # reply with the job's final status
-            reply_status(job, state, status, target_url)
-            if isempty(target_url)
-                comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
-                          "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-            else
-                comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
-                          "$(status). A full report can be found [here]($(target_url))."
-            end
-            reply_comment(job, comment)
+            status = results["has_issues"] ? "possible issues were detected" :
+                                                "no issues were detected"
         end
+
+        # reply with the job's final status
+        reply_status(job, state, status, target_url)
+        if isempty(target_url)
+            comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
+                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
+        else
+            comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
+                        "$(status). A full report can be found [here]($(target_url))."
+        end
+        reply_comment(job, comment)
     end
 end
 
@@ -602,31 +590,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
         println(io, """
                     *Daily Job:* $(dailystr)
                     """)
-    end
-
-    # if errors are found, end the report now #
-    #-----------------------------------------#
-
-    if haskey(results, "error")
-        println(io, """
-                    ## Error
-
-                    The build could not finish due to an error:
-
-                    ```""")
-
-        Base.showerror(io, results["error"])
-        if haskey(results, "backtrace")
-            Base.show_backtrace(io, results["backtrace"])
-        end
-        println(io)
-
-        println(io, """
-                    ```
-
-                    Check the logs folder in this directory for more detailed output.
-                    """)
-        return nothing
     end
 
     # print summary of tested packages #
