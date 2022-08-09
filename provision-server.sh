@@ -4,11 +4,13 @@ set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
 cd "$HERE/.."
 
-VERSION=1.6.6
+VERSION=1.8.2
 
 MAJOR=`echo $VERSION | cut -d . -f 1`
 MINOR=`echo $VERSION | cut -d . -f 2`
 PATCH=`echo $VERSION | cut -d . -f 3`
+
+sudo apt update
 
 # create a (non-privileged) user to run the server:
 sudo useradd nanosoldier || true
@@ -68,4 +70,4 @@ echo "  cp bin/run_base_ci.jl .."
 echo "  chgrp nanosoldier ../run_base_ci.jl"
 echo "  chmod 660 ../run_base_ci.jl"
 echo "  \${EDITOR:-vim} ../run_base_ci.jl"
-echo "  sudo -u nanosoldier nohup ./run_base_ci"
+echo "  ./run_base_ci"
