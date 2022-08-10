@@ -156,35 +156,27 @@ The package selection argument is used to decide which packages to test. It shou
 
 The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
 
-Several other optional arguments are supported by this job:
-- `buildflags = ["...", ...]`: a list of flags that will be put in the `Make.user` for the primary build.
+Both sides of the comparison can be further configured by using respectively the `configuration` and `vs_configuration` arguments. These options expect a named tuple where the elements correspond to fields of the `PkgEval.Configuration` type.
 
-  This option can be used to, e.g., find packages that fail with assertions enabled:
-  ```
-  @nanosoldier `runtests(ALL, vs = "%self", buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"])`
-  ```
-- `vs_buildflags`: the same, but for the comparison build (defaults to no options, even if `buildflags` is set)
-- `compiled`: whether to run PkgEval in so-called compiled mode, where PackageCompiler.jl will be used to generate a custom system image before testing with it on a slightly different system. The value needs to be one of the following symbols:
-  - `:primary`: to compile tests for the primary build
-  - `:against`: to compile tests for the comparison build specified in the `vs` argument
-  - `:both`: to compile tests for both builds
-  - `:none` (default): do not use PackageCompiler.jl
-  
-  This option can be used to assess compileability of the ecosystem:
-  ```
-  @nanosoldier `runtests(ALL, vs = "%self", compiled = :primary)`
-  ```
+For example, a common configuration is to include buildflags that enable assertions:
 
-#### Benchmark Results
+```
+@nanosoldier `runtests(ALL, vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],))`
+```
+
+If no configuration arguments are specified, the primary build will use `rr=true`, but other than that the defaults as specified by the `PkgEval.Configuration` constructor are used.
+
+#### Results
 
 Once a `PkgEvalJob` is complete, the results are uploaded to the
 [NanosoldierReports](https://github.com/JuliaCI/NanosoldierReports) repository. Each job
 has its own directory for results. This directory contains the following items:
 
 - `report.md` is a markdown report that summarizes the job results
-- `data.tar.gz` contains raw test data as Feather files encoding a DataFrame. To untar this file, run
-`tar -xzvf data.tar.gz`.
-- `logs` is a directory containing the test logs for the job.
+- `data.tar.xz` contains raw test data as Feather files encoding a DataFrame. To untar this file, run
+`tar -xvf data.tar.xz`.
+
+In addition, a rendered version of the report as well as the logs for each package are uploaded to AWS, and will be posted as a reply on GitHub where the job was invoked.
 
 ## Initial Setup for BenchmarksJob
 
