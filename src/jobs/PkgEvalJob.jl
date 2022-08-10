@@ -229,7 +229,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     # determine packages to test
     pkgsel = Meta.parse(job.pkgsel)
     pkgs = if pkgsel == :ALL
-        PkgEval.registry_packages()
+        nothing
     else
         # safe to evaluate, it's a :vec of Strings
         [Package(; name) for name in eval(pkgsel)]
@@ -238,7 +238,11 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
+        if pkgs !== nothing
+            PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
+        else
+            PkgEval.evaluate(configs; ninstances=length(cpus))
+        end
     end
 
     # process the results for each Julia version separately
