@@ -40,6 +40,39 @@ function is_valid_stringvector(pkgsel::Expr)
     return true
 end
 
+function is_valid_configuration(config::Expr)
+    if config.head != :tuple
+        return false
+    else
+        for item in config.args
+            if Meta.isexpr(item, :(=))
+                if !isa(item.args[1], Symbol) || !is_valid_tupleitem(item.args[2])
+                    return false
+                end
+            elseif !is_valid_tupleitem(item)
+                return false
+            end
+        end
+    end
+    return true
+end
+
+const valid_tupleitem_literals = [String, Int, Bool]
+function is_valid_tupleitem(item)
+    if typeof(item) in valid_tupleitem_literals
+        return true
+    elseif item.head == :vect
+        for element in item.args
+            if !is_valid_tupleitem(element)
+                return false
+            end
+        end
+    else
+        return false
+    end
+    return true
+end
+
 ##############
 # PkgEvalJob #
 ##############
@@ -50,12 +83,10 @@ mutable struct PkgEvalJob <: AbstractJob
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
-    buildflags::Vector{String}       # a list of flags for Make.user generation
-    against_buildflags::Vector{String}
-    compiled::Symbol
-    rr::Symbol
-    # FIXME: put flags in BuildRef? currently created too early for that (when the
-    #        GitHub event is parsed, while we get the build flags from the comment)
+    configuration::Configuration
+    against_configuration::Configuration
+    # FIXME: put configuration in BuildRef? currently created too early for that (when the
+    #        GitHub event is parsed, while we get the configuration from the comment)
 end
 
 function PkgEvalJob(submission::JobSubmission)
@@ -90,56 +121,30 @@ function PkgEvalJob(submission::JobSubmission)
         isdaily = false
     end
 
-    if haskey(submission.kwargs, :buildflags)
-        expr = Meta.parse(submission.kwargs[:buildflags])
-        if !is_valid_stringvector(expr)
-            error("invalid argument to `buildflags` keyword")
+    if haskey(submission.kwargs, :configuration)
+        expr = Meta.parse(submission.kwargs[:configuration])
+        if !is_valid_configuration(expr)
+            error("invalid argument to `configuration` keyword (expected a tuple)")
         end
-        buildflags = eval(expr)
+        tup = eval(expr)
+        configuration = Configuration(; tup...)
     else
-        buildflags = String[]
+        configuration = Configuration(; rr=true)
     end
 
-    if haskey(submission.kwargs, :vs_buildflags)
-        expr = Meta.parse(submission.kwargs[:vs_buildflags])
-        if !is_valid_stringvector(expr)
-            error("invalid argument to `vs_buildflags` keyword")
+    if haskey(submission.kwargs, :vs_configuration)
+        expr = Meta.parse(submission.kwargs[:vs_configuration])
+        if !is_valid_configuration(expr)
+            error("invalid argument to `vs_configuration` keyword (expected a tuple)")
         end
-        against_buildflags = eval(expr)
+        tup = eval(expr)
+        against_configuration = Configuration(; tup...)
     else
-        against_buildflags = String[]
-    end
-
-    if haskey(submission.kwargs, :compiled)
-        expr = Meta.parse(submission.kwargs[:compiled])
-        if !isa(expr, QuoteNode)
-            error("invalid argument to `compiled` keyword (should be a Symbol)")
-        end
-        compiled = expr.value
-        if !in(compiled, [:none, :primary, :against, :both])
-            error("invalid argument to `compiled` keyword (should be a valid Symbol)")
-        end
-    else
-        compiled = :none
-    end
-
-    if haskey(submission.kwargs, :rr)
-        expr = Meta.parse(submission.kwargs[:rr])
-        if !isa(expr, QuoteNode)
-            error("invalid argument to `rr` keyword (should be a Symbol)")
-        end
-        rr = expr.value
-        if !in(rr, [:none, :primary, :against, :both])
-            error("invalid argument to `rr` keyword (should be a valid Symbol)")
-        end
-    elseif compiled == :none
-        rr = :primary
-    else
-        rr = :none
+        against_configuration = Configuration()
     end
 
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily, buildflags, against_buildflags, compiled, rr)
+                      Dates.today(), isdaily, configuration, against_configuration)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -149,17 +154,11 @@ function Base.summary(job::PkgEvalJob)
     elseif job.against !== nothing
         result *= " vs. $(summary(job.against))"
     end
-    if job.compiled !== :none
-        result *= ", using PackageCompiler.jl for $(job.compiled) build"
-    end
-    if job.rr !== :none
-        result *= ", using rr for $(job.rr) build"
-    end
     return result
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :buildflags, :vs_buildflags, :compiled, :rr)
+    allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
@@ -198,9 +197,7 @@ tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 ########################
 
 # execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict,
-                        buildflags::Dict, compiled::Symbol, rr::Symbol,
-                        results::Dict)
+function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
     node = myid()
     cfg = submission(job).config
 
@@ -234,13 +231,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict,
         end
 
         # create a configuration
-        is_compiled(whichbuild) = compiled === :both || String(compiled) == whichbuild
-        needs_rr(whichbuild) = rr === :both || String(rr) == whichbuild
-        configs[whichbuild] = Configuration(;
-            julia,
-            buildflags = buildflags[whichbuild],
-            compiled = is_compiled(whichbuild),
-            rr = needs_rr(whichbuild))
+        configs[whichbuild] = Configuration(base_configs[whichbuild]; julia)
 
         # get some version info
         try
@@ -382,9 +373,8 @@ function Base.run(job::PkgEvalJob)
     end
 
     # refuse to test against an identical build
-    # TODO: create and compare PkgEval.Configuration objects
     if job.against !== nothing && job.against.sha == submission(job).build.sha &&
-       job.against_buildflags == job.buildflags && job.compiled in [:both, :none]
+       job.against_configuration == job.configuration
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
         delete!(results, "against_date")
         job.against = nothing
@@ -392,14 +382,14 @@ function Base.run(job::PkgEvalJob)
 
     # run tests
     builds = Dict("primary" => submission(job).build)
-    buildflags = Dict("primary" => job.buildflags)
+    configs = Dict("primary" => job.configuration)
     if job.against !== nothing
         builds["against"] = job.against
-        buildflags["against"] = job.against_buildflags
+        configs["against"] = job.against_configuration
     end
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, buildflags, job.compiled, job.rr, results)
+        execute_tests!(job, builds, configs, results)
         nodelog(cfg, node, "running tests for $(summary(job))")
     finally
         PkgEval.purge()
@@ -563,18 +553,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 *Package Selection:* $(markdown_escaped_code(job.pkgsel))
                 """)
 
-    if job.compiled !== :none
-        println(io, """
-                    *Using PackageCompiler.jl*: $(job.compiled) build(s)
-                    """)
-    end
-
-    if job.rr !== :none
-        println(io, """
-                    *Running under rr*: $(job.rr) build(s)
-                    """)
-    end
-
     if job.isdaily
         if hasagainstbuild
             latest_dir = reportdir(job; latest=true)
@@ -714,12 +692,19 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         # against a previous day), give the syntax to re-test failures.
                         if haskey(submission(job).kwargs, :vs)
                             vs = submission(job).kwargs[:vs]
+                            cmd = "$(repr(changed_tests.package)), vs = $vs"
+                            if haskey(submission(job).kwargs, :configuration)
+                                cmd *= ", configuration = $(submission(job).kwargs[:configuration])"
+                            end
+                            if haskey(submission(job).kwargs, :vs_configuration)
+                                cmd *= ", vs_configuration = $(submission(job).kwargs[:vs_configuration])"
+                            end
                             println(io,  """
                                 <details><summary>Click here for the Nanosoldier invocation to re-run these tests.</summary>
                                 <p>
 
                                 ```
-                                @nanosoldier `runtests($(repr(changed_tests.package)), vs = $vs)`
+                                @nanosoldier `runtests($cmd)`
                                 ```
 
                                 </p>
@@ -775,8 +760,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
               ```
               """)
 
-    if !isempty(job.buildflags)
-        println(io, "Build flags: ", join(map(markdown_escaped_code, job.buildflags), ", "))
+    if haskey(submission(job).kwargs, :configuration)
+        println(io, "*Configuration*: `", submission(job).kwargs[:configuration], "`")
     end
 
     if hasagainstbuild
@@ -789,8 +774,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
                   ```
                   """)
 
-        if !isempty(job.against_buildflags)
-            println(io, "Build flags: ", join(map(markdown_escaped_code, job.against_buildflags), ", "))
+        if haskey(submission(job).kwargs, :vs_configuration)
+            println(io, "*Configuration*: `", submission(job).kwargs[:vs_configuration], "`")
         end
     end
 

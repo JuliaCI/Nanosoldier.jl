@@ -91,22 +91,11 @@ build_test_submission(PkgEvalJob, "@nanosoldier `runtests(\"pkg\")`")
 build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
 
 job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
-@test job.compiled == :none
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:primary)`")
-@test job.compiled == :primary
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:against)`")
-@test job.compiled == :against
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, compiled=:both)`")
-@test job.compiled == :both
-
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel)`")
-@test job.rr == :primary
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:primary)`")
-@test job.rr == :primary
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:against)`")
-@test job.rr == :against
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, rr=:both)`")
-@test job.rr == :both
+@test !job.configuration.compiled
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, configuration=(compiled=true, ))`")
+@test job.configuration.compiled
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, configuration=(buildflags=[\"FOO=BAR\"], ))`")
+@test job.configuration.buildflags == ["FOO=BAR"]
 
 #############################
 # retrieval from job queue  #
