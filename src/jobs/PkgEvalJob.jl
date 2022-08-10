@@ -205,30 +205,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     configs = Dict{String,Configuration}()
     for (whichbuild, build) in builds
         # determine Julia version matching requested BuildRef
-        julia = nothing
-        if whichbuild == "primary" && submission(job).fromkind == :pr
-            # if we're dealing with a PR, try the merge commit
-            pr = submission(job).prnumber
-            if pr !== nothing
-                try
-                    # NOTE: the merge head only exists in the upstream Julia repository,
-                    #       and not in the repository where the pull request originated.
-                    # TODO: do this without reaching into PkgEval internals
-                    install = PkgEval.get_julia_repo("pull/$pr/merge")
-                    julia = "pull/$pr/merge"
-                    nodelog(cfg, node, "Resolved $whichbuild build to Julia merge head of PR $pr")
-                    rm(install; recursive=true)
-                catch err
-                    # there might not be a merge commit (e.g. in the case of merge conflicts)
-                    nodelog(cfg, node, "Could not check-out merge head of PR $pr";
-                            error=(err, catch_backtrace()))
-                end
-            end
-        end
-        if julia === nothing
-            julia = "$(build.repo)#$(build.sha)"
-            nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
-        end
+        julia = "$(build.repo)#$(build.sha)"
+        nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
 
         # create a configuration
         configs[whichbuild] = Configuration(base_configs[whichbuild]; julia)
