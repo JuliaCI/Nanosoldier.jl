@@ -11,7 +11,7 @@ struct Server
         # job then gets added to the `jobs` queue, which is monitored and resolved by
         # the job-feeding tasks scheduled when `run` is called on the Server.
         handle = (event, phrase) -> begin
-            nodelog(config, 1, "received job submission with phrase $phrase")
+            nodelog(config, 1, "considering job submission with phrase $phrase")
             if event.kind == "issue_comment" && !haskey(event.payload["issue"], "pull_request")
                 return HTTP.Response(400, "nanosoldier jobs cannot be triggered from issue comments (only PRs or commits)")
             end
@@ -25,7 +25,8 @@ struct Server
                     try
                         job = J(submission)
                         push!(jobs, job)
-                        reply_status(job, "pending", "job added to queue: $(summary(job))")
+                        reply_status(job, "pending", "accepted $J: $(summary(job))")
+                        nodelog(config, 1, "job added to queue: $(summary(job))")
                         addedjob = true
                     catch err
                         nodelog(config, 1, "failed to constuct $J with a supposedly valid submission: $err",
