@@ -164,6 +164,12 @@ For example, a common configuration is to include buildflags that enable asserti
 @nanosoldier `runtests(ALL, vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],))`
 ```
 
+Another useful example makes PkgEval run under rr and use a Julia debug build for a better debugging experience:
+
+```
+@nanosoldier `runtests(ALL, configuration = (buildflags=["JULIA_BUILD_MODE=debug"], julia_binary="julia-debug", rr=true))`
+```
+
 If no configuration arguments are specified, the primary build will use `rr=true`, but other than that the defaults as specified by the `PkgEval.Configuration` constructor are used.
 
 #### Results
