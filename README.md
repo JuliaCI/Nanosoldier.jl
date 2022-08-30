@@ -14,7 +14,7 @@ The trigger phrase syntax is:
 @nanosoldier `command(args..., kwargs...)`
 ```
 
-There are two kinds of jobs you can invoke: **benchmark jobs**, which run the [BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl) suite, and **package test jobs** which rely on [PkgEval.jl](https://github.com/JuliaCI/PkgEval.jl) to run the test suite of all registered packages.
+Backticks are mandatory. There are two kinds of jobs you can invoke: **benchmark jobs**, which run the [BaseBenchmarks.jl](https://github.com/JuliaCI/BaseBenchmarks.jl) suite, and **package test jobs** which rely on [PkgEval.jl](https://github.com/JuliaCI/PkgEval.jl) to run the test suite of all registered packages.
 
 **Note that only one job can be triggered per comment.**
 
