@@ -689,6 +689,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                                 @nanosoldier `runtests($cmd)`
                                 ```
 
+                                Note that Nanosoldier defaults to running the primary tests under `rr`, which itself may be a source of failures.
+                                To disable this, add `configuration = (rr=false,)` as an argument to the `runtests` invocation.
+
                                 </p>
                                 </details>
                                 """)
