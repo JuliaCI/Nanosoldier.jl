@@ -238,11 +238,12 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
-        if pkgs !== nothing
-            PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
+        results["duration"] = @elapsed if pkgs !== nothing
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
         else
-            PkgEval.evaluate(configs; ninstances=length(cpus))
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus))
         end
+        tests
     end
 
     # process the results for each Julia version separately
@@ -494,6 +495,49 @@ end
 # Markdown Report Generation #
 #----------------------------#
 
+function readable_duration(seconds)
+    str = ""
+    if seconds > 60*60*24
+        days = Int(seconds ÷ (60*60*24))
+        seconds -= days * 60*60*24
+        if days > 1
+            str *= "$days days"
+        else
+            str *= "$days day"
+        end
+    end
+    if seconds > 60*60
+        hours = Int(seconds ÷ (60*60))
+        seconds -= hours * 60*60
+        isempty(str) || (str *= ", ")
+        if hours > 1
+            str *= "$hours hours"
+        else
+            str *= "$hours hour"
+        end
+    end
+    if seconds > 60
+        minutes = Int(seconds ÷ 60)
+        seconds -= minutes * 60
+        isempty(str) || (str *= ", ")
+        if minutes > 1
+            str *= "$minutes minutes"
+        else
+            str *= "$minutes minute"
+        end
+    end
+    if seconds > 0 || isempty(str)
+        seconds = trunc(Int, seconds)
+        isempty(str) || (str *= ", ")
+        if seconds > 1
+            str *= "$seconds seconds"
+        else
+            str *= "$seconds second"
+        end
+    end
+    return str
+end
+
 function printreport(io::IO, job::PkgEvalJob, results)
     cfg = submission(job).config
     build = submission(job).build
@@ -572,6 +616,21 @@ function printreport(io::IO, job::PkgEvalJob, results)
     println(io, """
                 In total, $x packages were tested, out of which $o succeeded, $f failed and $s were skipped.
                 """)
+
+    if haskey(results, "duration")
+        total_duration = 0
+        total_tests = 0
+        for key in ("primary", "against", "previous")
+            if haskey(results, key)
+                total_duration += sum(results[key].duration)
+                total_tests += nrow(results[key])
+            end
+        end
+
+        println(io, """
+                    Testing took $(readable_duration(results["duration"])) (or, sequentially, $(readable_duration(total_duration)) to execute $total_tests package tests suites).
+                    """)
+    end
 
     println(io)
 
