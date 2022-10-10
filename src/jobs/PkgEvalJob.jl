@@ -619,9 +619,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     end
                     print(io, " vs. [$(test.package)$(verstr(test.version_1))]($against_log)")
 
-                    print(io, " ($(PkgEval.statusses[test.status_1])")
+                    print(io, " ($(PkgEval.status_message(test.status_1))")
                     if !ismissing(test.reason_1)
-                        print(io, ", $(PkgEval.reasons[test.reason_1])")
+                        print(io, ", $(PkgEval.reason_message(test.reason_1))")
                     end
                     print(io, ")")
                 end
@@ -632,9 +632,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
             # report on a group of tests, prefixed with the reason
             function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
-                for subgroup in subgroups
+                for key in sort(keys(subgroups); by=key->PkgEval.reason_severity(key.reason))
+                    subgroup = subgroups[key]
                     println(io, """
-                        <details open><summary>$(uppercasefirst(PkgEval.reasons[first(subgroup).reason])) ($(nrow(subgroup)) packages):</summary>
+                        <details open><summary>$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):</summary>
                         <p>
                         """)
                     println(io)
