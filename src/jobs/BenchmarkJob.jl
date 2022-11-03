@@ -151,7 +151,7 @@ function retrieve_daily_data!(cfg, date)
                     end
                 run(pipeline(datatar, `tar -x`))
                 datafiles = readdir(datapath)
-                primary_index = findfirst(fname -> endswith(fname, "_primary.json"), datafiles)
+                primary_index = findfirst(fname -> endswith(fname, "_primary.minimum.json"), datafiles)
                 if primary_index !== nothing
                     against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)", read(joinpath(dailydir, "report.md"), String))
                     (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
@@ -258,7 +258,7 @@ function Base.run(job::BenchmarkJob)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
         if haskey(results, "against")
-            results["judged"] = BenchmarkTools.judge(minimum(results["primary"]), minimum(results["against"]))
+            results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
         end
     finally
         for dir in cleanup
@@ -371,7 +371,10 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchname = string(build.sha, "_", whichbuild)
     benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
     bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
-    benchresults = joinpath(tmpdatadir(job), string(benchname, ".json"))
+    benchminimum = joinpath(tmpdatadir(job), string(benchname, ".minimum.json"))
+    benchmedian = joinpath(tmpdatadir(job), string(benchname, ".median.json"))
+    benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
+    benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
 
     open(shscriptpath, "w") do file
         println(file, """
@@ -388,6 +391,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                       using LinearAlgebra # needed for `BLAS.set_num_threads`
                       using BaseBenchmarks
                       using BenchmarkTools
+                      using Statistics
                       using JSON
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
@@ -419,7 +423,10 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           results = run(benchmarks; verbose=true)
 
                           println("SAVING RESULT...")
-                          BenchmarkTools.save($(repr(benchresults)), results)
+                          BenchmarkTools.save($(repr(benchminimum)), minimum(results))
+                          BenchmarkTools.save($(repr(benchmedian)), median(results))
+                          BenchmarkTools.save($(repr(benchmean)), mean(results))
+                          BenchmarkTools.save($(repr(benchstd)), std(results))
 
                           println("DONE!")
                       finally
@@ -479,7 +486,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return results
+    return minimum(results)
 end
 
 ##########################
