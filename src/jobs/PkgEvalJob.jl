@@ -283,10 +283,14 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         cd(tmpdatadir(job)) do
             # dataframe with test results
             let tests = copy(tests)
+                # remove logs; these are terribly large and probably not interesting anyway
+                select!(tests, Not([:log]))
+
                 # Feather can't handle non-primitive types, so stringify them
                 for col in (:version, :status, :reason)
                     tests[!, col] = map(repr, tests[!, col])
                 end
+
                 Feather.write("$(whichbuild).feather", tests)
             end
 
