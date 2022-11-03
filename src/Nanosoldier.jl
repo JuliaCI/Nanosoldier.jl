@@ -37,7 +37,10 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
 end
 gitclone!(repo, dir, args::Cmd; user=nothing) = gitclone!(repo, dir, nothing, args; user)
 
-gitreset!(dir) = (run(`$(git()) -C $dir fetch --all`); run(`$(git()) -C $dir reset --hard origin/master`))
+function gitreset!(dir)
+    run(`$(git()) -C $dir fetch --all`)
+    run(`$(git()) -C $dir reset --hard origin/master`)
+end
 
 ##################
 # error handling #

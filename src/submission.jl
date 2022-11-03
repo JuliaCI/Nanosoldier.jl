@@ -142,9 +142,17 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
 
     cfg = sub.config
     dir = reportdir(cfg)
+
+    # create a detached commit
+    run(`$(git()) -c $dir checkout --detach`)
     run(`$(git()) -C $dir add -A`)
     run(`$(git()) -C $dir commit -m $message`)
-    run(`$(git()) -C $dir pull -X ours`)
+    sha = readchomp(`$(git()) -C $dir rev-parse HEAD`)
+
+    # cherry-pick on top of latest master
+    gitreset!(dir)
+    run(`$(git()) -C $dir cherry-pick -X ours $sha`)
+
     run(`$(git()) -C $dir push`)
     return "https://github.com/$(reportrepo(cfg))/blob/master/$(markdownpath)"
 end
