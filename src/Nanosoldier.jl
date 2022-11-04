@@ -42,12 +42,12 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
     end
     if user === nothing
         if auth !== nothing
-            run(`mkdir -m 770 $dir`)
+            run(`mkdir -p -m 770 $dir`)
         end
         run(`$(git()) clone $args $url$repo.git $dir`)
     else
         if auth !== nothing
-            run(sudo(`-n -u $user`, `mkdir -m 770 $dir`))
+            run(sudo(`-n -u $user`, `mkdir -p -m 770 $dir`))
         end
         run(sudo(`-n -u $user`, `$(git()) clone $args $url$repo.git $dir`))
     end

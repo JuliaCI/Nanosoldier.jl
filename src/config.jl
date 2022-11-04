@@ -35,7 +35,7 @@ persistdir!(path) = (isdir(path) || mkdir(path); return path)
 
 function persistdir!(config::Config)
     persistdir!(workdir)
-    if isdir(reportdir(config))
+    if isdir(joinpath(reportdir(config), ".git"))
         gitreset!(reportdir(config))
     else
         gitclone!(reportrepo(config), reportdir(config), config.auth)
