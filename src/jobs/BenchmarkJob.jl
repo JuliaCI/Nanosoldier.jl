@@ -340,8 +340,8 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                 import BaseBenchmarks
                 print(dirname(dirname(pathof(BaseBenchmarks))))
                 ' ```, String)
-        run(setenv(`git fetch --all --quiet`, dir=BaseBenchmarks))
-        run(setenv(`git reset --hard --quiet origin/$(branchname)`, dir=BaseBenchmarks))
+        run(`$(git()) -C $BaseBenchmarks fetch --all --quiet`)
+        run(`$(git()) -C $BaseBenchmarks reset --hard --quiet origin/$(branchname)`)
     end
 
     run(setenv(`sudo -n -u $(cfg.user) -- $(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir))

@@ -2,6 +2,7 @@ module Nanosoldier
 
 using Dates, Distributed, Printf, InteractiveUtils, Pidfile, Scratch
 import GitHub, BenchmarkTools, JSON, HTTP, AWS
+using Git: git
 
 AWS.@service S3
 
@@ -32,11 +33,14 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
     if auth !== nothing
         run(setenv(`$sudo mkdir -m 770 $dir`)) # hide auth from everybody
     end
-    run(setenv(`$sudo git clone $args $url$repo.git $dir`))
+    run(setenv(`$sudo $(git()) clone $args $url$repo.git $dir`))
 end
 gitclone!(repo, dir, args::Cmd; user=nothing) = gitclone!(repo, dir, nothing, args; user)
 
-gitreset!(dir) = (run(setenv(`git fetch --all`; dir)); run(setenv(`git reset --hard origin/master`; dir)))
+function gitreset!(dir)
+    run(`$(git()) -C $dir fetch --all`)
+    run(`$(git()) -C $dir reset --hard origin/master`)
+end
 
 ##################
 # error handling #

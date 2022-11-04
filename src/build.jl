@@ -56,7 +56,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
         if ispath(mirrordir)
-            run(setenv(`git fetch --quiet --all`; dir=mirrordir))
+            run(`$(git()) -C $mirrordir fetch --quiet --all`)
         else
             mkpath(mirrordir)
             gitclone!(config.trackrepo, mirrordir, `--mirror`)
@@ -68,17 +68,17 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
         # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
         gitclone!(config.trackrepo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
         try
-            run(setenv(`sudo -n -u $(config.user) -- git fetch --quiet origin +refs/pull/$(prnumber)/merge:`; dir=srcdir))
+            run(`sudo -n -u $(config.user) -- $(git()) -C $srcdir fetch --quiet origin +refs/pull/$(prnumber)/merge:`; dir=srcdir)
         catch
             # if there's not a merge commit on the remote (likely due to
             # merge conflicts) then fetch the head commit instead.
-            run(setenv(`sudo -n -u $(config.user) -- git fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=srcdir))
+            run(`sudo -n -u $(config.user) -- $(git()) -C $srcdir fetch --quiet origin +refs/pull/$(prnumber)/head:`; dir=srcdir)
         end
-        run(setenv(`sudo -n -u $(config.user) -- git checkout --quiet --force FETCH_HEAD`; dir=srcdir))
-        build.sha = readchomp(setenv(`sudo -n -u $(config.user) -- git rev-parse HEAD`; dir=srcdir))
+        run(`sudo -n -u $(config.user) -- $(git()) -C $srcdir checkout --quiet --force FETCH_HEAD`; dir=srcdir)
+        build.sha = readchomp(`sudo -n -u $(config.user) -- $(git()) -C $srcdir rev-parse HEAD`; dir=srcdir)
     else
         gitclone!(build.repo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
-        run(setenv(`sudo -n -u $(config.user) -- git checkout --quiet $(build.sha)`; dir=srcdir))
+        run(`sudo -n -u $(config.user) -- $(git()) -C $srcdir checkout --quiet $(build.sha)`; dir=srcdir)
     end
 
     # set up logs for STDOUT and STDERR
