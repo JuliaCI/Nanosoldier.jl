@@ -267,43 +267,39 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
                 end
             end
         else
-            cd(tmplogdir(job)) do
-                for test in eachrow(tests)
-                    isdir(test.package) || mkdir(test.package)
-                    open(joinpath(test.package, "$(whichbuild).log"), "w") do io
-                        if !ismissing(test.log)
-                            write(io, test.log)
-                        end
+            for test in eachrow(tests)
+                dir = joinpath(tmplogdir(job), test.package)
+                isdir(dir) || mkdir(dir)
+                open(joinpath(dir, "$(whichbuild).log"), "w") do io
+                    if !ismissing(test.log)
+                        write(io, test.log)
                     end
                 end
             end
         end
 
         # write data
-        cd(tmpdatadir(job)) do
-            # dataframe with test results
-            let tests = copy(tests)
-                # remove logs; these are terribly large and probably not interesting anyway
-                select!(tests, Not([:log]))
+        ## dataframe with test results
+        let tests = copy(tests)
+            # remove logs; these are terribly large and probably not interesting anyway
+            select!(tests, Not([:log]))
 
-                # Feather can't handle non-primitive types, so stringify them
-                for col in (:version, :status, :reason)
-                    tests[!, col] = map(repr, tests[!, col])
-                end
-
-                Feather.write("$(whichbuild).feather", tests)
+            # Feather can't handle non-primitive types, so stringify them
+            for col in (:version, :status, :reason)
+                tests[!, col] = map(repr, tests[!, col])
             end
 
-            # dict with build properties
-            open("$(whichbuild).json", "w") do io
-                json = Dict{String,Any}(
-                    "build" => Dict(
-                        "repo"  => build.repo,
-                        "sha"   => build.sha,
-                    )
+            Feather.write(joinpath(tmpdatadir(job), "$(whichbuild).feather"), tests)
+        end
+        ## dict with build properties
+        open(joinpath(tmpdatadir(job), "$(whichbuild).json"), "w") do io
+            json = Dict{String,Any}(
+                "build" => Dict(
+                    "repo"  => build.repo,
+                    "sha"   => build.sha,
                 )
-                JSON.print(io, json)
-            end
+            )
+            JSON.print(io, json)
         end
     end
 end
@@ -419,11 +415,12 @@ function report(job::PkgEvalJob, results)
                 end
             end
             nodelog(cfg, node, "...tarring data...")
-            cd(tmpdir(job)) do
-                run(`tar -cf data.tar data`)
-                run(`xz --compress -9 --extreme data.tar`)
-                rm(tmpdatadir(job), recursive=true)
+            open(joinpath(tmpdir(job), "data.tar.zst"), "w") do io
+                stream = ZstdCompressorStream(io; level=9)
+                Tar.create(tmpdatadir(job), stream)
+                close(stream)
             end
+            rm(tmpdatadir(job), recursive=true)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
             mv(tmpdir(job), reportdir(job); force=true)

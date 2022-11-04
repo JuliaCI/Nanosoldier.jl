@@ -5,6 +5,7 @@ version = "0.1.0"
 [deps]
 AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CodecZstd = "6b39b394-51ab-5f42-8807-6242bab2b4c2"
 CommonMark = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -21,6 +22,7 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PkgEval = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
+Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 
 [compat]
 PkgEval = "0.2"
