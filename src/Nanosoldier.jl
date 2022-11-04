@@ -3,6 +3,7 @@ module Nanosoldier
 using Dates, Distributed, Printf, InteractiveUtils, Pidfile, Scratch
 import GitHub, BenchmarkTools, JSON, HTTP, AWS
 using Git: git
+using Tar, CodecZstd
 
 AWS.@service S3
 

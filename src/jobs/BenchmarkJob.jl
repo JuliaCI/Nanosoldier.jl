@@ -142,14 +142,10 @@ function retrieve_daily_data!(cfg, date)
         cd(dailydir) do
             datapath = joinpath(dailydir, "data")
             try
-                datatar = if isfile("data.tar.gz")
-                        `gzip --decompress --stdout data.tar.gz`
-                    elseif isfile("data.tar.xz")
-                        `xz --decompress --stdout data.tar.xz`
-                    else
-                        error("Could not find compressed data tarball")
-                    end
-                run(pipeline(datatar, `tar -x`))
+                open("data.tar.zst") do io
+                    stream = XzDecompressorStream(io)
+                    Tar.extract(stream, datapath)
+                end
                 datafiles = readdir(datapath)
                 primary_index = findfirst(fname -> endswith(fname, "_primary.minimum.json"), datafiles)
                 if primary_index !== nothing
@@ -512,9 +508,11 @@ function report(job::BenchmarkJob, results)
                 printreport(file, job, results)
             end
             nodelog(cfg, node, "...tarring data...")
-            dir = tmpdir(job)
-            run(setenv(`tar -cf data.tar data`; dir))
-            run(setenv(`xz --compress -9 --extreme data.tar`; dir))
+            open(joinpath(tmpdir(job), "data.tar.zst"), "w") do io
+                stream = ZstdCompressorStream(io; level=9)
+                Tar.create(tmpdatadir(job), stream)
+                close(stream)
+            end
             rm(tmpdatadir(job), recursive=true)
             nodelog(cfg, node, "...moving $(tmpdir(job)) to $(reportdir(job))...")
             mkpath(reportdir(job))
