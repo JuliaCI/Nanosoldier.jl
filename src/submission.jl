@@ -150,6 +150,7 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
     sha = readchomp(`$(git()) -C $dir rev-parse HEAD`)
 
     # cherry-pick on top of latest master
+    run(`$(git()) -C $dir checkout master`)
     gitreset!(dir)
     run(`$(git()) -C $dir cherry-pick -X ours $sha`)
 
