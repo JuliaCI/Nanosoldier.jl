@@ -408,7 +408,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`))
+                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
