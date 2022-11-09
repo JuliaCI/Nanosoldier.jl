@@ -464,7 +464,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     run(sudo(`$cset set -d /user/child`))
     run(sudo(`$cset shield --reset`))
 
-    results = BenchmarkTools.load(benchresults)[1]
+    minresults = BenchmarkTools.load(benchminimum)[1]
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
@@ -482,7 +482,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minimum(results)
+    return minresults
 end
 
 ##########################
