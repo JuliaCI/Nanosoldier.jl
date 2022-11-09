@@ -2,7 +2,7 @@
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "d5fd0cd13d3b5e6693862222e1b443e5d109c4c0"
+project_hash = "316906d3151e20225dad1f935a43799720e8a1e3"
 
 [[deps.AWS]]
 deps = ["Base64", "Compat", "Dates", "Downloads", "GitHub", "HTTP", "IniFile", "JSON", "MbedTLS", "Mocking", "OrderedCollections", "Random", "Sockets", "URIs", "UUIDs", "XMLDict"]
@@ -340,9 +340,9 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.8.0"
 
 [[deps.PkgEval]]
-deps = ["DataFrames", "Dates", "Downloads", "Git", "JSON", "LazyArtifacts", "Pkg", "ProgressMeter", "Random", "Sandbox", "Scratch"]
-git-tree-sha1 = "c3a98d300d3d4a8d233508959fff0d8cf56b0d36"
-repo-rev = "66af08fa"
+deps = ["DataFrames", "Dates", "Downloads", "Git", "JSON", "LazyArtifacts", "Pkg", "ProgressMeter", "Random", "Sandbox", "Scratch", "s5cmd_jll"]
+git-tree-sha1 = "be4c73df392ac5f6801a4c5fe23b1ac8cda6029e"
+repo-rev = "69a5bc7881c165d94d75f0d3e5c49ef36790e950"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 version = "0.2.0"
@@ -548,3 +548,9 @@ version = "1.48.0+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 version = "17.4.0+0"
+
+[[deps.s5cmd_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "b5e524b2742673e31c7fd6c0750e36c2d9acede8"
+uuid = "9c7924da-da29-52d4-adf6-81e6cfbf5c74"
+version = "2.0.0+0"
