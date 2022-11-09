@@ -611,11 +611,12 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     o = count(==(:ok),      results["primary"].status)
     s = count(==(:skip),    results["primary"].status)
+    c = count(==(:crash),   results["primary"].status)
     f = count(==(:fail),    results["primary"].status)
     x = nrow(results["primary"])
 
     println(io, """
-                In total, $x packages were tested, out of which $o succeeded, $f failed and $s were skipped.
+                In total, $x packages were tested, out of which $o succeeded, $c crashed, $f failed and $s were skipped.
                 """)
 
     if haskey(results, "duration")
@@ -649,7 +650,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
     results["has_issues"] = false
 
     # report test results in groups based on the test status
-    for (status, (verb, emoji)) in (:fail   => ("failed tests", "✖"),
+    for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
+                                    :fail   => ("failed tests", "✖"),
                                     :ok     => ("passed tests", "✔"),
                                     :skip   => ("were skipped", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
@@ -661,29 +663,39 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
             # report on a single test
             function reportrow(test)
-                verstr(version) = ismissing(version) ? "" : " v$(version)"
-
                 primary_log = if cfg.bucket !== nothing
                     "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.package).primary.log"
                 else
                     "logs/$(test.package)/primary.log"
                 end
-                print(io, "- [$(test.package)$(verstr(test.version))]($primary_log)")
+                primary_status = test.status == :ok ? "good" : "bad"
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
+                    # PkgEval always compares the same package versions, so only report it once
+                    print(io, "- $(test.package)")
+                    if test.version !== missing
+                        print(io, " v$(test.version)")
+                    elseif test.source == "both" && test.version_1 !== missing
+                        print(io, " v$(test.version_1)")
+                    end
+                    print(io, ": ")
+
+                    print(io, "[$primary_status]($primary_log)")
+
                     against_log = if cfg.bucket !== nothing
                         "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.package).against.log"
                     else
                         "logs/$(test.package)/against.log"
                     end
-                    print(io, " vs. [$(test.package)$(verstr(test.version_1))]($against_log)")
-
-                    print(io, " ($(PkgEval.status_message(test.status_1))")
-                    if !ismissing(test.reason_1)
-                        print(io, ", $(PkgEval.reason_message(test.reason_1))")
+                    against_status = test.status_1 == :ok ? "good" : "bad"
+                    print(io, " vs. [$against_status]($against_log)")
+                else
+                    print(io, "- [$(test.package)")
+                    if test.version !== missing
+                        print(io, " v$(test.version)")
                     end
-                    print(io, ")")
+                    print(io, "]($primary_log)")
                 end
 
                 println(io)
@@ -719,7 +731,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 end
             end
 
-            if hasagainstbuild
+            if hasagainstbuild && status !== :crash
                 # first report on tests that changed status
                 changed_tests = filter(test->test.source == "both" &&
                                              test.status != test.status_1, group)
@@ -728,7 +740,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     println(io)
                     reportgroup(changed_tests)
 
-                    if status == :fail
+                    if status in [:fail, :crash]
                         results["has_issues"] |= true
 
                         # if this was an explicit "vs" build (i.e., not a daily comparison
@@ -784,7 +796,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io)
                 reportgroup(group)
 
-                if status == :fail
+                if status in [:fail, :crash]
                     results["has_issues"] |= true
                 end
             end
