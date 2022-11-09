@@ -1,7 +1,7 @@
 using Distributed
 import Nanosoldier, GitHub
 
-nodes = Dict(Any => addprocs(1; exeflags="--project"))
+nodes = Dict(Any => addprocs(1; exeflags=`--project --threads=auto`))
 @everywhere import Nanosoldier
 
 auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
