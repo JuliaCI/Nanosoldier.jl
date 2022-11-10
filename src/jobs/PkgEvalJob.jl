@@ -585,7 +585,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
             latest_dir = reportdir(job; latest=true)
             against_date = Date(job.against.time)
             if isdir(latest_dir) && islink(latest_dir)
-                prev_reportlink = "../../$(readlink(latest_dir))/report.md"
+                prev_reportlink = "../../$(readlink(latest_dir))/report.html"
                 against_date = "[$(against_date)]($(prev_reportlink))"
             end
             dailystr = string(job.date, " vs ", against_date)
