@@ -143,7 +143,7 @@ function retrieve_daily_data!(cfg, date)
             datapath = joinpath(dailydir, "data")
             try
                 open("data.tar.zst") do io
-                    stream = XzDecompressorStream(io)
+                    stream = ZstdDecompressorStream(io)
                     Tar.extract(stream, datapath)
                 end
                 datafiles = readdir(datapath)
