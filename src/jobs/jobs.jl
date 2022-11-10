@@ -12,14 +12,19 @@ reply_status(job::AbstractJob, args...; kwargs...) = reply_status(submission(job
 reply_comment(job::AbstractJob, args...; kwargs...) = reply_comment(submission(job), args...; kwargs...)
 upload_report_repo!(job::AbstractJob, args...; kwargs...) = upload_report_repo!(submission(job), args...; kwargs...)
 
+function commitref(config::Config, reponame::AbstractString, shastr::AbstractString)
+    commit = GitHub.commit(reponame, shastr; auth=config.auth)
+    return BuildRef(reponame, shastr, commit.commit.committer.date)
+end
+
 function branchref(config::Config, reponame::AbstractString, branchname::AbstractString)
-    shastr = GitHub.branch(reponame, branchname; auth=config.auth).commit.sha
-    return BuildRef(reponame, shastr)
+    commit = GitHub.branch(reponame, branchname; auth=config.auth).commit
+    return BuildRef(reponame, commit.sha, commit.commit.committer.date)
 end
 
 function tagref(config::Config, reponame::AbstractString, tagname::AbstractString)
-    shastr = GitHub.tag(reponame, tagname; auth=config.auth).object["sha"]
-    return BuildRef(reponame, shastr)
+    tag = GitHub.tag(reponame, tagname; auth=config.auth)
+    commitref(config, reponame, tag.object["sha"])
 end
 
 # check that isdaily is well-formed (no extra parameters, on a recent master commit, not a PR)

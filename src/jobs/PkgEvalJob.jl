@@ -95,7 +95,7 @@ function PkgEvalJob(submission::JobSubmission)
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
-            againstbuild = BuildRef(againstrepo, againstsha)
+            againstbuild = commitref(submission.config, againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
@@ -144,13 +144,14 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily, configuration, against_configuration)
+                      Date(submission.build.time), isdaily,
+                      configuration, against_configuration)
 end
 
 function Base.summary(job::PkgEvalJob)
     result = "PkgEvalJob $(summary(submission(job).build))"
     if job.isdaily
-        result *= " [daily]"
+        result *= " [$(Date(submission(job).build.time))]"
     elseif job.against !== nothing
         result *= " vs. $(summary(job.against))"
     end
@@ -345,8 +346,8 @@ function Base.run(job::PkgEvalJob)
 
                 # NOTE: we don't actually use the results from the previous day, just the
                 #       build properties, since packages upgrades might cause failures too.
-                results["against_date"] = parse(Date, latest["date"])
-                job.against = BuildRef(latest["build"]["repo"], latest["build"]["sha"])
+                job.against = commitref(cfg, latest["build"]["repo"], latest["build"]["sha"])
+                nodelog(cfg, node, "comparing against daily build from $(Date(job.against.time))")
             else
                 nodelog(cfg, node, "didn't find previous daily build data")
             end
@@ -359,7 +360,6 @@ function Base.run(job::PkgEvalJob)
     if job.against !== nothing && job.against.sha == submission(job).build.sha &&
        job.against_configuration == job.configuration
         nodelog(cfg, node, "refusing to compare identical builds, demoting to non-comparing evaluation")
-        delete!(results, "against_date")
         job.against = nothing
     end
 
@@ -549,7 +549,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 
     # in contrast to BenchmarkJob, comparison jobs always have an against build, even daily
     # ones (so we don't need `iscomparisonjob`). in the case of a daily comparison job,
-    # `results["against_date"]` is guaranteed to be set (so we don't need `hasprevdate`).
+    # we look at `against.time` (so we don't need `hasprevdate`).
 
     if hasagainstbuild
         againstbuild = job.against
@@ -583,9 +583,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
     if job.isdaily
         if hasagainstbuild
             latest_dir = reportdir(job; latest=true)
-            against_date = results["against_date"]
+            against_date = Date(job.against.time)
             if isdir(latest_dir) && islink(latest_dir)
-                prev_reportlink = "../../$(readlink(latest_dir))/report.md"
+                prev_reportlink = "../../$(readlink(latest_dir))/report.html"
                 against_date = "[$(against_date)]($(prev_reportlink))"
             end
             dailystr = string(job.date, " vs ", against_date)

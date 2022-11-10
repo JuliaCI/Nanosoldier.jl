@@ -38,10 +38,10 @@ auth = if haskey(ENV, "GITHUB_AUTH")
 else
     GitHub.AnonymousAuth()
 end
-primary_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][10].sha
-against_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][11].sha
-primary = BuildRef("JuliaLang/julia", primary_commit, vinfo)
-against = BuildRef("JuliaLang/julia", against_commit, vinfo*"_against")
+primary_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][10]
+against_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][11]
+primary = BuildRef("JuliaLang/julia", primary_commit.sha, primary_commit.commit.committer.date, vinfo)
+against = BuildRef("JuliaLang/julia", against_commit.sha, against_commit.commit.committer.date, vinfo*"_against")
 config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = "[\"Example\"]"
@@ -186,7 +186,7 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    md = replace(read(mdpath, String), "PRIMARY" => primary_commit, "AGAINST" => against_commit)
+    md = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha)
     md2 = sprint(io->Nanosoldier.printreport(io, job, results))
     chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
 end
@@ -239,7 +239,7 @@ end
 # actual testing #
 ##################
 
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$against_commit\")`")
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$(against_commit.sha)\")`")
 run(job)
 
 nothing

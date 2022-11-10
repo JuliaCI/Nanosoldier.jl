@@ -3,18 +3,20 @@
 ############
 
 mutable struct BuildRef
-    repo::String  # the build repo
-    sha::String   # the build + status SHA
-    vinfo::String # versioninfo() taken during the build
+    repo::String    # the build repo
+    sha::String     # the build + status SHA
+    time::DateTime  # a timestamp for the build
+    vinfo::String   # versioninfo() taken during the build
 end
 
-BuildRef(repo, sha) = BuildRef(repo, sha, "retrieving versioninfo() failed")
+BuildRef(repo, sha, time) = BuildRef(repo, sha, time, "retrieving versioninfo() failed")
 
-Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.vinfo)
+Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.time, x.vinfo)
 
 function Base.:(==)(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
+            a.time == b.time &&
             a.vinfo == b.vinfo)
 end
 
@@ -76,6 +78,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
         end
         run(sudo(config.user, `$(git()) -C $srcdir checkout --quiet --force FETCH_HEAD`))
         build.sha = readchomp(sudo(config.user, `$(git()) -C $srcdir rev-parse HEAD`))
+        # XXX: update build.time here?
     else
         gitclone!(build.repo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
         run(sudo(config.user, `$(git()) -C $srcdir checkout --quiet $(build.sha)`))
