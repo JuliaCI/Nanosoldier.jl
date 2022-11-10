@@ -9,7 +9,6 @@ set +v
 # See https://juliaci.github.io/BenchmarkTools.jl/stable/linuxtips/
 # for an explanation of these configuration options
 
-sudo apt update
 sudo apt install build-essential libatomic1 python3 gfortran perl wget m4 cmake pkg-config curl ninja-build ccache
 sudo apt install virtualenv
 virtualenv cset

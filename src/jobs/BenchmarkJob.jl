@@ -143,7 +143,7 @@ function retrieve_daily_data!(cfg, date)
             datapath = joinpath(dailydir, "data")
             try
                 open("data.tar.zst") do io
-                    stream = XzDecompressorStream(io)
+                    stream = ZstdDecompressorStream(io)
                     Tar.extract(stream, datapath)
                 end
                 datafiles = readdir(datapath)
@@ -340,7 +340,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         run(`$(git()) -C $BaseBenchmarks reset --hard --quiet origin/$(branchname)`)
     end
 
-    run(sudo(cfg.user, setenv(`$(setenv(juliacmd, nothing)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`; dir=builddir)))
+    run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`))
 
     cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
@@ -408,7 +408,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`))
+                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
@@ -464,7 +464,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     run(sudo(`$cset set -d /user/child`))
     run(sudo(`$cset shield --reset`))
 
-    results = BenchmarkTools.load(benchresults)[1]
+    minresults = BenchmarkTools.load(benchminimum)[1]
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
@@ -482,7 +482,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minimum(results)
+    return minresults
 end
 
 ##########################

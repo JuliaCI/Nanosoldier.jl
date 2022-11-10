@@ -57,7 +57,7 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     mirrordir = joinpath(workdir, "mirrors", split(config.trackrepo, "/")...)
     mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
-        if ispath(mirrordir, ".git")
+        if ispath(mirrordir, "config")
             run(`$(git()) -C $mirrordir fetch --quiet --all`)
         else
             mkpath(mirrordir)

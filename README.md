@@ -228,8 +228,9 @@ byobu
 ```
 cd /nanosoldier/Nanosoldier.jl
 git pull
+sed -i -e 's/\<1\.6\.6\>/1.8.2/' provision-server.sh run_base_ci README.md
 chmod 666 *.toml
-sudo -u nanosoldier ../julia-1.6.6/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+sudo -u nanosoldier ../julia-1.8.2/bin/julia --project=. -e 'using Pkg; Pkg.update()'
 chmod 664 *.toml
 ./provision-server.sh
 git add -u
