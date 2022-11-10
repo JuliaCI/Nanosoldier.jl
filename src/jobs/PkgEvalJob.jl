@@ -95,7 +95,7 @@ function PkgEvalJob(submission::JobSubmission)
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
-            againstbuild = BuildRef(againstrepo, againstsha)
+            againstbuild = commitref(submission.config, againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
@@ -144,7 +144,8 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     return PkgEvalJob(submission, first(submission.args), against,
-                      Dates.today(), isdaily, configuration, against_configuration)
+                      Date(submission.build.time), isdaily,
+                      configuration, against_configuration)
 end
 
 function Base.summary(job::PkgEvalJob)

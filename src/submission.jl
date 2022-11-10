@@ -72,7 +72,12 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         fromkind = :pr
         prnumber = Int(pr.number)
     end
-    return BuildRef(repo, sha), sha, url, fromkind, prnumber
+
+    # look up the date of the commit (this is not part of the event)
+    commit = GitHub.commit(repo, sha, auth=config.auth)
+    time = commit.commit.committer.date
+
+    return BuildRef(repo, sha, time), sha, url, fromkind, prnumber
 end
 
 # `x` can only be Expr, Symbol, QuoteNode, T<:Number, or T<:AbstractString
