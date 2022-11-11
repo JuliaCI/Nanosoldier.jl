@@ -136,33 +136,28 @@ tmpdir(job::BenchmarkJob) = joinpath(workdir, "tmpresults")
 tmplogdir(job::BenchmarkJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::BenchmarkJob) = joinpath(tmpdir(job), "data")
 
-function retrieve_daily_data!(cfg, date)
+function retrieve_daily_benchmark_data!(cfg, date)
     dailydir = joinpath(reportdir(cfg), "benchmark", "by_date", datedirname(date))
-    if isdir(dailydir)
-        cd(dailydir) do
-            datapath = joinpath(dailydir, "data")
-            try
-                open("data.tar.zst") do io
-                    stream = XzDecompressorStream(io)
-                    Tar.extract(stream, datapath)
-                end
-                datafiles = readdir(datapath)
-                primary_index = findfirst(fname -> endswith(fname, "_primary.minimum.json"), datafiles)
-                if primary_index !== nothing
-                    against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)", read(joinpath(dailydir, "report.md"), String))
-                    (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
-                    primary_file = datafiles[primary_index]
-                    results = BenchmarkTools.load(joinpath(datapath, primary_file))[1]
-                    return results, repo, commit
-                end
-            catch err
-                nodelog(cfg, myid(), "encountered error when retrieving daily data";
-                        error=(err, catch_backtrace()))
-            finally
-                isdir(datapath) && rm(datapath, recursive=true)
-            end
-            nothing
+    isdir(dailydir) || return nothing
+
+    datapath = joinpath(dailydir, "data.tar.zst")
+    isfile(datapath) || return nothing
+
+    mktempdir() do tmpdir
+        open(datapath) do io
+            stream = ZstdDecompressorStream(io)
+            Tar.extract(stream, tmpdir)
         end
+        datafiles = readdir(tmpdir)
+        primary_index = findfirst(fname -> endswith(fname, "_primary.minimum.json"), datafiles)
+        isnothing(primary_index) && return nothing
+
+        against = match(r"Commit.+\(https://github.com/([^/)]+/[^/)]+)/commit/(\w+).*\)",
+                        read(joinpath(dailydir, "report.md"), String))
+        (repo::String, commit::String) = against === nothing ? ("", "") : (against[1], against[2])
+        primary_file = datafiles[primary_index]
+        results = BenchmarkTools.load(joinpath(tmpdir, primary_file))[1]
+        return results, repo, commit
     end
 end
 
@@ -226,20 +221,21 @@ function Base.run(job::BenchmarkJob)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
         # run the comparison job (or if it's a daily job, gather results to compare against)
-        if job.isdaily # get results from previous day (if it exists, check the past 120 days)
+        if job.isdaily # get results from previous day (if it doesn't exists, check the past 31 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !found_previous_date && i < 121
+                while !found_previous_date && i < 31
                     check_date = job.date - Dates.Day(i)
-                    check_data = retrieve_daily_data!(cfg, check_date)
+                    check_data = retrieve_daily_benchmark_data!(cfg, check_date)
                     if check_data !== nothing
                         found_previous_date = true
                         results["against"] = check_data[1]
                         results["previous_repo"] = check_data[2]
                         results["previous_sha"] = check_data[3]
                         results["previous_date"] = check_date
+                        nodelog(cfg, node, "comparing against daily build from $(check_date)")
                     end
                     i += 1
                 end
