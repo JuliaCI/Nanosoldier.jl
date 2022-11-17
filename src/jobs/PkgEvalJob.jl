@@ -193,6 +193,19 @@ tmpdir(job::PkgEvalJob) = joinpath(workdir, "tmpresults")
 tmplogdir(job::PkgEvalJob) = joinpath(tmpdir(job), "logs")
 tmpdatadir(job::PkgEvalJob) = joinpath(tmpdir(job), "data")
 
+function retrieve_daily_pkgeval_data!(cfg, date)
+    dailydir = joinpath(reportdir(cfg), "pkgeval", "by_date", datedirname(date))
+    isdir(dailydir) || return nothing
+
+    # NOTE: we don't actually use the data from the previous day, just the
+    #       build properties, since packages upgrades might cause failures too.
+    dbpath = joinpath(dailydir, "db.json")
+    isfile(dbpath) || return nothing
+
+    db = JSON.parsefile(dbpath)
+    return db
+end
+
 ########################
 # PkgEvalJob Execution #
 ########################
@@ -339,18 +352,19 @@ function Base.run(job::PkgEvalJob)
         # get build from previous day
         try
             nodelog(cfg, node, "retrieving results from previous daily build")
-            latest_dir = reportdir(job; latest=true)
-            latest_db = joinpath(latest_dir, "db.json")
-            if isfile(latest_db)
-                latest = JSON.parsefile(latest_db)
-
-                # NOTE: we don't actually use the results from the previous day, just the
-                #       build properties, since packages upgrades might cause failures too.
-                job.against = commitref(cfg, latest["build"]["repo"], latest["build"]["sha"])
-                nodelog(cfg, node, "comparing against daily build from $(Date(job.against.time))")
-            else
-                nodelog(cfg, node, "didn't find previous daily build data")
+            found_previous_date = false
+            i = 1
+            while !found_previous_date && i < 31
+                check_date = job.date - Dates.Day(i)
+                check_db = retrieve_daily_pkgeval_data!(cfg, check_date)
+                if check_db !== nothing
+                    found_previous_date = true
+                    job.against = commitref(cfg, check_db["build"]["repo"], check_db["build"]["sha"])
+                    nodelog(cfg, node, "comparing against daily build from $(Date(job.against.time))")
+                end
+                i += 1
             end
+            found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
         catch err
             rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
         end
