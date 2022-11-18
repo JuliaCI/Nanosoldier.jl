@@ -21,21 +21,21 @@ Backticks are mandatory. There are two kinds of jobs you can invoke: **benchmark
 One of the most common invocations runs all benchmarks on your PR, comparing against the current Julia master branch:
 
 ```
-@nanosoldier `runbenchmarks(ALL, vs=":master")`
+@nanosoldier `runbenchmarks(ALL)`
 ```
 
 Similarly, you can run all package tests, e.g. if you suspect your PR might be breaking:
 
 ```
-@nanosoldier `runtests(ALL, vs = ":master")`
+@nanosoldier `runtests(ALL)`
 ```
 
 Both operations take a long time, so it might be wise to restrict which benchmarks you want to run, or which packages you want to test:
 
 ```
-@nanosoldier `runbenchmarks("linalg", vs = ":master")`
+@nanosoldier `runbenchmarks("linalg"")`
 
-@nanosoldier `runtests(["JSON", "Crayons"], vs = ":master")`
+@nanosoldier `runtests(["JSON", "Crayons"])`
 ```
 
 When a job is completed, @nanosoldier will reply to your comment to tell you how the job went and link you to any relevant results.
@@ -64,7 +64,7 @@ A `BenchmarkJob` is triggered with the following syntax:
 @nanosoldier `runbenchmarks(tag_predicate, vs = "ref")`
 ```
 
-The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed.
+The `vs` keyword argument is optional; if invoked from a pull request, it will be derived automatically from the merge base. In other cases, the comparison step (step 3 above) will be skipped.
 
 The tag predicate is used to decide which benchmarks to run, and supports the syntax defined by the [tagging system](https://github.com/JuliaCI/BenchmarkTools.jl/blob/master/doc/manual.md#indexing-into-a-benchmarkgroup-using-tagged) implemented in the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package. Additionally, you can run all benchmarks by using the keyword `ALL`, e.g. `runbenchmarks(ALL)`.
 
@@ -154,7 +154,7 @@ A `PkgEvalJob` is triggered with the following syntax:
 
 The package selection argument is used to decide which packages to test. It should be a list of package names, e.g. `["Example"]`, that will be looked up in the registry. Additionally, you can test all packages in the registry by using the keyword `ALL`, e.g. `runtests(ALL)`.
 
-The `vs` keyword argument is optional, and is used to determine whether or not the comparison step (step 3 above) is performed. Its syntax is identical to the `BenchmarkJob` `vs` keyword argument.
+The `vs` keyword argument is again optional. Its syntax and behavior is identical to the `BenchmarkJob` `vs` keyword argument.
 
 Both sides of the comparison can be further configured by using respectively the `configuration` and `vs_configuration` arguments. These options expect a named tuple where the elements correspond to fields of the `PkgEval.Configuration` type.
 
