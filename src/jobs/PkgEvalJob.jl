@@ -614,6 +614,21 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print summary of tested packages #
     #----------------------------------#
 
+    if haskey(results, "duration")
+        total_duration = 0
+        total_tests = 0
+        for key in ("primary", "against", "previous")
+            if haskey(results, key)
+                total_duration += sum(results[key].duration)
+                total_tests += nrow(results[key])
+            end
+        end
+
+        println(io, """
+                    Testing took $(readable_duration(results["duration"])) (or, sequentially, $(readable_duration(total_duration)) to execute $total_tests package tests suites).
+                    """)
+    end
+
     # we don't care about the distinction between failed and killed tests,
     # so lump them together
     for key in ("primary", "against", "previous")
@@ -633,21 +648,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 In total, $x packages were tested, out of which $o succeeded, $c crashed, $f failed and $s were skipped.
                 """)
 
-    if haskey(results, "duration")
-        total_duration = 0
-        total_tests = 0
-        for key in ("primary", "against", "previous")
-            if haskey(results, key)
-                total_duration += sum(results[key].duration)
-                total_tests += nrow(results[key])
-            end
-        end
-
-        println(io, """
-                    Testing took $(readable_duration(results["duration"])) (or, sequentially, $(readable_duration(total_duration)) to execute $total_tests package tests suites).
-                    """)
-    end
-
     println(io)
 
     # print result list #
@@ -656,12 +656,45 @@ function printreport(io::IO, job::PkgEvalJob, results)
     if hasagainstbuild
         package_results = leftjoin(results["primary"], results["against"],
                                    on=:package, makeunique=true, source=:source)
+
+        # if this isn't a daily job, print the invocation to retest failures.
+        # we do this first so that the proposed invocation includes all failure modes.
+        new_failures = filter(test->test.status in [:fail, :crash] &&
+                                    test.status_1 === :ok, package_results)
+        if !job.isdaily && !isempty(new_failures)
+            cmd = "$(repr(new_failures.package))"
+            if haskey(submission(job).kwargs, :vs)
+                cmd *= ", vs = $(submission(job).kwargs[:vs])"
+            end
+            if haskey(submission(job).kwargs, :configuration)
+                cmd *= ", configuration = $(submission(job).kwargs[:configuration])"
+            end
+            if haskey(submission(job).kwargs, :vs_configuration)
+                cmd *= ", vs_configuration = $(submission(job).kwargs[:vs_configuration])"
+            end
+
+            println(io,  """
+                <details><summary>On this build, $(nrow(new_failures)) packages started failing. Click here for the Nanosoldier invocation to re-run these tests.</summary>
+                <p>
+
+                ```
+                @nanosoldier `runtests($cmd)`
+                ```
+
+                </p>
+                </details>
+                """)
+
+            println(io)
+        end
+        results["has_issues"] = !isempty(new_failures)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join
-    end
 
-    results["has_issues"] = false
+        results["has_issues"] = !isempty(filter(test->test.status in [:fail, :crash],
+                                                package_results))
+    end
 
     # report test results in groups based on the test status
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
@@ -754,39 +787,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     println(io, "**$(nrow(changed_tests)) packages $verb only on the current version.**")
                     println(io)
                     reportgroup(changed_tests)
-
-                    if status in [:fail, :crash]
-                        results["has_issues"] |= true
-
-                        # if this was an explicit "vs" build (i.e., not a daily comparison
-                        # against a previous day), give the syntax to re-test failures.
-                        if haskey(submission(job).kwargs, :vs)
-                            vs = submission(job).kwargs[:vs]
-                            cmd = "$(repr(changed_tests.package)), vs = $vs"
-                            if haskey(submission(job).kwargs, :configuration)
-                                cmd *= ", configuration = $(submission(job).kwargs[:configuration])"
-                            end
-                            if haskey(submission(job).kwargs, :vs_configuration)
-                                cmd *= ", vs_configuration = $(submission(job).kwargs[:vs_configuration])"
-                            end
-                            println(io,  """
-                                <details><summary>Click here for the Nanosoldier invocation to re-run these tests.</summary>
-                                <p>
-
-                                ```
-                                @nanosoldier `runtests($cmd)`
-                                ```
-
-                                Note that Nanosoldier defaults to running the primary tests under `rr`, which itself may be a source of failures.
-                                To disable this, add `configuration = (rr=false,)` as an argument to the `runtests` invocation.
-
-                                </p>
-                                </details>
-                                """)
-
-                            println(io)
-                        end
-                    end
                 end
 
                 # now report the other ones
@@ -810,10 +810,6 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io, "$(nrow(group)) packages $verb.")
                 println(io)
                 reportgroup(group)
-
-                if status in [:fail, :crash]
-                    results["has_issues"] |= true
-                end
             end
 
             println(io)
