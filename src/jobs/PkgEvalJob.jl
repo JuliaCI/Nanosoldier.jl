@@ -715,7 +715,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 else
                     "logs/$(test.package)/primary.log"
                 end
-                primary_status = test.status == :ok ? "good" : "bad"
+                primary_status = String(test.status)
 
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
@@ -735,7 +735,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     else
                         "logs/$(test.package)/against.log"
                     end
-                    against_status = test.status_1 == :ok ? "good" : "bad"
+                    against_status = String(test.status_1)
                     print(io, " vs. [$against_status]($against_log)")
                 else
                     print(io, "- [$(test.package)")
