@@ -387,7 +387,7 @@ function Base.run(job::PkgEvalJob)
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
         execute_tests!(job, builds, configs, results)
-        nodelog(cfg, node, "running tests for $(summary(job))")
+        nodelog(cfg, node, "finished tests for $(summary(job))")
     finally
         PkgEval.purge()
     end
