@@ -89,22 +89,29 @@ function parse_submission_string(submission_string)
     argind = findfirst(isequal('('), fncall)
     name = fncall[1:(argind - 1)]
     parsed_args = Meta.parse(replace(fncall[argind:end], ";" => ","))
+
+    started_kwargs = false
     args, kwargs = Vector{String}(), Dict{Symbol,String}()
+    function process_arg(x)
+        if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
+            @assert !haskey(kwargs, x.args[1]) "kwargs must all be unique"
+            kwargs[x.args[1]] = phrase_argument(x.args[2])
+            started_kwargs = true
+        else
+            @assert !started_kwargs "kwargs must come after other args"
+            push!(args, phrase_argument(x))
+        end
+    end
+
     if isa(parsed_args, Expr) && parsed_args.head == :tuple
         started_kwargs = false
         for x in parsed_args.args
-            if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
-                @assert !haskey(kwargs, x.args[1]) "kwargs must all be unique"
-                kwargs[x.args[1]] = phrase_argument(x.args[2])
-                started_kwargs = true
-            else
-                @assert !started_kwargs "kwargs must come after other args"
-                push!(args, phrase_argument(x))
-            end
+            process_arg(x)
         end
     else
-        push!(args, phrase_argument(parsed_args))
+        process_arg(parsed_args)
     end
+
     return name, args, kwargs
 end
 
