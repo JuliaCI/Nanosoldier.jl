@@ -45,7 +45,7 @@ function gitclone!(repo, dir, auth=nothing, args::Cmd=``; user=nothing)
         if auth !== nothing
             run(`mkdir -p -m 770 $dir`)
         end
-        run(`$(git()) clone $args $url$repo.git $dir`)
+        run(`$(git()) clone --quiet $args $url$repo.git $dir`)
     else
         if auth !== nothing
             run(sudo(`-n -u $user`, `mkdir -p -m 770 $dir`))
@@ -56,8 +56,8 @@ end
 gitclone!(repo, dir, args::Cmd; user=nothing) = gitclone!(repo, dir, nothing, args; user)
 
 function gitreset!(dir)
-    run(`$(git()) -C $dir fetch --all`)
-    run(`$(git()) -C $dir reset --hard origin/master`)
+    run(`$(git()) -C $dir fetch --quiet --all`)
+    run(`$(git()) -C $dir reset --quiet --hard origin/master`)
 end
 
 ##################
