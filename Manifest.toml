@@ -341,8 +341,8 @@ version = "1.8.0"
 
 [[deps.PkgEval]]
 deps = ["DataFrames", "Dates", "Downloads", "Git", "JSON", "LazyArtifacts", "Pkg", "ProgressMeter", "Random", "Sandbox", "Scratch", "s5cmd_jll"]
-git-tree-sha1 = "be4c73df392ac5f6801a4c5fe23b1ac8cda6029e"
-repo-rev = "69a5bc7881c165d94d75f0d3e5c49ef36790e950"
+git-tree-sha1 = "f0fd245bad5b278767737efdf91dd4ed9fd1dac7"
+repo-rev = "70be29bc00911b4e087ec2f492799ffb9771b1c1"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 version = "0.2.0"

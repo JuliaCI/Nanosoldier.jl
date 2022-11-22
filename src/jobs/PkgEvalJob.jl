@@ -127,9 +127,9 @@ function PkgEvalJob(submission::JobSubmission)
             error("invalid argument to `configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
-        configuration = Configuration(; tup...)
+        configuration = Configuration(; name="primary", tup...)
     else
-        configuration = Configuration(; rr=true)
+        configuration = Configuration(; name="primary", rr=true)
     end
 
     if haskey(submission.kwargs, :vs_configuration)
@@ -138,9 +138,9 @@ function PkgEvalJob(submission::JobSubmission)
             error("invalid argument to `vs_configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
-        against_configuration = Configuration(; tup...)
+        against_configuration = Configuration(; name="against", tup...)
     else
-        against_configuration = Configuration()
+        against_configuration = Configuration(; name="against")
     end
 
     return PkgEvalJob(submission, first(submission.args), against,
@@ -216,19 +216,20 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     cfg = submission(job).config
 
     # determine configurations to use
-    configs = Dict{String,Configuration}()
+    configs = Configuration[]
     for (whichbuild, build) in builds
         # determine Julia version matching requested BuildRef
         julia = "$(build.repo)#$(build.sha)"
         nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
 
         # create a configuration
-        configs[whichbuild] = Configuration(base_configs[whichbuild]; julia)
+        config = Configuration(base_configs[whichbuild]; julia)
+        push!(configs, config)
 
         # get some version info
         try
             out = Pipe()
-            PkgEval.sandboxed_julia(configs[whichbuild], ```-e '
+            PkgEval.sandboxed_julia(config, ```-e '
                     using InteractiveUtils
                     versioninfo(verbose=true)
                     '
