@@ -9,11 +9,13 @@ message = """
 
           @nanosoldier `runbenchmarks(ALL, isdaily = true)`
           """
-GitHub.create_comment(repo, sha, :commit, auth=auth, params=Dict("body" => message))
+get(ENV, "BENCHMARK", "true") == "true" &&
+    GitHub.create_comment(repo, sha, :commit, auth=auth, params=Dict("body" => message))
 
 message = """
           Executing the daily package evaluation, I will reply here when finished:
 
           @nanosoldier `runtests(ALL, isdaily = true)`
           """
-GitHub.create_comment(repo, sha, :commit, auth=auth, params=Dict("body" => message))
+get(ENV, "PKGEVAL", "true") == "true" &&
+    GitHub.create_comment(repo, sha, :commit, auth=auth, params=Dict("body" => message))
