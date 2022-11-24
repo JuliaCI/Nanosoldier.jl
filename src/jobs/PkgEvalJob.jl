@@ -79,7 +79,7 @@ end
 
 mutable struct PkgEvalJob <: AbstractJob
     submission::JobSubmission        # the original submission
-    pkgsel::String                   # selection of packages
+    pkgsel::Vector{String}           # selection of packages
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
@@ -149,7 +149,18 @@ function PkgEvalJob(submission::JobSubmission)
         against_configuration = Configuration(; name="against")
     end
 
-    return PkgEvalJob(submission, first(submission.args), against,
+    pkgsel = if isempty(submission.args) || first(submission.args) == "ALL"
+        String[]
+    else
+        pkgs = eval(Meta.parse(first(submission.args)))
+        if pkgs isa Vector
+            pkgs
+        else
+            [pkgs]
+        end
+    end
+
+    return PkgEvalJob(submission, pkgsel, against,
                       Date(submission.build.time), isdaily,
                       configuration, against_configuration)
 end
@@ -167,7 +178,7 @@ end
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
     allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration)
     args, kwargs = submission.args, submission.kwargs
-    has_valid_args = length(args) == 1 && is_valid_pkgsel(first(args))
+    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_pkgsel(first(args)))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
                         (length(kwargs) <= length(allowed_kwargs)))
     return (submission.func == "runtests") && has_valid_args && has_valid_kwargs
@@ -248,12 +259,10 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
     end
 
     # determine packages to test
-    pkgsel = Meta.parse(job.pkgsel)
-    pkgs = if pkgsel == :ALL
+    pkgs = if isempty(job.pkgsel)
         nothing
     else
-        # safe to evaluate, it's a :vec of Strings
-        [Package(; name) for name in eval(pkgsel)]
+        [Package(; name) for name in job.pkgsel]
     end
 
     # run tests
@@ -597,9 +606,13 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 *Commit$(hasagainstbuild ? "s" : ""):* $(joblink)
 
                 *Triggered By:* [link]($(submission(job).url))
-
-                *Package Selection:* $(markdown_escaped_code(job.pkgsel))
                 """)
+
+    if !isempty(job.pkgsel)
+        println(io, """
+                    *Package Selection:* $(markdown_escaped_code(repr(job.pkgsel)))
+                    """)
+    end
 
     if job.isdaily
         if hasagainstbuild

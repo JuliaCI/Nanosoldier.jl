@@ -4,6 +4,7 @@
 
 This package contains the infrastructure powering the @nanosoldier CI bot used by the Julia language.
 
+
 ## Quick start
 
 If you're a collaborator in the JuliaLang/julia repository, you can submit CI jobs to the Julia Lab's Nanosoldier cluster at MIT by commenting on commits or pull requests. The @nanosoldier bot looks for a special "trigger phrase" in your comment, and if the trigger phrase is found, it is parsed by the bot to configure and submit a CI job.
@@ -21,13 +22,13 @@ Backticks are mandatory. There are two kinds of jobs you can invoke: **benchmark
 One of the most common invocations runs all benchmarks on your PR, comparing against the current Julia master branch:
 
 ```
-@nanosoldier `runbenchmarks(ALL)`
+@nanosoldier `runbenchmarks()`
 ```
 
 Similarly, you can run all package tests, e.g. if you suspect your PR might be breaking:
 
 ```
-@nanosoldier `runtests(ALL)`
+@nanosoldier `runtests()`
 ```
 
 Both operations take a long time, so it might be wise to restrict which benchmarks you want to run, or which packages you want to test:
@@ -66,7 +67,7 @@ A `BenchmarkJob` is triggered with the following syntax:
 
 The `vs` keyword argument is optional; if invoked from a pull request, it will be derived automatically from the merge base. In other cases, the comparison step (step 3 above) will be skipped.
 
-The tag predicate is used to decide which benchmarks to run, and supports the syntax defined by the [tagging system](https://github.com/JuliaCI/BenchmarkTools.jl/blob/master/doc/manual.md#indexing-into-a-benchmarkgroup-using-tagged) implemented in the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package. Additionally, you can run all benchmarks by using the keyword `ALL`, e.g. `runbenchmarks(ALL)`.
+The tag predicate is used to decide which benchmarks to run, and supports the syntax defined by the [tagging system](https://github.com/JuliaCI/BenchmarkTools.jl/blob/master/doc/manual.md#indexing-into-a-benchmarkgroup-using-tagged) implemented in the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package. Additionally, you can run all benchmarks by using the keyword `ALL`, e.g. `runbenchmarks(ALL)`, which is the same as specifying no predicate at all.
 
 The `vs` keyword argument takes a reference string which can points to a Julia commit to compare against. The following syntax is supported for reference string:
 
@@ -123,14 +124,14 @@ branch.
 I want to run all benchmarks on the current commit. I want to compare the results
 against a commit on my fork.
 
-@nanosoldier `runbenchmarks(ALL, vs = "christopher-dG/julia@c70ab26bb677c92f0d8e0ae41c3035217a4b111f")`
+@nanosoldier `runbenchmarks(vs = "christopher-dG/julia@c70ab26bb677c92f0d8e0ae41c3035217a4b111f")`
 ```
 
 ```
 I want to run all benchmarks on the current commit. I want to compare the results
 against the head commit of my fork's branch.
 
-@nanosoldier `runbenchmarks(ALL, vs = "christopher-dG/julia:mybranch")`
+@nanosoldier `runbenchmarks(vs = "christopher-dG/julia:mybranch")`
 ```
 
 ### `PkgEvalJob`
@@ -152,7 +153,7 @@ A `PkgEvalJob` is triggered with the following syntax:
 @nanosoldier `runtests(package_selection, vs = "ref")`
 ```
 
-The package selection argument is used to decide which packages to test. It should be a list of package names, e.g. `["Example"]`, that will be looked up in the registry. Additionally, you can test all packages in the registry by using the keyword `ALL`, e.g. `runtests(ALL)`.
+The package selection argument is used to decide which packages to test. It should be a list of package names, e.g. `["Example"]`, that will be looked up in the registry. Additionally, you can test all packages in the registry by using the keyword `ALL`, e.g. `runtests(ALL)`, which is the same as not providing a package selection argument at all.
 
 The `vs` keyword argument is again optional. Its syntax and behavior is identical to the `BenchmarkJob` `vs` keyword argument.
 
@@ -161,16 +162,16 @@ Both sides of the comparison can be further configured by using respectively the
 For example, a common configuration is to include buildflags that enable assertions:
 
 ```
-@nanosoldier `runtests(ALL, vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],))`
+@nanosoldier `runtests(vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],))`
 ```
 
 Another useful example makes PkgEval run under rr and use a Julia debug build for a better debugging experience:
 
 ```
-@nanosoldier `runtests(ALL, configuration = (buildflags=["JULIA_BUILD_MODE=debug"], julia_binary="julia-debug", rr=true))`
+@nanosoldier `runtests(configuration = (buildflags=["JULIA_BUILD_MODE=debug"], julia_binary="julia-debug", rr=true))`
 ```
 
-If no configuration arguments are specified, the primary build will use `rr=true`, but other than that the defaults as specified by the `PkgEval.Configuration` constructor are used.
+If no configuration arguments are specified, the defaults as specified by the `PkgEval.Configuration` constructor are used.
 
 #### Results
 

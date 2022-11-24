@@ -93,7 +93,13 @@ function BenchmarkJob(submission::JobSubmission)
         isdaily = false
     end
 
-    return BenchmarkJob(submission, first(submission.args), against,
+    tagpred = if isempty(submission.args)
+        "ALL"
+    else
+        first(submission.args)
+    end
+
+    return BenchmarkJob(submission, tagpred, against,
                         Date(submission.build.time), isdaily, skipbuild)
 end
 
@@ -110,7 +116,7 @@ end
 function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
     allowed_kwargs = (:vs, :skipbuild, :isdaily)
     args, kwargs = submission.args, submission.kwargs
-    has_valid_args = length(args) == 1 && is_valid_tagpred(first(args))
+    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_tagpred(first(args)))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
                         (length(kwargs) <= length(allowed_kwargs)))
     return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
