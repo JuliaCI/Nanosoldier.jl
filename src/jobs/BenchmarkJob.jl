@@ -72,15 +72,10 @@ function BenchmarkJob(submission::JobSubmission)
         against = againstbuild
     elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch
-        repo = joinpath(workdir, "julia")
-        if isdir(joinpath(repo, ".git"))
-            gitreset!(repo)
-        else
-            gitclone!(submission.config.trackrepo, repo)
-        end
-        run(`$(git()) -C $repo fetch --quiet origin +refs/pull/$(submission.prnumber)/head:`)
-        merge_base = chomp(read(`$(git()) -C $repo merge-base origin/master FETCH_HEAD`, String))
-        against = commitref(submission.config, submission.config.trackrepo, merge_base)
+        merge_base = GitHub.compare(submission.config.trackrepo,
+                                    "master", "refs/pull/$(submission.prnumber)/head";
+                                    auth=config.auth).merge_base_commit
+        against = commitref(submission.config, submission.config.trackrepo, merge_base.sha)
     else
         against = nothing
     end

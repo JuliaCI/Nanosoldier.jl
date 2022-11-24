@@ -173,9 +173,9 @@ version = "1.2.1"
 
 [[deps.GitHub]]
 deps = ["Base64", "Dates", "HTTP", "JSON", "MbedTLS", "Sockets", "SodiumSeal", "URIs"]
-git-tree-sha1 = "86e4a22eb548b5dea5a16eab388b4921020c0b8c"
+git-tree-sha1 = "08ee34cdc529bd4e631f661595c2eb695515bdbc"
 uuid = "bc5e4493-9b4d-5f90-b8aa-2b2bcaad7a26"
-version = "5.8.0"
+version = "5.8.1"
 
 [[deps.Git_jll]]
 deps = ["Artifacts", "Expat_jll", "Gettext_jll", "JLLWrappers", "LibCURL_jll", "Libdl", "Libiconv_jll", "OpenSSL_jll", "PCRE2_jll", "Pkg", "Zlib_jll"]
