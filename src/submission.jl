@@ -156,13 +156,13 @@ function upload_report_repo!(sub::JobSubmission, markdownpath, message)
     dir = reportdir(cfg)
 
     # create a detached commit
-    run(`$(git()) -C $dir checkout --detach`)
-    run(`$(git()) -C $dir add -A`)
-    run(`$(git()) -C $dir commit -m $message`)
+    run(`$(git()) -C $dir checkout --detach --quiet`)
+    run(`$(git()) -C $dir add --all`)
+    run(`$(git()) -C $dir commit --message $message --quiet`)
     sha = readchomp(`$(git()) -C $dir rev-parse HEAD`)
 
     # cherry-pick on top of latest master
-    run(`$(git()) -C $dir checkout master`)
+    run(`$(git()) -C $dir checkout --quiet master`)
     gitreset!(dir)
     run(`$(git()) -C $dir cherry-pick -X ours $sha`)
 
