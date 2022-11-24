@@ -110,6 +110,12 @@ function PkgEvalJob(submission::JobSubmission)
             error("invalid argument to `vs` keyword")
         end
         against = againstbuild
+    elseif submission.prnumber !== nothing
+        # if there is a PR number, we compare against the base branch
+        merge_base = GitHub.compare(submission.config.trackrepo,
+                                    "master", "refs/pull/$(submission.prnumber)/head";
+                                    auth=config.auth).merge_base_commit
+        against = commitref(submission.config, submission.config.trackrepo, merge_base.sha)
     else
         against = nothing
     end

@@ -66,23 +66,8 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     end
 
     # clone/fetch the appropriate Julia version
-    if prnumber !== nothing
-        # clone from `trackrepo`, not `build.repo`, since that's where the merge commit is
-        gitclone!(config.trackrepo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
-        try
-            run(sudo(config.user, `$(git()) -C $srcdir fetch --quiet origin +refs/pull/$(prnumber)/merge:`))
-        catch
-            # if there's not a merge commit on the remote (likely due to
-            # merge conflicts) then fetch the head commit instead.
-            run(sudo(config.user, `$(git()) -C $srcdir fetch --quiet origin +refs/pull/$(prnumber)/head:`))
-        end
-        run(sudo(config.user, `$(git()) -C $srcdir checkout --quiet --force FETCH_HEAD`))
-        build.sha = readchomp(sudo(config.user, `$(git()) -C $srcdir rev-parse HEAD`))
-        # XXX: update build.time here?
-    else
-        gitclone!(build.repo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
-        run(sudo(config.user, `$(git()) -C $srcdir checkout --quiet $(build.sha)`))
-    end
+    gitclone!(build.repo, srcdir, `-c core.sharedRepository=group --reference $mirrordir --dissociate`; user=config.user)
+    run(sudo(config.user, `$(git()) -C $srcdir checkout --quiet $(build.sha)`))
 
     # set up logs for STDOUT and STDERR
     logname = string(build.sha, "_build")
