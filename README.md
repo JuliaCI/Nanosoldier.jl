@@ -34,7 +34,7 @@ Similarly, you can run all package tests, e.g. if you suspect your PR might be b
 Both operations take a long time, so it might be wise to restrict which benchmarks you want to run, or which packages you want to test:
 
 ```
-@nanosoldier `runbenchmarks("linalg"")`
+@nanosoldier `runbenchmarks("linalg")`
 
 @nanosoldier `runtests(["JSON", "Crayons"])`
 ```
