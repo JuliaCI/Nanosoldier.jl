@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.2"
+julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "941a3b59a922a314802c93c19b7b076f4db2f658"
+project_hash = "2fcc11f38f8a02864b6890127960604119a99d66"
 
 [[deps.AWS]]
 deps = ["Base64", "Compat", "Dates", "Downloads", "GitHub", "HTTP", "IniFile", "JSON", "MbedTLS", "Mocking", "OrderedCollections", "Random", "Sockets", "URIs", "UUIDs", "XMLDict"]
@@ -47,6 +47,12 @@ deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Un
 git-tree-sha1 = "5084cc1a28976dd1642c9f337b28a3cb03e0f7d2"
 uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 version = "0.10.7"
+
+[[deps.CodecXz]]
+deps = ["Libdl", "TranscodingStreams", "XZ_jll"]
+git-tree-sha1 = "82c4c000edf64b6bda6766377e69a1028f3549ee"
+uuid = "ba30903b-d9e8-5048-a5ec-d1f5b0d4b47b"
+version = "0.7.0"
 
 [[deps.CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -225,6 +231,12 @@ git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
 
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "SnoopPrecompile", "StructTypes", "UUIDs"]
+git-tree-sha1 = "84b10656a41ef564c39d2d477d7236966d2b5683"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.12.0"
+
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -364,9 +376,9 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.8.0"
 
 [[deps.PkgEval]]
-deps = ["DataFrames", "Dates", "Downloads", "Git", "JSON", "LazyArtifacts", "Pkg", "ProgressMeter", "Random", "Sandbox", "Scratch", "s5cmd_jll"]
-git-tree-sha1 = "f0fd245bad5b278767737efdf91dd4ed9fd1dac7"
-repo-rev = "70be29bc00911b4e087ec2f492799ffb9771b1c1"
+deps = ["CodecXz", "CodecZlib", "CodecZstd", "DataFrames", "Dates", "Downloads", "Git", "GitHub", "HTTP", "JSON3", "LazyArtifacts", "Pkg", "ProgressMeter", "REPL", "Random", "Sandbox", "Scratch", "Tar", "s5cmd_jll"]
+git-tree-sha1 = "8e3e9cdec5800194e6a999313ce0491435b10fef"
+repo-rev = "cbdfa19"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 version = "0.2.0"
@@ -479,6 +491,12 @@ git-tree-sha1 = "46da2434b41f41ac3594ee9816ce5541c6096123"
 uuid = "892a3eda-7b42-436c-8928-eab12a02cf0e"
 version = "0.3.0"
 
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.10.0"
+
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
@@ -551,6 +569,12 @@ deps = ["EzXML", "IterTools", "OrderedCollections"]
 git-tree-sha1 = "d9a3faf078210e477b291c79117676fca54da9dd"
 uuid = "228000da-037f-5747-90a9-8195ccbf91a5"
 version = "0.4.1"
+
+[[deps.XZ_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "d1d49166bc58e698ab38804d7bde2aef43e4b594"
+uuid = "ffd25f8a-64ca-5728-b0f7-c24cf3aae800"
+version = "5.2.7+0"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
