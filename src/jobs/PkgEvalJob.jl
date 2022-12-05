@@ -5,6 +5,8 @@ using JSON
 using LibGit2
 using CommonMark
 using Pkg
+import Downloads
+import TOML
 
 
 ################################
@@ -265,13 +267,29 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         [Package(; name) for name in job.pkgsel]
     end
 
+    # determine packages to blacklist
+    blacklist = String[]
+    if !job.isdaily
+        # daily evaluations are used to determine which packages are unreliable, i.e., fail
+        # often. we blacklist them to improve the signal-to-noise ratio of regular reports.
+        try
+            packages_url = "https://juliaci.github.io/NanosoldierReports/pkgeval_packages.toml"
+            packages_contents = sprint(io->Downloads.download(packages_url, io))
+            packages = TOML.parse(packages_contents)
+            append!(blacklist, packages["unreliable"])
+        catch err
+            nodelog(cfg, node, "Failed to retrieve package blacklist: $(sprint(showerror, err))")
+        end
+    end
+    nodelog(cfg, node, "Blacklisted $(length(blacklist)) packages")
+
     # run tests
     all_tests = withenv("CI" => true) do
         cpus = mycpus(submission(job).config)
         results["duration"] = @elapsed if pkgs !== nothing
-            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus))
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
         else
-            tests = PkgEval.evaluate(configs; ninstances=length(cpus))
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
         end
         tests
     end
