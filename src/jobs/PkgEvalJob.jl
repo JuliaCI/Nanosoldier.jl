@@ -137,7 +137,7 @@ function PkgEvalJob(submission::JobSubmission)
         tup = eval(expr)
         configuration = Configuration(; name="primary", tup...)
     else
-        configuration = Configuration(; name="primary", rr=true)
+        configuration = Configuration(; name="primary", rr=isdaily)
     end
 
     if haskey(submission.kwargs, :vs_configuration)
