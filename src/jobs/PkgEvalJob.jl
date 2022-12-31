@@ -87,6 +87,7 @@ mutable struct PkgEvalJob <: AbstractJob
     isdaily::Bool                    # is the job a daily job?
     configuration::Configuration
     against_configuration::Configuration
+    use_blacklist::Bool
     # FIXME: put configuration in BuildRef? currently created too early for that (when the
     #        GitHub event is parsed, while we get the configuration from the comment)
 end
@@ -129,6 +130,16 @@ function PkgEvalJob(submission::JobSubmission)
         isdaily = false
     end
 
+    if haskey(submission.kwargs, :use_blacklist)
+        use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
+    else
+        # daily evaluations are used to determine which packages are unreliable, i.e., fail
+        # often. we blacklist them to improve the signal-to-noise ratio of regular reports.
+        use_blacklist = !isdaily
+        # TODO: use a better condition, e.g., only use the blacklist when comparing
+        #       against master (or a derived commit, such as the merge base of a PR)
+    end
+
     if haskey(submission.kwargs, :configuration)
         expr = Meta.parse(submission.kwargs[:configuration])
         if !is_valid_configuration(expr)
@@ -164,7 +175,7 @@ function PkgEvalJob(submission::JobSubmission)
 
     return PkgEvalJob(submission, pkgsel, against,
                       Date(submission.build.time), isdaily,
-                      configuration, against_configuration)
+                      configuration, against_configuration, use_blacklist)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -269,9 +280,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
 
     # determine packages to blacklist
     blacklist = String[]
-    if !job.isdaily
-        # daily evaluations are used to determine which packages are unreliable, i.e., fail
-        # often. we blacklist them to improve the signal-to-noise ratio of regular reports.
+    if job.use_blacklist
         try
             packages_url = "https://juliaci.github.io/NanosoldierReports/pkgeval_packages.toml"
             packages_contents = sprint(io->Downloads.download(packages_url, io))
