@@ -133,11 +133,29 @@ function PkgEvalJob(submission::JobSubmission)
     if haskey(submission.kwargs, :use_blacklist)
         use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
     else
-        # daily evaluations are used to determine which packages are unreliable, i.e., fail
-        # often. we blacklist them to improve the signal-to-noise ratio of regular reports.
-        use_blacklist = !isdaily
-        # TODO: use a better condition, e.g., only use the blacklist when comparing
-        #       against master (or a derived commit, such as the merge base of a PR)
+        # normally, we use the blacklist.
+        use_blacklist = true
+
+        # however, there's two exceptions:
+        # 1. daily evaluations, which are used to _create_ the blacklist,
+        #    so obviously need to test all packages
+        if isdaily
+            use_blacklist = false
+        end
+        # 2. when comparing against a specific tag or branch that isn't master.
+        #    likely this branch or tag is in the past (e.g., referring to a release)
+        #    while the blacklist only encodes packages broken on the latest master.
+        if haskey(submission.kwargs, :vs)
+            againststr = Meta.parse(submission.kwargs[:vs])
+            if in(BRANCH_SEPARATOR, againststr)
+                reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
+                if againstbranch != "master"
+                    use_blacklist = false
+                end
+            elseif in(TAG_SEPARATOR, againststr)
+                use_blacklist = false
+            end
+        end
     end
 
     if haskey(submission.kwargs, :configuration)
