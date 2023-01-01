@@ -304,11 +304,13 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
             packages_contents = sprint(io->Downloads.download(packages_url, io))
             packages = TOML.parse(packages_contents)
             append!(blacklist, packages["unreliable"])
+            nodelog(cfg, node, "Blacklisted $(length(blacklist)) packages")
         catch err
             nodelog(cfg, node, "Failed to retrieve package blacklist: $(sprint(showerror, err))")
         end
+    else
+        nodelog(cfg, node, "Not using a package blacklist")
     end
-    nodelog(cfg, node, "Blacklisted $(length(blacklist)) packages")
 
     # run tests
     all_tests = withenv("CI" => true) do
