@@ -526,9 +526,6 @@ function Base.run(job::PkgEvalJob)
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
 
-    # update packages
-    Pkg.Registry.update()
-
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
 
