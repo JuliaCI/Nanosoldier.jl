@@ -229,7 +229,8 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
-        results["primary"] = execute_benchmarks!(job, julia_primary, :primary)
+        results["primary"], results["primary.vinfo"] =
+            execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
         # run the comparison job (or if it's a daily job, gather results to compare against)
@@ -258,7 +259,8 @@ function Base.run(job::BenchmarkJob)
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
-            results["against"] = execute_benchmarks!(job, julia_against, :against)
+            results["against"], results["against.vinfo"] =
+                execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
         if haskey(results, "against")
@@ -477,20 +479,20 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
     try
-        build.vinfo = first(split(read(```
+        vinfo = first(split(read(```
             $juliacmd -e '
                 using InteractiveUtils
                 versioninfo(verbose=true)
                 '
             ```, String), "Environment"))
     catch err
-        build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minimum(results)
+    return minimum(results), vinfo
 end
 
 ##########################
@@ -697,7 +699,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
               #### Primary Build
 
               ```
-              $(build.vinfo)
+              $(results["primary.vinfo"])
               ```
               """)
 
@@ -707,7 +709,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   #### Comparison Build
 
                   ```
-                  $(job.against.vinfo)
+                  $(results["against.vinfo"])
                   ```
                   """)
     end

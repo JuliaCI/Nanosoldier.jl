@@ -41,8 +41,8 @@ end
 repo = "JuliaLang/julia"
 primary_commit = GitHub.commits(repo; auth, page_limit=1)[1][10]
 against_commit = GitHub.commits(repo; auth, page_limit=1)[1][11]
-primary = BuildRef(repo, primary_commit.sha, primary_commit.commit.committer.date, vinfo)
-against = BuildRef(repo, against_commit.sha, against_commit.commit.committer.date, vinfo*"_against")
+primary = BuildRef(repo, primary_commit.sha, primary_commit.commit.committer.date)
+against = BuildRef(repo, against_commit.sha, against_commit.commit.committer.date)
 config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepos=[repo]);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = ["Example"]
@@ -183,6 +183,7 @@ results = Dict(
             )
         )
     ),
+    "primary.vinfo" => vinfo,
     "against" => BenchmarkGroup([],
         "g" => BenchmarkGroup([],
             "h" => BenchmarkGroup([],
@@ -192,7 +193,8 @@ results = Dict(
                 "z"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0)
             )
         )
-    )
+    ),
+    "against.vinfo" => vinfo*"_against"
 )
 
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
@@ -228,7 +230,8 @@ end
             reason=missing,
             duration=0.0,
             log="everything is fine",
-        )
+        ),
+        "primary.vinfo" => vinfo
     )
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
@@ -243,6 +246,7 @@ end
             duration=0.0,
             log="this one failed",
         )
+    results["against.vinfo"] = vinfo*"_against"
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
 end

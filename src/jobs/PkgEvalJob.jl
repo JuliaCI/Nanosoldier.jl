@@ -275,8 +275,24 @@ function determine_blacklist(job::PkgEvalJob)
     return blacklist
 end
 
+# read the version info of a Julia configuration
+function get_versioninfo!(config::Configuration, results::Dict)
+    try
+        out = Pipe()
+        PkgEval.sandboxed_julia(config, ```-e '
+                using InteractiveUtils
+                versioninfo(verbose=true)
+                '
+            ```; stdout=out, stderr=out, stdin=devnull)
+        close(out.in)
+        first(split(read(out, String), "Environment"))
+    catch err
+        string("retrieving versioninfo() failed: ", sprint(showerror, err))
+    end
+end
+
 # process the results of a PkgEval job, uploading logs and saving other data to disk
-function process_results(job::PkgEvalJob, builds)
+function process_results!(job::PkgEvalJob, builds, results::Dict)
     nodelog(cfg, node, "proccessing results...")
     for (whichbuild, build) in builds
         tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
@@ -354,21 +370,8 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
 
         # create a configuration
         config = Configuration(base_configs[whichbuild]; julia)
+        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
         push!(configs, config)
-
-        # get some version info
-        try
-            out = Pipe()
-            PkgEval.sandboxed_julia(config, ```-e '
-                    using InteractiveUtils
-                    versioninfo(verbose=true)
-                    '
-                ```; stdout=out, stderr=out, stdin=devnull)
-            close(out.in)
-            build.vinfo = first(split(read(out, String), "Environment"))
-        catch err
-            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
-        end
     end
 
     # determine packages to test/skip
@@ -390,7 +393,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         tests
     end
 
-    process_results(job, builds)
+    process_results!(job, builds, results)
 end
 
 function Base.run(job::PkgEvalJob)
@@ -904,7 +907,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
               #### Primary Build
 
               ```
-              $(build.vinfo)
+              $(results["primary.vinfo"])
               ```
               """)
 
@@ -918,7 +921,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                   #### Comparison Build
 
                   ```
-                  $(job.against.vinfo)
+                $(results["against.vinfo"])
                   ```
                   """)
 
@@ -939,7 +942,7 @@ function printdb(io::IO, job::PkgEvalJob, results)
     build = submission(job).build
 
     # parse Julia version info
-    m = match(r"Julia Version (.+)", build.vinfo)
+    m = match(r"Julia Version (.+)", results["primary.vinfo"])
     build_version = if m !== nothing
         tryparse(VersionNumber, m.captures[1])
     else

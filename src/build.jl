@@ -2,22 +2,18 @@
 # BuildRef #
 ############
 
-mutable struct BuildRef
+struct BuildRef
     repo::String    # the build repo
     sha::String     # the build + status SHA
     time::DateTime  # a timestamp for the build
-    vinfo::String   # versioninfo() taken during the build
 end
 
-BuildRef(repo, sha, time) = BuildRef(repo, sha, time, "retrieving versioninfo() failed")
-
-Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.time, x.vinfo)
+Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.time)
 
 function Base.:(==)(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
-            a.time == b.time &&
-            a.vinfo == b.vinfo)
+            a.time == b.time)
 end
 
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
