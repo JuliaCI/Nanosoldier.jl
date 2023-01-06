@@ -44,7 +44,8 @@ struct Server
         listener = GitHub.CommentListener(handle, config.trigger;
                                           auth = config.auth,
                                           secret = config.secret,
-                                          repos = [config.trackrepo])
+                                          repos = [config.trackrepo],
+                                          check_collab = false)
         return new(config, jobs, listener)
     end
 end
