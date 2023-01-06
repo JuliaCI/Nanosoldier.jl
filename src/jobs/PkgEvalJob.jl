@@ -254,50 +254,10 @@ function retrieve_daily_pkgeval_data!(cfg, date)
     return db
 end
 
-########################
-# PkgEvalJob Execution #
-########################
-
-# execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
-    node = myid()
-    cfg = submission(job).config
-
-    # determine configurations to use
-    configs = Configuration[]
-    for (whichbuild, build) in builds
-        # determine Julia version matching requested BuildRef
-        julia = "$(build.repo)#$(build.sha)"
-        nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
-
-        # create a configuration
-        config = Configuration(base_configs[whichbuild]; julia)
-        push!(configs, config)
-
-        # get some version info
-        try
-            out = Pipe()
-            PkgEval.sandboxed_julia(config, ```-e '
-                    using InteractiveUtils
-                    versioninfo(verbose=true)
-                    '
-                ```; stdout=out, stderr=out, stdin=devnull)
-            close(out.in)
-            build.vinfo = first(split(read(out, String), "Environment"))
-        catch err
-            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
-        end
-    end
-
-    # determine packages to test
-    pkgs = if isempty(job.pkgsel)
-        nothing
-    else
-        [Package(; name) for name in job.pkgsel]
-    end
-
-    # determine packages to blacklist
+# determine a list of packages to blacklist
+function determine_blacklist(job::PkgEvalJob)
     blacklist = String[]
+
     if job.use_blacklist
         try
             packages_url = "https://juliaci.github.io/NanosoldierReports/pkgeval_packages.toml"
@@ -312,18 +272,12 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         nodelog(cfg, node, "Not using a package blacklist")
     end
 
-    # run tests
-    all_tests = withenv("CI" => true) do
-        cpus = mycpus(submission(job).config)
-        results["duration"] = @elapsed if pkgs !== nothing
-            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
-        else
-            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
-        end
-        tests
-    end
+    return blacklist
+end
 
-    # process the results for each Julia version separately
+# process the results of a PkgEval job, uploading logs and saving other data to disk
+function process_results(job::PkgEvalJob, builds)
+    nodelog(cfg, node, "proccessing results...")
     for (whichbuild, build) in builds
         tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
         results[whichbuild] = tests
@@ -379,6 +333,64 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
             JSON.print(io, json)
         end
     end
+    nodelog(cfg, node, "finished proccessing results")
+end
+
+########################
+# PkgEvalJob Execution #
+########################
+
+# execute package tests using one or more Julia builds
+function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
+    # determine configurations to use
+    configs = Configuration[]
+    for (whichbuild, build) in builds
+        # determine Julia version matching requested BuildRef
+        julia = "$(build.repo)#$(build.sha)"
+        nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
+
+        # create a configuration
+        config = Configuration(base_configs[whichbuild]; julia)
+        push!(configs, config)
+
+        # get some version info
+        try
+            out = Pipe()
+            PkgEval.sandboxed_julia(config, ```-e '
+                    using InteractiveUtils
+                    versioninfo(verbose=true)
+                    '
+                ```; stdout=out, stderr=out, stdin=devnull)
+            close(out.in)
+            build.vinfo = first(split(read(out, String), "Environment"))
+        catch err
+            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        end
+    end
+
+    # determine packages to test/skip
+    pkgs = if isempty(job.pkgsel)
+        nothing
+    else
+        [Package(; name) for name in job.pkgsel]
+    end
+    blacklist = determine_blacklist(job)
+
+    # run tests
+    all_tests = withenv("CI" => true) do
+        cpus = mycpus(submission(job).config)
+        results["duration"] = @elapsed if pkgs !== nothing
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
+        else
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
+        end
+        tests
+    end
+
+    process_results(job, builds)
 end
 
 function Base.run(job::PkgEvalJob)
