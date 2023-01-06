@@ -306,6 +306,43 @@ function determine_blacklist(job::PkgEvalJob)
     return blacklist
 end
 
+# determine the direct dependencies of a given package and version
+# by reading the registry and parsing deps/compat sections.
+function direct_dependencies(registry_path::String, package::String, version::VersionNumber)
+    dependents = []
+    registry = Pkg.Registry.RegistryInstance(registry_path)
+    for (uuid, candidate_package) in registry
+        info = Pkg.Registry.registry_info(candidate_package)
+
+        # PkgEval only tests the latest version of each package
+        latest_version = maximum(keys(info.version_info))
+
+        # determine the dependencies for the latest version of this candidate
+        all_deps = Dict()
+        for (version_range, deps) in info.deps
+            latest_version in version_range || continue
+            merge!(all_deps, deps)
+        end
+
+        # does it depend on the package we're testing?
+        haskey(all_deps, package) || continue
+
+        # check if there's no compat bound restricting the version
+        compat = true
+        for (version_range, bounds) in info.compat
+            latest_version in version_range || continue
+            haskey(bounds, package) || continue
+            if version ∉ bounds[package]
+                compat = false
+            end
+        end
+        compat || continue
+
+        push!(dependents, candidate_package.name)
+    end
+    return dependents
+end
+
 # read the version info of a Julia configuration
 function get_versioninfo!(config::Configuration, results::Dict)
     try
@@ -439,6 +476,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
     # determine configurations to use
     configs = Configuration[]
+    dependencies = []
     for (whichbuild, build) in builds
         # create a configuration
         if build !== nothing
@@ -453,11 +491,12 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
             package_url = "https://github.com/$(build.repo).git"
 
-            # generate a custom registry with the new package version
+            # generate a custom registry
             reference_registry = PkgEval.get_registry(base_configs[whichbuild])
             registry_path = mktempdir()
             cp(reference_registry, registry_path; force=true)
 
+            # register our package
             regbr = RegistryTools.RegBranch(package_project, "pkgeval")
             status = RegistryTools.ReturnStatus()
             RegistryTools.check_and_update_registry_files(package_project, package_url,
@@ -468,8 +507,11 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
                 RegistryTools.set_metadata!(regbr, status)
                 error(regbr.metadata["error"])
             end
-            registry_diff = read(ignorestatus(`diff -r $reference_registry $registry_path`), String)
-            nodelog(cfg, node, "Registry diff:\n$registry_diff")
+
+            # note our package dependencies
+            dependencies = direct_dependencies(reference_registry, package_project.name,
+                                               package_project.version)
+            nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) $(package_project.version)")
 
             config = Configuration(base_configs[whichbuild]; registry=registry_path)
         else
@@ -482,7 +524,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
     # determine packages to test/skip
     pkgs = if isempty(job.pkgsel)
-        nothing
+        [Package(; name) for name in dependencies]
     else
         [Package(; name) for name in job.pkgsel]
     end
