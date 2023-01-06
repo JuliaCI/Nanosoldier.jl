@@ -8,7 +8,7 @@ auth = GitHub.authenticate(ENV["GITHUB_AUTH"])
 secret = ENV["GITHUB_SECRET"]
 
 config = Nanosoldier.Config(ENV["USER"], nodes, auth, secret;
-                            trackrepo = "JuliaLang/julia",
+                            trackrepos = ["JuliaLang/julia"],
                             reportrepo = "JuliaCI/NanosoldierReports",
                             trigger = r"\@nanosoldier\s*`runtests\(.*?\)`",
                             admin = "maleadt",
