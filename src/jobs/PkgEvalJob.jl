@@ -7,6 +7,7 @@ using CommonMark
 using Pkg
 import Downloads
 import TOML
+import RegistryTools
 
 
 ################################
@@ -79,8 +80,14 @@ end
 # PkgEvalJob #
 ##############
 
+@enum PkgEvalType begin
+    PkgEvalTypeJulia        # test a Julia version against packages
+    PkgEvalTypePackage      # test a package version against other packages
+end
+
 mutable struct PkgEvalJob <: AbstractJob
     submission::JobSubmission        # the original submission
+    type::PkgEvalType                # the type of job
     pkgsel::Vector{String}           # selection of packages
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
@@ -93,7 +100,31 @@ mutable struct PkgEvalJob <: AbstractJob
 end
 
 function PkgEvalJob(submission::JobSubmission)
+    # based on the repo name, we'll be running in Julia or in Package test mode
+    repo_owner, repo_name = split(submission.repo, "/")
+    jobtype = if repo_name == "julia"
+        PkgEvalTypeJulia
+    else
+        PkgEvalTypePackage
+    end
+
+    pkgsel = if isempty(submission.args) || first(submission.args) == "ALL"
+        String[]
+    else
+        pkgs = eval(Meta.parse(first(submission.args)))
+        if pkgs isa Vector
+            pkgs
+        else
+            [pkgs]
+        end
+    end
+
     if haskey(submission.kwargs, :vs)
+        # when testing packages, we'll implicitly compare against the General registry,
+        # so disallow specifying a comparison build
+        jobtype == PkgEvalTypeJulia ||
+            error("cannot specify a comparison build when testing packages")
+
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
@@ -124,38 +155,11 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     if haskey(submission.kwargs, :isdaily)
+        jobtype == PkgEvalTypeJulia || error("isdaily is only valid on the Julia repository")
         isdaily = submission.kwargs[:isdaily] == "true"
         validatate_isdaily(submission)
     else
         isdaily = false
-    end
-
-    if haskey(submission.kwargs, :use_blacklist)
-        use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
-    else
-        # normally, we use the blacklist.
-        use_blacklist = true
-
-        # however, there's two exceptions:
-        # 1. daily evaluations, which are used to _create_ the blacklist,
-        #    so obviously need to test all packages
-        if isdaily
-            use_blacklist = false
-        end
-        # 2. when comparing against a specific tag or branch that isn't master.
-        #    likely this branch or tag is in the past (e.g., referring to a release)
-        #    while the blacklist only encodes packages broken on the latest master.
-        if haskey(submission.kwargs, :vs)
-            againststr = Meta.parse(submission.kwargs[:vs])
-            if in(BRANCH_SEPARATOR, againststr)
-                reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-                if againstbranch != "master"
-                    use_blacklist = false
-                end
-            elseif in(TAG_SEPARATOR, againststr)
-                use_blacklist = false
-            end
-        end
     end
 
     if haskey(submission.kwargs, :configuration)
@@ -180,18 +184,42 @@ function PkgEvalJob(submission::JobSubmission)
         against_configuration = Configuration(; name="against")
     end
 
-    pkgsel = if isempty(submission.args) || first(submission.args) == "ALL"
-        String[]
+    if haskey(submission.kwargs, :use_blacklist)
+        use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
     else
-        pkgs = eval(Meta.parse(first(submission.args)))
-        if pkgs isa Vector
-            pkgs
+        # normally, we use the blacklist.
+        use_blacklist = true
+
+        # however, there's two exceptions:
+        # 1. daily evaluations, which are used to _create_ the blacklist,
+        #    so obviously need to test all packages
+        if isdaily
+            use_blacklist = false
+        end
+        # 2. when comparing against a specific Julia tag or branch that isn't master.
+        #    likely this branch or tag is in the past (e.g., referring to a release)
+        #    while the blacklist only encodes packages broken on the latest master.
+        if jobtype == PkgEvalTypeJulia
+            if haskey(submission.kwargs, :vs)
+                againststr = Meta.parse(submission.kwargs[:vs])
+                if in(BRANCH_SEPARATOR, againststr)
+                    reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
+                    if againstbranch != "master"
+                        use_blacklist = false
+                    end
+                elseif in(TAG_SEPARATOR, againststr)
+                    use_blacklist = false
+                end
+            end
         else
-            [pkgs]
+            if !(configuration.julia         in ["master", "nightly"] &&
+                 against_configuration.julia in ["master", "nightly"])
+                use_blacklist = false
+            end
         end
     end
 
-    return PkgEvalJob(submission, pkgsel, against,
+    return PkgEvalJob(submission, jobtype, pkgsel, against,
                       Date(submission.build.time), isdaily,
                       configuration, against_configuration, use_blacklist)
 end
@@ -256,6 +284,9 @@ end
 
 # determine a list of packages to blacklist
 function determine_blacklist(job::PkgEvalJob)
+    node = myid()
+    cfg = submission(job).config
+
     blacklist = String[]
 
     if job.use_blacklist
@@ -292,7 +323,10 @@ function get_versioninfo!(config::Configuration, results::Dict)
 end
 
 # process the results of a PkgEval job, uploading logs and saving other data to disk
-function process_results!(job::PkgEvalJob, builds, results::Dict)
+function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
     nodelog(cfg, node, "proccessing results...")
     for (whichbuild, build) in builds
         tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
@@ -339,14 +373,16 @@ function process_results!(job::PkgEvalJob, builds, results::Dict)
             Feather.write(joinpath(tmpdatadir(job), "$(whichbuild).feather"), tests)
         end
         ## dict with build properties
-        open(joinpath(tmpdatadir(job), "$(whichbuild).json"), "w") do io
-            json = Dict{String,Any}(
-                "build" => Dict(
-                    "repo"  => build.repo,
-                    "sha"   => build.sha,
+        if build !== nothing
+            open(joinpath(tmpdatadir(job), "$(whichbuild).json"), "w") do io
+                json = Dict{String,Any}(
+                    "build" => Dict(
+                        "repo"  => build.repo,
+                        "sha"   => build.sha,
+                    )
                 )
-            )
-            JSON.print(io, json)
+                JSON.print(io, json)
+            end
         end
     end
     nodelog(cfg, node, "finished proccessing results")
@@ -357,7 +393,7 @@ end
 ########################
 
 # execute package tests using one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+function test_julia!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
     node = myid()
     cfg = submission(job).config
 
@@ -393,7 +429,77 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         tests
     end
 
-    process_results!(job, builds, results)
+    process_results!(job, builds, all_tests, results)
+end
+
+# execute package tests after upgrading to a specific version of a package
+function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
+    # determine configurations to use
+    configs = Configuration[]
+    for (whichbuild, build) in builds
+        # create a configuration
+        if build !== nothing
+            package = "$(build.repo)#$(build.sha)"
+            nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
+
+            package_path = PkgEval.get_github_checkout(build.repo, build.sha)
+            package_project_file = joinpath(package_path, "Project.toml")
+            isfile(package_project_file) ||
+                error("Package project file not found: $package_project_file")
+            package_project = RegistryTools.Project(package_project_file)
+            package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
+            package_url = "https://github.com/$(build.repo).git"
+
+            # generate a custom registry with the new package version
+            reference_registry = PkgEval.get_registry(base_configs[whichbuild])
+            registry_path = mktempdir()
+            cp(reference_registry, registry_path; force=true)
+
+            regbr = RegistryTools.RegBranch(package_project, "pkgeval")
+            status = RegistryTools.ReturnStatus()
+            RegistryTools.check_and_update_registry_files(package_project, package_url,
+                                                          package_hash, registry_path,
+                                                          #=registry_deps=# String[],
+                                                          status)
+            if RegistryTools.haserror(status)
+                RegistryTools.set_metadata!(regbr, status)
+                error(regbr.metadata["error"])
+            end
+            registry_diff = read(ignorestatus(`diff -r $reference_registry $registry_path`), String)
+            nodelog(cfg, node, "Registry diff:\n$registry_diff")
+
+            config = Configuration(base_configs[whichbuild]; registry=registry_path)
+        else
+            nodelog(cfg, node, "$whichbuild build will use default registry")
+            config = base_configs[whichbuild]
+        end
+        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
+        push!(configs, config)
+    end
+
+    # determine packages to test/skip
+    pkgs = if isempty(job.pkgsel)
+        nothing
+    else
+        [Package(; name) for name in job.pkgsel]
+    end
+    blacklist = determine_blacklist(job)
+
+    # run tests
+    all_tests = withenv("CI" => true) do
+        cpus = mycpus(submission(job).config)
+        results["duration"] = @elapsed if pkgs !== nothing
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
+        else
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
+        end
+        tests
+    end
+
+    process_results!(job, builds, all_tests, results)
 end
 
 function Base.run(job::PkgEvalJob)
@@ -456,15 +562,24 @@ function Base.run(job::PkgEvalJob)
     end
 
     # run tests
-    builds = Dict("primary" => submission(job).build)
-    configs = Dict("primary" => job.configuration)
-    if job.against !== nothing
-        builds["against"] = job.against
-        configs["against"] = job.against_configuration
-    end
+    builds = Dict{String,Union{BuildRef,Nothing}}("primary" => submission(job).build)
+    configs = Dict{String,Configuration}("primary" => job.configuration)
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, configs, results)
+        if job.type == PkgEvalTypeJulia
+            if job.against !== nothing
+                builds["against"] = job.against
+                configs["against"] = job.against_configuration
+            end
+
+            test_julia!(job, builds, configs, results)
+        else
+            # unconditionally test against the General registry
+            builds["against"] = nothing
+            configs["against"] = job.against_configuration
+
+            test_package!(job, builds, configs, results)
+        end
         nodelog(cfg, node, "finished tests for $(summary(job))")
     finally
         PkgEval.purge()
@@ -735,7 +850,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print result list #
     #-------------------#
 
-    if hasagainstbuild
+    if hasagainstbuild || job.type == PkgEvalTypePackage
         package_results = leftjoin(results["primary"], results["against"],
                                    on=:package, makeunique=true, source=:source)
 
