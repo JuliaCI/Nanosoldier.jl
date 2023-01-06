@@ -53,8 +53,13 @@ end
 function Base.run(server::Server, args...; kwargs...)
     @assert myid() == 1 "Nanosoldier server must be run from the master node"
 
-    nodelog(server.config, 1, "starting Nanosoldier server (working directory: $workdir)")
+    nodelog(server.config, 1, "Storing data at '$workdir'")
     persistdir!(workdir)
+
+    if !(server.config.auth isa GitHub.AnonymousAuth)
+        user = GitHub.whoami(; auth=server.config.auth)
+        nodelog(server.config, 1, "Authenticated as GitHub user '$(user.login)'")
+    end
 
     # Schedule a task for each node that feeds the node a job from the
     # queque once the node has completed its primary job. If the queue is
