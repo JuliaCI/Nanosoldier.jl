@@ -54,15 +54,15 @@ function BenchmarkJob(submission::JobSubmission)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = commitref(submission.config, againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
         elseif in(TAG_SEPARATOR, againststr)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = tagref(submission.config, againstrepo, againsttag)
         elseif againststr == SPECIAL_SELF
             againstbuild = copy(submission.build)
@@ -72,10 +72,10 @@ function BenchmarkJob(submission::JobSubmission)
         against = againstbuild
     elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch
-        merge_base = GitHub.compare(submission.config.trackrepo,
+        merge_base = GitHub.compare(submission.repo,
                                     "master", "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
-        against = commitref(submission.config, submission.config.trackrepo, merge_base.sha)
+        against = commitref(submission.config, submission.repo, merge_base.sha)
     else
         against = nothing
     end

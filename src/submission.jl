@@ -135,7 +135,7 @@ function reply_status(sub::JobSubmission, context, state, description, url=nothi
                   "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.config.trackrepo, sub.statussha;
+    return GitHub.create_status(sub.repo, sub.statussha;
                                 auth = sub.config.auth, params = params)
 end
 
@@ -147,7 +147,7 @@ function reply_comment(sub::JobSubmission, message::AbstractString)
 
     commentplace = sub.prnumber === nothing ? sub.statussha : sub.prnumber
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
-    return GitHub.create_comment(sub.config.trackrepo, commentplace, commentkind;
+    return GitHub.create_comment(sub.repo, commentplace, commentkind;
                                  auth = sub.config.auth, params = Dict("body" => message))
 end
 

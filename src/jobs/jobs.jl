@@ -32,7 +32,8 @@ end
 function validatate_isdaily(submission::JobSubmission)
     if submission.prnumber === nothing && submission.kwargs == Dict(:isdaily => "true")
         config = submission.config
-        for commit in GitHub.commits(config.trackrepo; auth=config.auth, page_limit=1, params=Dict("per_page" => 50))[1]
+        for commit in GitHub.commits(submission.repo; auth=config.auth, page_limit=1,
+                                     params=Dict("per_page" => 50))[1]
             if commit.sha == submission.statussha
                 return
             end

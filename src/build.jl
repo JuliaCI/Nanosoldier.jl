@@ -54,14 +54,14 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     run(sudo(config.user, `mkdir -m 775 $srcdir`))
     chmod(tmpdir, 0o555)
 
-    mirrordir = joinpath(workdir, "mirrors", split(config.trackrepo, "/")...)
+    mirrordir = joinpath(workdir, "mirrors", "julia")
     mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
         if ispath(mirrordir, ".git")
             run(`$(git()) -C $mirrordir fetch --quiet --all`)
         else
             mkpath(mirrordir)
-            gitclone!(config.trackrepo, mirrordir, `--mirror`)
+            gitclone!("JuliaLang/julia", mirrordir, `--mirror`)
         end
     end
 
