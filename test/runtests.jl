@@ -38,10 +38,11 @@ auth = if haskey(ENV, "GITHUB_AUTH")
 else
     GitHub.AnonymousAuth()
 end
-primary_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][10]
-against_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][11]
-primary = BuildRef("JuliaLang/julia", primary_commit.sha, primary_commit.commit.committer.date, vinfo)
-against = BuildRef("JuliaLang/julia", against_commit.sha, against_commit.commit.committer.date, vinfo*"_against")
+repo = "JuliaLang/julia"
+primary_commit = GitHub.commits(repo; auth, page_limit=1)[1][10]
+against_commit = GitHub.commits(repo; auth, page_limit=1)[1][11]
+primary = BuildRef(repo, primary_commit.sha, primary_commit.commit.committer.date, vinfo)
+against = BuildRef(repo, against_commit.sha, against_commit.commit.committer.date, vinfo*"_against")
 config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = ["Example"]
@@ -52,7 +53,7 @@ pkgsel = ["Example"]
 
 function build_test_submission(jobtyp, submission_string)
     func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
-    submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
+    submission = JobSubmission(config, repo, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
     @test Nanosoldier.isvalid(submission, jobtyp)
     return jobtyp(submission)
 end
