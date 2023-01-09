@@ -504,10 +504,7 @@ function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
-                      "but no benchmarks were actually executed. Perhaps your tag predicate " *
-                      "contains misspelled tags? cc @$(cfg.admin)")
+        error("No benchmarks were executed (perhaps your tag predicate contains misspelled tags?)")
     else
         # prepare report + data and push it to report repo
         target_url = ""
@@ -533,27 +530,26 @@ function report(job::BenchmarkJob, results)
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
+        if isempty(target_url)
+            error("failed to upload test report")
+        end
 
         # determine the job's final status
-        if job.against !== nothing || haskey(results, "previous_date")
-            found_regressions = BenchmarkTools.isregression(results["judged"])
-            state = found_regressions ? "failure" : "success"
-            status = found_regressions ? "possible performance regressions were detected" :
-                                            "no performance regressions were detected"
+        status = if job.against !== nothing || haskey(results, "previous_date")
+            if BenchmarkTools.isregression(results["judged"])
+                "possible performance regressions were detected"
+            else
+                "no performance regressions were detected"
+            end
         else
-            state = "success"
-            status = "successfully executed benchmarks"
+            "successfully executed benchmarks"
         end
+
         # reply with the job's final status
-        reply_status(job, state, status, target_url)
-        if isempty(target_url)
-            comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-        else
-            comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                        "$(status). A full report can be found [here]($(target_url))."
-        end
-        reply_comment(job, comment)
+        comment = """
+            [Your benchmark job]($(submission(job).url)) has completed - $status.
+            A full report can be found [here]($(target_url))."""
+        reply_comment(submission(job), comment)
     end
 end
 

@@ -648,12 +648,9 @@ function report(job::PkgEvalJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        reply_status(job, "error", "no tests were executed")
-        reply_comment(job, "[Your package evaluation job]($(submission(job).url)) has completed, " *
-                      "but no tests were actually executed. Perhaps your package selection " *
-                      "contains misspelled names? cc @$(cfg.admin)")
+        error("no tests were executed (perhaps your package selection contains misspelled names?)")
     else
-        #  prepare report + data and push it to report repo
+        # prepare report + data and push it to report repo
         target_url = ""
         try
             nodelog(cfg, node, "...generating report...")
@@ -722,27 +719,24 @@ function report(job::PkgEvalJob, results)
         catch err
             rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
         end
+        if isempty(target_url)
+            error("failed to upload test report")
+        end
 
         # determine the job's final status
-        state = results["has_issues"] ? "failure" : "success"
-        if job.against !== nothing
-            status = results["has_issues"] ? "possible new issues were detected" :
-                                                "no new issues were detected"
+        status = if job.against !== nothing
+            results["has_issues"] ? "possible new issues were detected" :
+                                    "no new issues were detected"
         else
-            status = results["has_issues"] ? "possible issues were detected" :
-                                                "no issues were detected"
+            results["has_issues"] ? "possible issues were detected" :
+                                    "no issues were detected"
         end
 
         # reply with the job's final status
-        reply_status(job, state, status, target_url)
-        if isempty(target_url)
-            comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
-                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-        else
-            comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
-                        "$(status). A full report can be found [here]($(target_url))."
-        end
-        reply_comment(job, comment)
+        comment = """
+            [Your package evaluation job]($(submission(job).url)) has completed - $status.
+            A full report can be found [here]($(target_url))."""
+        reply_comment(submission(job), comment)
     end
 end
 

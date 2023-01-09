@@ -120,23 +120,26 @@ function parse_submission_string(submission_string)
     return name, args, kwargs
 end
 
-function reply_status(sub::JobSubmission, context, state, description, url=nothing)
+function reply_status(sub::JobSubmission, state, context, description, url=nothing)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
         @info "Running as part of test suite, not uploading status" state description url
         return ""
     end
 
     if state == "failure"
+        # this means that the run succeeded, but we detected regressions.
+        # don't report that as a failed status (errors still are).
         new_state = "success"
     else
         new_state = state
     end
+
     params = Dict("state" => new_state,
                   "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.repo, sub.statussha;
-                                auth = sub.config.auth, params = params)
+    GitHub.create_status(sub.repo, sub.statussha;
+                         auth = sub.config.auth, params = params)
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
@@ -149,28 +152,4 @@ function reply_comment(sub::JobSubmission, message::AbstractString)
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
     return GitHub.create_comment(sub.repo, commentplace, commentkind;
                                  auth = sub.config.auth, params = Dict("body" => message))
-end
-
-function upload_report_repo!(sub::JobSubmission, markdownpath, message)
-    if haskey(ENV, "NANOSOLDIER_DRYRUN")
-        @info "Running as part of test suite, not uploading report" message
-        return ""
-    end
-
-    cfg = sub.config
-    dir = reportdir(cfg)
-
-    # create a detached commit
-    run(`$(git()) -C $dir checkout --detach --quiet`)
-    run(`$(git()) -C $dir add --all`)
-    run(`$(git()) -C $dir commit --message $message --quiet`)
-    sha = readchomp(`$(git()) -C $dir rev-parse HEAD`)
-
-    # cherry-pick on top of latest master
-    run(`$(git()) -C $dir checkout --quiet master`)
-    gitreset!(dir)
-    run(`$(git()) -C $dir cherry-pick -X ours $sha`)
-
-    run(`$(git()) -C $dir push`)
-    return "https://github.com/$(reportrepo(cfg))/blob/master/$(markdownpath)"
 end

@@ -25,7 +25,7 @@ struct Server
                     try
                         job = J(submission)
                         push!(jobs, job)
-                        reply_status(job, "pending", "accepted $J: $(summary(job))")
+                        publish_update(job, "pending", "Accepted")
                         nodelog(config, 1, "job added to queue: $(summary(job))")
                         addedjob = true
                     catch err
@@ -35,7 +35,7 @@ struct Server
                 end
             end
             if !addedjob
-                reply_status(submission, "Nanosoldier", "error", "invalid job submission; check syntax")
+                reply_comment(submission, "Invalid job submission.")
                 return HTTP.Response(400, "invalid job submission")
             end
             return HTTP.Response(202, "received job submission")
@@ -105,19 +105,19 @@ function retrieve_job!(jobs, job_type::Type, accept_daily::Bool)
 end
 
 function delegate_job(server::Server, job::AbstractJob, node)
-    message = "running on node $(node): $(summary(job))"
-    reply_status(job, "pending", message)
-    nodelog(server.config, node, message)
+    publish_update(job, "pending", "Running")
+    nodelog(server.config, node, "running on node $(node): $(summary(job))")
     try
         remotecall_fetch(persistdir!, node, server.config)
         remotecall_fetch(run, node, job)
+        publish_update(job, "success", "Completed"; fallback=false)
         nodelog(server.config, node, "completed job: $(summary(job))")
     catch err
         # report a simple message to the user (to prevent leaking secrets)
         message = "[Your job]($(submission(job).url)) failed."
         isempty(server.config.admin) || (message *= " cc @$(server.config.admin)")
-        reply_comment(job, message)
-        reply_status(job, "error", "Job failed")
+        reply_comment(submission(job), message)
+        publish_update(job, "error", "Failed"; fallback=false)
 
         # but put all details in the server log
         err_str = sprint(io->showerror(io, err))
