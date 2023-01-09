@@ -1070,7 +1070,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
         println(io, "*Configuration*: `", submission(job).kwargs[:configuration], "`")
     end
 
-    if hasagainstbuild
+    if haskey(results, "against.vinfo")
         println(io)
         print(io, """
                   #### Comparison Build

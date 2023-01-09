@@ -699,7 +699,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
               ```
               """)
 
-    if hasagainstbuild
+    if haskey(results, "against.vinfo")
         println(io)
         print(io, """
                   #### Comparison Build
