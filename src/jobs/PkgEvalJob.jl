@@ -1016,7 +1016,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 end
             end
 
-            if hasagainstbuild && !(job.isdaily && status === :crash)
+            if (hasagainstbuild || job.type == PkgEvalTypePackage) &&
+               !(job.isdaily && status === :crash)
                 # first report on tests that changed status. note that we don't do this for
                 # crashes on daily tests, to feature them more prominently in the report.
                 changed_tests = filter(test->test.source == "both" &&
