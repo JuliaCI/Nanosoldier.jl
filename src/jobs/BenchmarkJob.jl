@@ -507,7 +507,7 @@ function report(job::BenchmarkJob, results)
         nanosoldier_error("no benchmarks were executed (perhaps your tag predicate contains misspelled tags?)")
     else
         # prepare report + data and push it to report repo
-        target_url = ""
+        target_url = nothing
         try
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
@@ -530,7 +530,7 @@ function report(job::BenchmarkJob, results)
         catch err
             nanosoldier_error("error when preparing/pushing to report repo", err)
         end
-        if isempty(target_url)
+        if target_url === nothing
             nanosoldier_error("failed to upload test report")
         end
 

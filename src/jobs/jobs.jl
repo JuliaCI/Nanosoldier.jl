@@ -58,7 +58,7 @@ end
 function upload_report_repo!(job::AbstractJob, markdownpath, message)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
         @info "Running as part of test suite, not uploading report" message
-        return ""
+        return "nonexistent"
     end
 
     cfg = submission(job).config

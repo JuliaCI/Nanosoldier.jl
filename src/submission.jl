@@ -123,7 +123,7 @@ end
 function reply_status(sub::JobSubmission, state, context, description, url=nothing)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
         @info "Running as part of test suite, not uploading status" state description url
-        return ""
+        return
     end
 
     if state == "failure"
