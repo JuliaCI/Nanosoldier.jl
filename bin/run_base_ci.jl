@@ -9,7 +9,6 @@ secret = GITHUB_SECRET
 port = Int(0xffff)
 
 config = Nanosoldier.Config("nanosoldier-worker", nodes, auth, secret;
-                            trackrepos = ["JuliaLang/julia"],
                             reportrepo = "JuliaCI/NanosoldierReports",
                             testmode = false)
 

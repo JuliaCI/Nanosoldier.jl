@@ -4,7 +4,6 @@ struct Config
     cpus::Dict{Int,Vector{Int}}     # the indices of the cpus per node
     auth::GitHub.Authorization      # the GitHub authorization used to post statuses/reports
     secret::String                  # the GitHub secret used to validate webhooks
-    trackrepos::Vector{String}      # the main repos tracked by the server
     reportrepo::String              # the repo to which result reports are posted
     trigger::Regex                  # a regular expression to match comments against
     admin::String                   # GitHub handle of the server administrator
@@ -13,14 +12,13 @@ struct Config
 
     function Config(user, nodes, auth, secret;
                     cpus = Dict{Int,Vector{Int}}(),
-                    trackrepos = ["JuliaLang/julia"],
                     reportrepo = "JuliaCI/NanosoldierReports",
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     admin = "",
                     bucket = nothing,
                     testmode = false)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
-        return new(user, nodes, cpus, auth, secret, trackrepos,
+        return new(user, nodes, cpus, auth, secret,
                    reportrepo, trigger, admin, bucket, testmode)
     end
 end
