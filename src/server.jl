@@ -35,7 +35,8 @@ struct Server
                 end
             end
             if !addedjob
-                reply_comment(submission, "Invalid job submission.")
+                message = "[Your job]($(submission.url)) was not accepted, please verify the trigger phrase syntax."
+                reply_comment(submission, message)
                 return HTTP.Response(400, "invalid job submission")
             end
             return HTTP.Response(202, "received job submission")
@@ -114,13 +115,19 @@ function delegate_job(server::Server, job::AbstractJob, node)
         nodelog(server.config, node, "completed job: $(summary(job))")
     catch err
         # report a simple message to the user (to prevent leaking secrets)
-        message = "[Your job]($(submission(job).url)) failed."
-        isempty(server.config.admin) || (message *= " cc @$(server.config.admin)")
+        message = "[Your job]($(submission(job).url)) failed"
+        if isa(err, RemoteException) && isa(err.captured.ex, NanosoldierError)
+            message *= ": $(err.captured.ex.msg)."
+        else
+            message *= ". Consult the server logs for more details"
+            isempty(server.config.admin) || (message *= " (cc @$(server.config.admin))")
+            message *= "."
+        end
         reply_comment(submission(job), message)
         publish_update(job, "error", "Failed"; fallback=false)
 
         # but put all details in the server log
-        err_str = sprint(io->showerror(io, err))
+        err_str = sprint(showerror, err)
         nodelog(server.config, node, "failed job: $(summary(job))\n$err_str")
     end
 end

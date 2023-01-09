@@ -67,7 +67,7 @@ function BenchmarkJob(submission::JobSubmission)
         elseif againststr == SPECIAL_SELF
             againstbuild = copy(submission.build)
         else
-            error("invalid argument to `vs` keyword")
+            nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
@@ -254,7 +254,7 @@ function Base.run(job::BenchmarkJob)
                 end
                 found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
             catch err
-                rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
+                nanosoldier_error("encountered error when retrieving old daily build data", err)
             end
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
@@ -504,7 +504,7 @@ function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        error("No benchmarks were executed (perhaps your tag predicate contains misspelled tags?)")
+        nanosoldier_error("no benchmarks were executed (perhaps your tag predicate contains misspelled tags?)")
     else
         # prepare report + data and push it to report repo
         target_url = ""
@@ -528,10 +528,10 @@ function report(job::BenchmarkJob, results)
             target_url = upload_report_repo!(job, joinpath("benchmark", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
         catch err
-            rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
+            nanosoldier_error("error when preparing/pushing to report repo", err)
         end
         if isempty(target_url)
-            error("failed to upload test report")
+            nanosoldier_error("failed to upload test report")
         end
 
         # determine the job's final status

@@ -123,7 +123,7 @@ function PkgEvalJob(submission::JobSubmission)
         # when testing packages, we'll implicitly compare against the General registry,
         # so disallow specifying a comparison build
         jobtype == PkgEvalTypeJulia ||
-            error("cannot specify a comparison build when testing packages")
+            nanosoldier_error("cannot specify a comparison build when testing packages")
 
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
@@ -141,7 +141,7 @@ function PkgEvalJob(submission::JobSubmission)
         elseif againststr == SPECIAL_SELF
             againstbuild = copy(submission.build)
         else
-            error("invalid argument to `vs` keyword")
+            nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
@@ -155,7 +155,8 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     if haskey(submission.kwargs, :isdaily)
-        jobtype == PkgEvalTypeJulia || error("isdaily is only valid on the Julia repository")
+        jobtype == PkgEvalTypeJulia ||
+            nanosoldier_error("isdaily is only valid on the Julia repository")
         isdaily = submission.kwargs[:isdaily] == "true"
         validatate_isdaily(submission)
     else
@@ -165,7 +166,7 @@ function PkgEvalJob(submission::JobSubmission)
     if haskey(submission.kwargs, :configuration)
         expr = Meta.parse(submission.kwargs[:configuration])
         if !is_valid_configuration(expr)
-            error("invalid argument to `configuration` keyword (expected a tuple)")
+            nanosoldier_error("invalid argument to `configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
         configuration = Configuration(; name="primary", tup...)
@@ -176,7 +177,7 @@ function PkgEvalJob(submission::JobSubmission)
     if haskey(submission.kwargs, :vs_configuration)
         expr = Meta.parse(submission.kwargs[:vs_configuration])
         if !is_valid_configuration(expr)
-            error("invalid argument to `vs_configuration` keyword (expected a tuple)")
+            nanosoldier_error("invalid argument to `vs_configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
         against_configuration = Configuration(; name="against", tup...)
@@ -380,7 +381,7 @@ function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, r
                                            "x-amz-acl"  => "public-read",
                                            "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
                     catch err
-                        rethrow(NanosoldierError("failed to upload test log", err))
+                        nanosoldier_error("failed to upload test log", err)
                     end
                 end
             end
@@ -493,7 +494,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             package_path = PkgEval.get_github_checkout(build.repo, build.sha)
             package_project_file = joinpath(package_path, "Project.toml")
             isfile(package_project_file) ||
-                error("Package project file not found: $package_project_file")
+                nanosoldier_error("package project file not found: $package_project_file")
             package_project = RegistryTools.Project(package_project_file)
             package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
             package_url = "https://github.com/$(build.repo).git"
@@ -512,7 +513,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
                                                           status)
             if RegistryTools.haserror(status)
                 RegistryTools.set_metadata!(regbr, status)
-                error(regbr.metadata["error"])
+                nanosoldier_error("could not register new version ($(regbr.metadata["error"]))")
             end
 
             # note our package dependencies
@@ -596,7 +597,7 @@ function Base.run(job::PkgEvalJob)
             end
             found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
         catch err
-            rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
+            nanosoldier_error("encountered error when retrieving old daily build data", err)
         end
     end
 
@@ -648,7 +649,7 @@ function report(job::PkgEvalJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        error("no tests were executed (perhaps your package selection contains misspelled names?)")
+        nanosoldier_error("no tests were executed (perhaps your package selection contains misspelled names?)")
     else
         # prepare report + data and push it to report repo
         target_url = ""
@@ -713,14 +714,14 @@ function report(job::PkgEvalJob, results)
                                        "headers"    => Dict("Content-Type"=>"text/html; charset=utf-8")))
                     target_url = "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(reportname)"
                 catch err
-                    rethrow(NanosoldierError("failed to upload test report", err))
+                    nanosoldier_error("failed to upload test report", err)
                 end
             end
         catch err
-            rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
+            nanosoldier_error("error when preparing/pushing to report repo", err)
         end
         if isempty(target_url)
-            error("failed to upload test report")
+            nanosoldier_error("failed to upload test report")
         end
 
         # determine the job's final status

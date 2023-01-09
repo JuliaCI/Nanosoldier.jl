@@ -35,7 +35,7 @@ function validatate_isdaily(submission::JobSubmission)
             end
         end
     end
-    error("invalid commit to run isdaily")
+    nanosoldier_error("invalid commit to run isdaily")
 end
 
 datedirname(date::Dates.Date) = joinpath(Dates.format(date, dateformat"yyyy-mm"),

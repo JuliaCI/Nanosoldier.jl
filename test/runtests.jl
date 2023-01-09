@@ -78,13 +78,13 @@ job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(vs = \"%s
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"%self\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"%self\")`")
 
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
 job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(vs = \"JuliaLang/julia#v1.0.0\")`")
 @test job.against !== nothing
