@@ -8,10 +8,10 @@ Repositories that should be monitored by Nanosoldier.jl should install a webhook
 following properties:
 
 - payload URL: depends on where the server is hosted, e.g.,
-  `http://amdci8.julia.csail.mit.edu:8888`
+  `http://pkgeval.nanosoldier.julialang.org:8888`
 - content type: `application/json`
-- select "Let me select individual events" and check "Commit comments", "Issue comments" and
-  "Pull request reviews"
+- select "Let me select individual events" and check "Commit comments", "Issue comments",
+  "Pull request review" and "Pull requests"
 
 
 ## BenchmarkJob
