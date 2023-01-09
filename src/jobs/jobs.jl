@@ -85,6 +85,7 @@ function publish_update(job::AbstractJob, state, description, url=nothing;
         context = "Nanosoldier/$(nameof(typeof(job)))"
         reply_status(submission(job), state, context, description, url)
     catch err
+        # XXX: can we use the API to check if we have the necessary permissions instead?
         if fallback
             @warn "Failed to push status, replying with comment instead" exception=(err, catch_backtrace())
             if url !== nothing
