@@ -95,8 +95,7 @@ mutable struct PkgEvalJob <: AbstractJob
     configuration::Configuration
     against_configuration::Configuration
     use_blacklist::Bool
-    # FIXME: put configuration in BuildRef? currently created too early for that (when the
-    #        GitHub event is parsed, while we get the configuration from the comment)
+    subdir::String                   # which subdirectory to use (for package tests)
 end
 
 function PkgEvalJob(submission::JobSubmission)
@@ -156,11 +155,22 @@ function PkgEvalJob(submission::JobSubmission)
 
     if haskey(submission.kwargs, :isdaily)
         jobtype == PkgEvalTypeJulia ||
-            nanosoldier_error("isdaily is only valid on the Julia repository")
+            nanosoldier_error("`isdaily` keyword is only allowed when testing Julia")
         isdaily = submission.kwargs[:isdaily] == "true"
         validatate_isdaily(submission)
     else
         isdaily = false
+    end
+
+    if haskey(submission.kwargs, :subdir)
+        jobtype == PkgEvalTypePackage ||
+            nanosoldier_error("`subdir` keyword is only allowed when testing packages")
+        subdir = Meta.parse(submission.kwargs[:subdir])
+        if !isa(subdir, String)
+            nanosoldier_error("invalid argument to `subdir` keyword (expected a string)")
+        end
+    else
+        subdir = ""
     end
 
     if haskey(submission.kwargs, :configuration)
@@ -222,7 +232,8 @@ function PkgEvalJob(submission::JobSubmission)
 
     return PkgEvalJob(submission, jobtype, pkgsel, against,
                       Date(submission.build.time), isdaily,
-                      configuration, against_configuration, use_blacklist)
+                      configuration, against_configuration,
+                      use_blacklist, subdir)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -236,7 +247,7 @@ function Base.summary(job::PkgEvalJob)
 end
 
 function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration)
+    allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration, :subdir)
     args, kwargs = submission.args, submission.kwargs
     has_valid_args = isempty(args) || (length(args) == 1 && is_valid_pkgsel(first(args)))
     has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
@@ -492,10 +503,11 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
 
             package_path = PkgEval.get_github_checkout(build.repo, build.sha)
-            package_project_file = joinpath(package_path, "Project.toml")
-            isfile(package_project_file) ||
-                nanosoldier_error("package project file not found: $package_project_file")
-            package_project = RegistryTools.Project(package_project_file)
+            package_project_subpath = joinpath(job.subdir, "Project.toml")
+            package_project_path = joinpath(package_path, package_project_subpath)
+            isfile(package_project_path) ||
+                nanosoldier_error("package project file not found at $package_project_subpath")
+            package_project = RegistryTools.Project(package_project_path)
             package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
             package_url = "https://github.com/$(build.repo).git"
 
