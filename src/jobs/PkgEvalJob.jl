@@ -478,6 +478,13 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
     configs = Configuration[]
     dependencies = []
     for (whichbuild, build) in builds
+        # determine which Julia version to use
+        julia = if PkgEval.ismodified(base_configs[whichbuild], :julia)
+            base_configs[whichbuild].julia
+        else
+            "stable"
+        end
+
         # create a configuration
         if build !== nothing
             package = "$(build.repo)#$(build.sha)"
@@ -511,12 +518,12 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             # note our package dependencies
             dependencies = direct_dependencies(reference_registry, package_project.name,
                                                package_project.version)
-            nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) $(package_project.version)")
+            nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) v$(package_project.version)")
 
-            config = Configuration(base_configs[whichbuild]; registry=registry_path)
+            config = Configuration(base_configs[whichbuild]; registry=registry_path, julia)
         else
             nodelog(cfg, node, "$whichbuild build will use default registry")
-            config = base_configs[whichbuild]
+            config = Configuration(base_configs[whichbuild]; julia)
         end
         results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
         push!(configs, config)

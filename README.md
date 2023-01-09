@@ -225,7 +225,7 @@ Nanosoldier by commenting with an appropriate trigger phrase on a commit, issue 
 request on a package repository. The execution cycle is slightly different:
 
 - The Julia version will be the same for both sides of the comparison, defaulting to
-  `nightly` (which can be customized by setting the `julia` element of the respective
+  `stable` (which can be customized by setting the `julia` argument of the respective
   `configuration`, e.g., to `"1.8"`)
 - If no package selection is made, or the set of `ALL` packages is requested, Nanosoldier
   will look up the direct dependents of the package and test those.
