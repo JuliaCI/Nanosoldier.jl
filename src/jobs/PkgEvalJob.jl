@@ -502,11 +502,11 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             package = "$(build.repo)#$(build.sha)"
             nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
 
-            package_path = PkgEval.get_github_checkout(build.repo, build.sha)
-            package_project_subpath = joinpath(job.subdir, "Project.toml")
-            package_project_path = joinpath(package_path, package_project_subpath)
+            package_repo = PkgEval.get_github_checkout(build.repo, build.sha)
+            package_path = joinpath(package_repo, job.subdir)
+            package_project_path = joinpath(package_path, "Project.toml")
             isfile(package_project_path) ||
-                nanosoldier_error("package project file not found at $package_project_subpath")
+                nanosoldier_error("package project file not found")
             package_project = RegistryTools.Project(package_project_path)
             package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
             package_url = "https://github.com/$(build.repo).git"
@@ -522,7 +522,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             RegistryTools.check_and_update_registry_files(package_project, package_url,
                                                           package_hash, registry_path,
                                                           #=registry_deps=# String[],
-                                                          status)
+                                                          status; job.subdir)
             if RegistryTools.haserror(status)
                 RegistryTools.set_metadata!(regbr, status)
                 nanosoldier_error("could not register new version ($(regbr.metadata["error"]))")
