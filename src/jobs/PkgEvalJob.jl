@@ -143,8 +143,9 @@ function PkgEvalJob(submission::JobSubmission)
             nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
-    elseif submission.prnumber !== nothing
-        # if there is a PR number, we compare against the base branch
+    elseif submission.prnumber !== nothing && jobtype == PkgEvalTypeJulia
+        # if there is a PR number, we compare against the base branch.
+        # this does not apply to packages, where we compare against the latest release.
         merge_base = GitHub.compare(submission.repo,
                                     "master", "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
