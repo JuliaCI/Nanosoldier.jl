@@ -71,7 +71,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
         # SHA is that of the head commit. The PR number is provided, so that the
         # build can execute on the relevant merge commit.
         pr = GitHub.pull_request(event.repository, event.payload["issue"]["number"], auth=config.auth)
-        repo = target_repo
+        repo = pr.head.repo.full_name
         sha = pr.head.sha
         url = event.payload["comment"]["html_url"]
         fromkind = :pr
