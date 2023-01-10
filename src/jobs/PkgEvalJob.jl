@@ -503,14 +503,22 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
             package = "$(build.repo)#$(build.sha)"
             nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
 
+            # get the package source
+            package_url = "https://github.com/$(build.repo).git"
             package_repo = PkgEval.get_github_checkout(build.repo, build.sha)
             package_path = joinpath(package_repo, job.subdir)
+            package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
+
+            # parse the Project.toml
             package_project_path = joinpath(package_path, "Project.toml")
             isfile(package_project_path) ||
                 nanosoldier_error("package project file not found")
-            package_project = RegistryTools.Project(package_project_path)
-            package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
-            package_url = "https://github.com/$(build.repo).git"
+            #package_project = RegistryTools.Project(package_project_path)
+            ## custom construction in order to bump the version number
+            package_project_dict = TOML.parsefile(package_project_path)
+            package_version = VersionNumber(get(package_project_dict, "version", "0"))
+            package_project_dict["version"] = string(Base.nextpatch(package_version))
+            package_project = Project(package_project_dict)
 
             # generate a custom registry
             reference_registry = PkgEval.get_registry(base_configs[whichbuild])
