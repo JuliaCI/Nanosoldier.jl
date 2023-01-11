@@ -119,11 +119,6 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     if haskey(submission.kwargs, :vs)
-        # when testing packages, we'll implicitly compare against the General registry,
-        # so disallow specifying a comparison build
-        jobtype == PkgEvalTypeJulia ||
-            nanosoldier_error("cannot specify a comparison build when testing packages")
-
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
@@ -143,7 +138,7 @@ function PkgEvalJob(submission::JobSubmission)
             nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
-    elseif submission.prnumber !== nothing && jobtype == PkgEvalTypeJulia
+    elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch.
         # this does not apply to packages, where we compare against the latest release.
         merge_base = GitHub.compare(submission.repo,
@@ -491,62 +486,62 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
     configs = Configuration[]
     dependencies = []
     for (whichbuild, build) in builds
-        # determine which Julia version to use
+        # determine Julia version to use
         julia = if PkgEval.ismodified(base_configs[whichbuild], :julia)
             base_configs[whichbuild].julia
         else
             "stable"
         end
 
-        # create a configuration
-        if build !== nothing
-            package = "$(build.repo)#$(build.sha)"
-            nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
+        # determine package version matching requested BuildRef
+        package = "$(build.repo)#$(build.sha)"
+        nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
 
-            # get the package source
-            package_url = "https://github.com/$(build.repo).git"
-            package_repo = PkgEval.get_github_checkout(build.repo, build.sha)
-            package_path = joinpath(package_repo, job.subdir)
-            package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
+        # get the package source
+        package_url = "https://github.com/$(build.repo).git"
+        package_repo = PkgEval.get_github_checkout(build.repo, build.sha)
+        package_path = joinpath(package_repo, job.subdir)
+        package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
 
-            # parse the Project.toml
-            package_project_path = joinpath(package_path, "Project.toml")
-            isfile(package_project_path) ||
-                nanosoldier_error("package project file not found")
-            #package_project = RegistryTools.Project(package_project_path)
-            ## custom construction in order to bump the version number
-            package_project_dict = TOML.parsefile(package_project_path)
-            package_version = VersionNumber(get(package_project_dict, "version", "0"))
-            package_project_dict["version"] = string(Base.nextpatch(package_version))
-            package_project = Project(package_project_dict)
+        # parse the Project.toml
+        package_project_path = joinpath(package_path, "Project.toml")
+        isfile(package_project_path) ||
+            nanosoldier_error("package project file not found")
+        package_project = RegistryTools.Project(package_project_path)
 
-            # generate a custom registry
-            reference_registry = PkgEval.get_registry(base_configs[whichbuild])
-            registry_path = mktempdir()
-            cp(reference_registry, registry_path; force=true)
+        # generate a custom registry
+        reference_registry = PkgEval.get_registry(base_configs[whichbuild])
+        registry_path = mktempdir()
+        cp(reference_registry, registry_path; force=true)
 
-            # register our package
-            regbr = RegistryTools.RegBranch(package_project, "pkgeval")
-            status = RegistryTools.ReturnStatus()
-            RegistryTools.check_and_update_registry_files(package_project, package_url,
-                                                          package_hash, registry_path,
-                                                          #=registry_deps=# String[],
-                                                          status; job.subdir)
-            if RegistryTools.haserror(status)
-                RegistryTools.set_metadata!(regbr, status)
-                nanosoldier_error("could not register new version ($(regbr.metadata["error"]))")
-            end
-
-            # note our package dependencies
-            dependencies = direct_dependencies(reference_registry, package_project.name,
-                                               package_project.version)
-            nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) v$(package_project.version)")
-
-            config = Configuration(base_configs[whichbuild]; registry=registry_path, julia)
-        else
-            nodelog(cfg, node, "$whichbuild build will use default registry")
-            config = Configuration(base_configs[whichbuild]; julia)
+        # get rid of all existing versions
+        package_registry_path =
+            joinpath(registry_path, uppercase(package_project.name[1:1]),
+                        package_project.name)
+        if isdir(package_registry_path)
+            rm(joinpath(package_registry_path, "Versions.toml"); force=true)
+            rm(joinpath(package_registry_path, "Compat.toml"); force=true)
         end
+
+        # register our package
+        regbr = RegistryTools.RegBranch(package_project, "pkgeval")
+        status = RegistryTools.ReturnStatus()
+        RegistryTools.check_and_update_registry_files(package_project, package_url,
+                                                        package_hash, registry_path,
+                                                        #=registry_deps=# String[],
+                                                        status; job.subdir)
+        if RegistryTools.haserror(status)
+            RegistryTools.set_metadata!(regbr, status)
+            nanosoldier_error("could not register new version ($(regbr.metadata["error"]))")
+        end
+
+        # note our package dependencies
+        dependencies = direct_dependencies(reference_registry, package_project.name,
+                                            package_project.version)
+        nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) v$(package_project.version)")
+
+        # create a configuration
+        config = Configuration(base_configs[whichbuild]; registry=registry_path, julia)
         results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
         push!(configs, config)
     end
@@ -634,18 +629,13 @@ function Base.run(job::PkgEvalJob)
     configs = Dict{String,Configuration}("primary" => job.configuration)
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
+        if job.against !== nothing
+            builds["against"] = job.against
+            configs["against"] = job.against_configuration
+        end
         if job.type == PkgEvalTypeJulia
-            if job.against !== nothing
-                builds["against"] = job.against
-                configs["against"] = job.against_configuration
-            end
-
             test_julia!(job, builds, configs, results)
         else
-            # unconditionally test against the General registry
-            builds["against"] = nothing
-            configs["against"] = job.against_configuration
-
             test_package!(job, builds, configs, results)
         end
         nodelog(cfg, node, "finished tests for $(summary(job))")
@@ -912,7 +902,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print result list #
     #-------------------#
 
-    if hasagainstbuild || job.type == PkgEvalTypePackage
+    if hasagainstbuild
         package_results = leftjoin(results["primary"], results["against"],
                                    on=:package, makeunique=true, source=:source)
 
@@ -1037,8 +1027,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 end
             end
 
-            if (hasagainstbuild || job.type == PkgEvalTypePackage) &&
-               !(job.isdaily && status === :crash)
+            if hasagainstbuild && !(job.isdaily && status === :crash)
                 # first report on tests that changed status. note that we don't do this for
                 # crashes on daily tests, to feature them more prominently in the report.
                 changed_tests = filter(test->test.source == "both" &&
@@ -1093,7 +1082,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
         println(io, "*Configuration*: `", submission(job).kwargs[:configuration], "`")
     end
 
-    if haskey(results, "against.vinfo")
+    if hasagainstbuild
         println(io)
         print(io, """
                   #### Comparison Build
