@@ -169,26 +169,30 @@ function PkgEvalJob(submission::JobSubmission)
         subdir = ""
     end
 
+    configuration = Configuration(; name="primary", rr=isdaily)
+    if jobtype == PkgEvalTypePackage
+        configuration = Configuration(configuration; julia="stable")
+    end
     if haskey(submission.kwargs, :configuration)
         expr = Meta.parse(submission.kwargs[:configuration])
         if !is_valid_configuration(expr)
             nanosoldier_error("invalid argument to `configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
-        configuration = Configuration(; name="primary", tup...)
-    else
-        configuration = Configuration(; name="primary", rr=isdaily)
+        configuration = Configuration(configuration; tup...)
     end
 
+    against_configuration = Configuration(; name="against")
+    if jobtype == PkgEvalTypePackage
+        against_configuration = Configuration(against_configuration; julia="stable")
+    end
     if haskey(submission.kwargs, :vs_configuration)
         expr = Meta.parse(submission.kwargs[:vs_configuration])
         if !is_valid_configuration(expr)
             nanosoldier_error("invalid argument to `vs_configuration` keyword (expected a tuple)")
         end
         tup = eval(expr)
-        against_configuration = Configuration(; name="against", tup...)
-    else
-        against_configuration = Configuration(; name="against")
+        against_configuration = Configuration(against_configuration; tup...)
     end
 
     if haskey(submission.kwargs, :use_blacklist)
@@ -486,13 +490,6 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
     configs = Configuration[]
     dependencies = []
     for (whichbuild, build) in builds
-        # determine Julia version to use
-        julia = if PkgEval.ismodified(base_configs[whichbuild], :julia)
-            base_configs[whichbuild].julia
-        else
-            "stable"
-        end
-
         # determine package version matching requested BuildRef
         package = "$(build.repo)#$(build.sha)"
         nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
@@ -541,7 +538,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
         nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) v$(package_project.version)")
 
         # create a configuration
-        config = Configuration(base_configs[whichbuild]; registry=registry_path, julia)
+        config = Configuration(base_configs[whichbuild]; registry=registry_path)
         results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
         push!(configs, config)
     end
