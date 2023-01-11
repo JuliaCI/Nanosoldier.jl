@@ -50,6 +50,22 @@ mutable struct BenchmarkJob <: AbstractJob
 end
 
 function BenchmarkJob(submission::JobSubmission)
+    # preliminary validation
+    for kwarg in keys(submission.kwargs)
+        if !in(kwarg, (:vs, :skipbuild, :isdaily))
+            nanosoldier_error("invalid keyword argument `$kwarg`")
+        end
+    end
+    if isempty(submission.args)
+        # all good
+    elseif length(submission.args) == 1
+        if !is_valid_tagpred(submission.args[1])
+            nanosoldier_error("invalid tag predicate")
+        end
+    else
+        nanosoldier_error("expected zero or one positional argument; got $(length(submission.args))")
+    end
+
     if haskey(submission.kwargs, :vs)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
@@ -111,15 +127,6 @@ function Base.summary(job::BenchmarkJob)
         result *= " vs. $(summary(job.against))"
     end
     return result
-end
-
-function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
-    allowed_kwargs = (:vs, :skipbuild, :isdaily)
-    args, kwargs = submission.args, submission.kwargs
-    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_tagpred(first(args)))
-    has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
-                        (length(kwargs) <= length(allowed_kwargs)))
-    return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::BenchmarkJob) = job.submission

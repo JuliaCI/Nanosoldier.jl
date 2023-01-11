@@ -54,7 +54,6 @@ pkgsel = ["Example"]
 function build_test_submission(jobtyp, submission_string)
     func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
     submission = JobSubmission(config, repo, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
-    @test Nanosoldier.isvalid(submission, jobtyp)
     return jobtyp(submission)
 end
 

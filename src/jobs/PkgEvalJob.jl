@@ -99,6 +99,22 @@ mutable struct PkgEvalJob <: AbstractJob
 end
 
 function PkgEvalJob(submission::JobSubmission)
+    # preliminary validation
+    for kwarg in keys(submission.kwargs)
+        if !in(kwarg, (:vs, :isdaily, :configuration, :vs_configuration, :subdir))
+            nanosoldier_error("invalid keyword argument `$kwarg`")
+        end
+    end
+    if isempty(submission.args)
+        # all good
+    elseif length(submission.args) == 1
+        if !is_valid_pkgsel(submission.args[1])
+            nanosoldier_error("invalid package selection")
+        end
+    else
+        nanosoldier_error("expected zero or one positional argument; got $(length(submission.args))")
+    end
+
     # based on the repo name, we'll be running in Julia or in Package test mode
     repo_owner, repo_name = split(submission.repo, "/")
     jobtype = if repo_name == "julia"
@@ -244,15 +260,6 @@ function Base.summary(job::PkgEvalJob)
         result *= " vs. $(summary(job.against))"
     end
     return result
-end
-
-function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration, :subdir)
-    args, kwargs = submission.args, submission.kwargs
-    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_pkgsel(first(args)))
-    has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
-                        (length(kwargs) <= length(allowed_kwargs)))
-    return (submission.func == "runtests") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::PkgEvalJob) = job.submission

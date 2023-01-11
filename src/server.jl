@@ -18,28 +18,43 @@ struct Server
             if haskey(event.payload, "action") && !in(event.payload["action"], ("created", "opened"))
                 return HTTP.Response(204, "no action taken (submission was from an edit, close, or delete)")
             end
+
+            # TODO: JobSubmission construction can fail (e.g., in case of duplicate kwargs)
             submission = JobSubmission(config, event, phrase.match)
-            addedjob = false
-            for J in subtypes(AbstractJob)
-                if isvalid(submission, J)
-                    try
-                        job = J(submission)
-                        push!(jobs, job)
-                        publish_update(job, "pending", "Accepted")
-                        nodelog(config, 1, "job added to queue: $(summary(job))")
-                        addedjob = true
-                    catch err
-                        nodelog(config, 1, "failed to constuct $J with a supposedly valid submission: $err",
-                                error=(err, stacktrace(catch_backtrace())))
-                    end
+
+            try
+                J = if submission.func == "runtests"
+                    PkgEvalJob
+                elseif submission.func == "runbenchmarks"
+                    BenchmarkJob
+                else
+                    nanosoldier_error("unrecognized job command `$(submission.func)`")
                 end
-            end
-            if !addedjob
-                message = "[Your job]($(submission.url)) was not accepted, please verify the trigger phrase syntax."
+
+                job = J(submission)
+
+                push!(jobs, job)
+                publish_update(job, "pending", "Accepted")
+                nodelog(config, 1, "job added to queue: $(summary(job))")
+                return HTTP.Response(202, "received job submission")
+            catch err
+                # report a simple message to the user (to prevent leaking secrets)
+                message = "Your job submission was not accepted"
+                if isa(err, NanosoldierError)
+                    message *= ": $(err.msg)."
+                else
+                    message *= ". Consult the server logs for more details"
+                    isempty(config.admin) || (message *= " (cc @$(config.admin))")
+                    message *= "."
+                end
                 reply_comment(submission, message)
+
+                # but put all details in the server log
+                err_str = sprint(showerror, err)
+                nodelog(config, 1, "failed submission: $phrase\n$err_str")
+
                 return HTTP.Response(400, "invalid job submission")
             end
-            return HTTP.Response(202, "received job submission")
         end
 
         listener = GitHub.CommentListener(handle, config.trigger;
