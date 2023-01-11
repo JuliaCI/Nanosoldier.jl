@@ -488,7 +488,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
     # determine configurations to use
     configs = Configuration[]
-    dependencies = []
+    dependencies = Dict()
     for (whichbuild, build) in builds
         # determine package version matching requested BuildRef
         package = "$(build.repo)#$(build.sha)"
@@ -533,9 +533,10 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
         end
 
         # note our package dependencies
-        dependencies = direct_dependencies(reference_registry, package_project.name,
-                                            package_project.version)
-        nodelog(cfg, node, "$(length(dependencies)) packages depend on $(package_project.name) v$(package_project.version)")
+        dependencies[whichbuild] =
+            direct_dependencies(reference_registry,
+                                package_project.name, package_project.version)
+        nodelog(cfg, node, "$(length(dependencies[whichbuild])) packages depend on $(package_project.name) v$(package_project.version)")
 
         # create a configuration
         config = Configuration(base_configs[whichbuild]; registry=registry_path)
@@ -545,6 +546,12 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
     # determine packages to test/skip
     pkgs = if isempty(job.pkgsel)
+        # test packages that are compatible with the latest version of our package.
+        # this may result in failures when a package isn't compatible with the "against"
+        # dependency, but instead of discarding such dependents (by intersecting the lists)
+        # we include the package such that it'll error, which is more informative.
+        dependencies = dependencies["primary"]
+
         [Package(; name) for name in dependencies]
     else
         [Package(; name) for name in job.pkgsel]
