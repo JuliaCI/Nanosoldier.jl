@@ -38,11 +38,12 @@ auth = if haskey(ENV, "GITHUB_AUTH")
 else
     GitHub.AnonymousAuth()
 end
-primary_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][10]
-against_commit = GitHub.commits("JuliaLang/julia"; auth, page_limit=1)[1][11]
-primary = BuildRef("JuliaLang/julia", primary_commit.sha, primary_commit.commit.committer.date, vinfo)
-against = BuildRef("JuliaLang/julia", against_commit.sha, against_commit.commit.committer.date, vinfo*"_against")
-config = Config("user", Dict(Any => [getpid()]), auth, "test", trackrepo=primary.repo);
+repo = "JuliaLang/julia"
+primary_commit = GitHub.commits(repo; auth, page_limit=1)[1][10]
+against_commit = GitHub.commits(repo; auth, page_limit=1)[1][11]
+primary = BuildRef(repo, primary_commit.sha, primary_commit.commit.committer.date)
+against = BuildRef(repo, against_commit.sha, against_commit.commit.committer.date)
+config = Config("user", Dict(Any => [getpid()]), auth, "test");
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = ["Example"]
 
@@ -52,8 +53,7 @@ pkgsel = ["Example"]
 
 function build_test_submission(jobtyp, submission_string)
     func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
-    submission = JobSubmission(config, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
-    @test Nanosoldier.isvalid(submission, jobtyp)
+    submission = JobSubmission(config, repo, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
     return jobtyp(submission)
 end
 
@@ -77,13 +77,13 @@ job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(vs = \"%s
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", vs = \"%self\")`")
 build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, vs = \"%self\")`")
 
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\", isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred, isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
-@test_throws ErrorException("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(\"tag\"; isdaily = true, vs = \"JuliaLang/julia:master\")`")
+@test_throws NanosoldierError("invalid commit to run isdaily") build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks($tagpred; isdaily = true, vs = \"JuliaLang/julia:master\")`")
 
 job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(vs = \"JuliaLang/julia#v1.0.0\")`")
 @test job.against !== nothing
@@ -182,6 +182,7 @@ results = Dict(
             )
         )
     ),
+    "primary.vinfo" => vinfo,
     "against" => BenchmarkGroup([],
         "g" => BenchmarkGroup([],
             "h" => BenchmarkGroup([],
@@ -191,7 +192,8 @@ results = Dict(
                 "z"      => TrialEstimate(Parameters(), 1.0, 1.0, 1.0, 1.0)
             )
         )
-    )
+    ),
+    "against.vinfo" => vinfo*"_against"
 )
 
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
@@ -227,7 +229,8 @@ end
             reason=missing,
             duration=0.0,
             log="everything is fine",
-        )
+        ),
+        "primary.vinfo" => vinfo
     )
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
@@ -242,6 +245,7 @@ end
             duration=0.0,
             log="this one failed",
         )
+    results["against.vinfo"] = vinfo*"_against"
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
 end

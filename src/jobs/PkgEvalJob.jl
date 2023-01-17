@@ -7,6 +7,7 @@ using CommonMark
 using Pkg
 import Downloads
 import TOML
+import RegistryTools
 
 
 ################################
@@ -79,8 +80,14 @@ end
 # PkgEvalJob #
 ##############
 
+@enum PkgEvalType begin
+    PkgEvalTypeJulia        # test a Julia version against packages
+    PkgEvalTypePackage      # test a package version against other packages
+end
+
 mutable struct PkgEvalJob <: AbstractJob
     submission::JobSubmission        # the original submission
+    type::PkgEvalType                # the type of job
     pkgsel::Vector{String}           # selection of packages
     against::Union{BuildRef,Nothing} # the comparison build (if available)
     date::Dates.Date                 # the date of the submitted job
@@ -88,46 +95,120 @@ mutable struct PkgEvalJob <: AbstractJob
     configuration::Configuration
     against_configuration::Configuration
     use_blacklist::Bool
-    # FIXME: put configuration in BuildRef? currently created too early for that (when the
-    #        GitHub event is parsed, while we get the configuration from the comment)
+    subdir::String                   # which subdirectory to use (for package tests)
 end
 
 function PkgEvalJob(submission::JobSubmission)
+    # preliminary validation
+    for kwarg in keys(submission.kwargs)
+        if !in(kwarg, (:vs, :isdaily, :configuration, :vs_configuration, :subdir))
+            nanosoldier_error("invalid keyword argument `$kwarg`")
+        end
+    end
+    if isempty(submission.args)
+        # all good
+    elseif length(submission.args) == 1
+        if !is_valid_pkgsel(submission.args[1])
+            nanosoldier_error("invalid package selection")
+        end
+    else
+        nanosoldier_error("expected zero or one positional argument; got $(length(submission.args))")
+    end
+
+    # based on the repo name, we'll be running in Julia or in Package test mode
+    repo_owner, repo_name = split(submission.repo, "/")
+    jobtype = if repo_name == "julia"
+        PkgEvalTypeJulia
+    else
+        PkgEvalTypePackage
+    end
+
+    pkgsel = if isempty(submission.args) || first(submission.args) == "ALL"
+        String[]
+    else
+        pkgs = eval(Meta.parse(first(submission.args)))
+        if pkgs isa Vector
+            pkgs
+        else
+            [pkgs]
+        end
+    end
+
     if haskey(submission.kwargs, :vs)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = commitref(submission.config, againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
         elseif in(TAG_SEPARATOR, againststr)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = tagref(submission.config, againstrepo, againsttag)
         elseif againststr == SPECIAL_SELF
             againstbuild = copy(submission.build)
         else
-            error("invalid argument to `vs` keyword")
+            nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
-        # if there is a PR number, we compare against the base branch
-        merge_base = GitHub.compare(submission.config.trackrepo,
+        # if there is a PR number, we compare against the base branch.
+        # this does not apply to packages, where we compare against the latest release.
+        merge_base = GitHub.compare(submission.repo,
                                     "master", "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
-        against = commitref(submission.config, submission.config.trackrepo, merge_base.sha)
+        against = commitref(submission.config, submission.repo, merge_base.sha)
     else
         against = nothing
     end
 
     if haskey(submission.kwargs, :isdaily)
+        jobtype == PkgEvalTypeJulia ||
+            nanosoldier_error("`isdaily` keyword is only allowed when testing Julia")
         isdaily = submission.kwargs[:isdaily] == "true"
         validatate_isdaily(submission)
     else
         isdaily = false
+    end
+
+    if haskey(submission.kwargs, :subdir)
+        jobtype == PkgEvalTypePackage ||
+            nanosoldier_error("`subdir` keyword is only allowed when testing packages")
+        subdir = Meta.parse(submission.kwargs[:subdir])
+        if !isa(subdir, String)
+            nanosoldier_error("invalid argument to `subdir` keyword (expected a string)")
+        end
+    else
+        subdir = ""
+    end
+
+    configuration = Configuration(; name="primary", rr=isdaily)
+    if jobtype == PkgEvalTypePackage
+        configuration = Configuration(configuration; julia="stable")
+    end
+    if haskey(submission.kwargs, :configuration)
+        expr = Meta.parse(submission.kwargs[:configuration])
+        if !is_valid_configuration(expr)
+            nanosoldier_error("invalid argument to `configuration` keyword (expected a tuple)")
+        end
+        tup = eval(expr)
+        configuration = Configuration(configuration; tup...)
+    end
+
+    against_configuration = Configuration(; name="against")
+    if jobtype == PkgEvalTypePackage
+        against_configuration = Configuration(against_configuration; julia="stable")
+    end
+    if haskey(submission.kwargs, :vs_configuration)
+        expr = Meta.parse(submission.kwargs[:vs_configuration])
+        if !is_valid_configuration(expr)
+            nanosoldier_error("invalid argument to `vs_configuration` keyword (expected a tuple)")
+        end
+        tup = eval(expr)
+        against_configuration = Configuration(against_configuration; tup...)
     end
 
     if haskey(submission.kwargs, :use_blacklist)
@@ -142,58 +223,33 @@ function PkgEvalJob(submission::JobSubmission)
         if isdaily
             use_blacklist = false
         end
-        # 2. when comparing against a specific tag or branch that isn't master.
+        # 2. when comparing against a specific Julia tag or branch that isn't master.
         #    likely this branch or tag is in the past (e.g., referring to a release)
         #    while the blacklist only encodes packages broken on the latest master.
-        if haskey(submission.kwargs, :vs)
-            againststr = Meta.parse(submission.kwargs[:vs])
-            if in(BRANCH_SEPARATOR, againststr)
-                reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-                if againstbranch != "master"
+        if jobtype == PkgEvalTypeJulia
+            if haskey(submission.kwargs, :vs)
+                againststr = Meta.parse(submission.kwargs[:vs])
+                if in(BRANCH_SEPARATOR, againststr)
+                    reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
+                    if againstbranch != "master"
+                        use_blacklist = false
+                    end
+                elseif in(TAG_SEPARATOR, againststr)
                     use_blacklist = false
                 end
-            elseif in(TAG_SEPARATOR, againststr)
+            end
+        else
+            if !(configuration.julia         in ["master", "nightly"] &&
+                 against_configuration.julia in ["master", "nightly"])
                 use_blacklist = false
             end
         end
     end
 
-    if haskey(submission.kwargs, :configuration)
-        expr = Meta.parse(submission.kwargs[:configuration])
-        if !is_valid_configuration(expr)
-            error("invalid argument to `configuration` keyword (expected a tuple)")
-        end
-        tup = eval(expr)
-        configuration = Configuration(; name="primary", tup...)
-    else
-        configuration = Configuration(; name="primary", rr=isdaily)
-    end
-
-    if haskey(submission.kwargs, :vs_configuration)
-        expr = Meta.parse(submission.kwargs[:vs_configuration])
-        if !is_valid_configuration(expr)
-            error("invalid argument to `vs_configuration` keyword (expected a tuple)")
-        end
-        tup = eval(expr)
-        against_configuration = Configuration(; name="against", tup...)
-    else
-        against_configuration = Configuration(; name="against")
-    end
-
-    pkgsel = if isempty(submission.args) || first(submission.args) == "ALL"
-        String[]
-    else
-        pkgs = eval(Meta.parse(first(submission.args)))
-        if pkgs isa Vector
-            pkgs
-        else
-            [pkgs]
-        end
-    end
-
-    return PkgEvalJob(submission, pkgsel, against,
+    return PkgEvalJob(submission, jobtype, pkgsel, against,
                       Date(submission.build.time), isdaily,
-                      configuration, against_configuration, use_blacklist)
+                      configuration, against_configuration,
+                      use_blacklist, subdir)
 end
 
 function Base.summary(job::PkgEvalJob)
@@ -204,15 +260,6 @@ function Base.summary(job::PkgEvalJob)
         result *= " vs. $(summary(job.against))"
     end
     return result
-end
-
-function isvalid(submission::JobSubmission, ::Type{PkgEvalJob})
-    allowed_kwargs = (:vs, :isdaily, :configuration, :vs_configuration)
-    args, kwargs = submission.args, submission.kwargs
-    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_pkgsel(first(args)))
-    has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
-                        (length(kwargs) <= length(allowed_kwargs)))
-    return (submission.func == "runtests") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::PkgEvalJob) = job.submission
@@ -254,50 +301,13 @@ function retrieve_daily_pkgeval_data!(cfg, date)
     return db
 end
 
-########################
-# PkgEvalJob Execution #
-########################
-
-# execute the tests of all packages specified by a PkgEvalJob on one or more Julia builds
-function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+# determine a list of packages to blacklist
+function determine_blacklist(job::PkgEvalJob)
     node = myid()
     cfg = submission(job).config
 
-    # determine configurations to use
-    configs = Configuration[]
-    for (whichbuild, build) in builds
-        # determine Julia version matching requested BuildRef
-        julia = "$(build.repo)#$(build.sha)"
-        nodelog(cfg, node, "Resolved $whichbuild build to Julia commit $(build.sha) at $(build.repo)")
-
-        # create a configuration
-        config = Configuration(base_configs[whichbuild]; julia)
-        push!(configs, config)
-
-        # get some version info
-        try
-            out = Pipe()
-            PkgEval.sandboxed_julia(config, ```-e '
-                    using InteractiveUtils
-                    versioninfo(verbose=true)
-                    '
-                ```; stdout=out, stderr=out, stdin=devnull)
-            close(out.in)
-            build.vinfo = first(split(read(out, String), "Environment"))
-        catch err
-            build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
-        end
-    end
-
-    # determine packages to test
-    pkgs = if isempty(job.pkgsel)
-        nothing
-    else
-        [Package(; name) for name in job.pkgsel]
-    end
-
-    # determine packages to blacklist
     blacklist = String[]
+
     if job.use_blacklist
         try
             packages_url = "https://juliaci.github.io/NanosoldierReports/pkgeval_packages.toml"
@@ -312,18 +322,68 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
         nodelog(cfg, node, "Not using a package blacklist")
     end
 
-    # run tests
-    all_tests = withenv("CI" => true) do
-        cpus = mycpus(submission(job).config)
-        results["duration"] = @elapsed if pkgs !== nothing
-            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
-        else
-            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
-        end
-        tests
-    end
+    return blacklist
+end
 
-    # process the results for each Julia version separately
+# determine the direct dependencies of a given package and version
+# by reading the registry and parsing deps/compat sections.
+function direct_dependencies(registry_path::String, package::String, version::VersionNumber)
+    dependents = []
+    registry = Pkg.Registry.RegistryInstance(registry_path)
+    for (uuid, candidate_package) in registry
+        info = Pkg.Registry.registry_info(candidate_package)
+
+        # PkgEval only tests the latest version of each package
+        latest_version = maximum(keys(info.version_info))
+
+        # determine the dependencies for the latest version of this candidate
+        all_deps = Dict()
+        for (version_range, deps) in info.deps
+            latest_version in version_range || continue
+            merge!(all_deps, deps)
+        end
+
+        # does it depend on the package we're testing?
+        haskey(all_deps, package) || continue
+
+        # check if there's no compat bound restricting the version
+        compat = true
+        for (version_range, bounds) in info.compat
+            latest_version in version_range || continue
+            haskey(bounds, package) || continue
+            if version ∉ bounds[package]
+                compat = false
+            end
+        end
+        compat || continue
+
+        push!(dependents, candidate_package.name)
+    end
+    return dependents
+end
+
+# read the version info of a Julia configuration
+function get_versioninfo!(config::Configuration, results::Dict)
+    try
+        out = Pipe()
+        PkgEval.sandboxed_julia(config, ```-e '
+                using InteractiveUtils
+                versioninfo(verbose=true)
+                '
+            ```; stdout=out, stderr=out, stdin=devnull)
+        close(out.in)
+        first(split(read(out, String), "Environment"))
+    catch err
+        string("retrieving versioninfo() failed: ", sprint(showerror, err))
+    end
+end
+
+# process the results of a PkgEval job, uploading logs and saving other data to disk
+function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
+    nodelog(cfg, node, "proccessing results...")
     for (whichbuild, build) in builds
         tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
         results[whichbuild] = tests
@@ -339,7 +399,7 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
                                            "x-amz-acl"  => "public-read",
                                            "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
                     catch err
-                        rethrow(NanosoldierError("failed to upload test log", err))
+                        nanosoldier_error("failed to upload test log", err)
                     end
                 end
             end
@@ -369,16 +429,154 @@ function execute_tests!(job::PkgEvalJob, builds::Dict, base_configs::Dict, resul
             Feather.write(joinpath(tmpdatadir(job), "$(whichbuild).feather"), tests)
         end
         ## dict with build properties
-        open(joinpath(tmpdatadir(job), "$(whichbuild).json"), "w") do io
-            json = Dict{String,Any}(
-                "build" => Dict(
-                    "repo"  => build.repo,
-                    "sha"   => build.sha,
+        if build !== nothing
+            open(joinpath(tmpdatadir(job), "$(whichbuild).json"), "w") do io
+                json = Dict{String,Any}(
+                    "build" => Dict(
+                        "repo"  => build.repo,
+                        "sha"   => build.sha,
+                    )
                 )
-            )
-            JSON.print(io, json)
+                JSON.print(io, json)
+            end
         end
     end
+    nodelog(cfg, node, "finished proccessing results")
+end
+
+########################
+# PkgEvalJob Execution #
+########################
+
+# execute package tests using one or more Julia builds
+function test_julia!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
+    # determine configurations to use
+    configs = Configuration[]
+    for (whichbuild, build) in builds
+        # determine Julia version matching requested BuildRef
+        julia = "$(build.repo)#$(build.sha)"
+        nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
+
+        # create a configuration
+        config = Configuration(base_configs[whichbuild]; julia)
+        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
+        push!(configs, config)
+    end
+
+    # determine packages to test/skip
+    pkgs = if isempty(job.pkgsel)
+        nothing
+    else
+        [Package(; name) for name in job.pkgsel]
+    end
+    blacklist = determine_blacklist(job)
+
+    # run tests
+    all_tests = withenv("CI" => true) do
+        cpus = mycpus(submission(job).config)
+        results["duration"] = @elapsed if pkgs !== nothing
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
+        else
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
+        end
+        tests
+    end
+
+    process_results!(job, builds, all_tests, results)
+end
+
+# execute package tests after upgrading to a specific version of a package
+function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
+    # determine configurations to use
+    configs = Configuration[]
+    dependencies = Dict()
+    for (whichbuild, build) in builds
+        # determine package version matching requested BuildRef
+        package = "$(build.repo)#$(build.sha)"
+        nodelog(cfg, node, "Resolved $whichbuild build to commit $(build.sha) at $(build.repo)")
+
+        # get the package source
+        package_url = "https://github.com/$(build.repo).git"
+        package_repo = PkgEval.get_github_checkout(build.repo, build.sha)
+        package_path = joinpath(package_repo, job.subdir)
+        package_hash = string(Base.SHA1(Pkg.GitTools.tree_hash(package_path)))
+
+        # parse the Project.toml
+        package_project_path = joinpath(package_path, "Project.toml")
+        isfile(package_project_path) ||
+            nanosoldier_error("package project file not found")
+        package_project = RegistryTools.Project(package_project_path)
+
+        # generate a custom registry
+        reference_registry = PkgEval.get_registry(base_configs[whichbuild])
+        registry_path = mktempdir()
+        cp(reference_registry, registry_path; force=true)
+
+        # get rid of all existing versions
+        package_registry_path =
+            joinpath(registry_path, uppercase(package_project.name[1:1]),
+                        package_project.name)
+        if isdir(package_registry_path)
+            rm(joinpath(package_registry_path, "Versions.toml"); force=true)
+            rm(joinpath(package_registry_path, "Compat.toml"); force=true)
+        end
+
+        # register our package
+        regbr = RegistryTools.RegBranch(package_project, "pkgeval")
+        status = RegistryTools.ReturnStatus()
+        RegistryTools.check_and_update_registry_files(package_project, package_url,
+                                                        package_hash, registry_path,
+                                                        #=registry_deps=# String[],
+                                                        status; job.subdir)
+        if RegistryTools.haserror(status)
+            RegistryTools.set_metadata!(regbr, status)
+            nanosoldier_error("could not register new version ($(regbr.metadata["error"]))")
+        end
+
+        # note our package dependencies
+        dependencies[whichbuild] =
+            direct_dependencies(reference_registry,
+                                package_project.name, package_project.version)
+        nodelog(cfg, node, "$(length(dependencies[whichbuild])) packages depend on $(package_project.name) v$(package_project.version)")
+
+        # create a configuration
+        config = Configuration(base_configs[whichbuild]; registry=registry_path)
+        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
+        push!(configs, config)
+    end
+
+    # determine packages to test/skip
+    pkgs = if isempty(job.pkgsel)
+        # test packages that are compatible with the latest version of our package.
+        # this may result in failures when a package isn't compatible with the "against"
+        # dependency, but instead of discarding such dependents (by intersecting the lists)
+        # we include the package such that it'll error, which is more informative.
+        dependencies = dependencies["primary"]
+
+        [Package(; name) for name in dependencies]
+    else
+        [Package(; name) for name in job.pkgsel]
+    end
+    blacklist = determine_blacklist(job)
+
+    # run tests
+    all_tests = withenv("CI" => true) do
+        cpus = mycpus(submission(job).config)
+        results["duration"] = @elapsed if pkgs !== nothing
+            tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
+        else
+            tests = PkgEval.evaluate(configs; ninstances=length(cpus), blacklist)
+        end
+        tests
+    end
+
+    process_results!(job, builds, all_tests, results)
 end
 
 function Base.run(job::PkgEvalJob)
@@ -405,9 +603,6 @@ function Base.run(job::PkgEvalJob)
     nodelog(cfg, node, "...creating $(tmpdatadir(job))...")
     mkdir(tmpdatadir(job))
 
-    # update packages
-    Pkg.Registry.update()
-
     # instantiate the dictionary that will hold all of the info needed by `report`
     results = Dict{Any,Any}()
 
@@ -429,7 +624,7 @@ function Base.run(job::PkgEvalJob)
             end
             found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
         catch err
-            rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
+            nanosoldier_error("encountered error when retrieving old daily build data", err)
         end
     end
 
@@ -441,15 +636,19 @@ function Base.run(job::PkgEvalJob)
     end
 
     # run tests
-    builds = Dict("primary" => submission(job).build)
-    configs = Dict("primary" => job.configuration)
-    if job.against !== nothing
-        builds["against"] = job.against
-        configs["against"] = job.against_configuration
-    end
+    builds = Dict{String,Union{BuildRef,Nothing}}("primary" => submission(job).build)
+    configs = Dict{String,Configuration}("primary" => job.configuration)
     try
         nodelog(cfg, node, "running tests for $(summary(job))")
-        execute_tests!(job, builds, configs, results)
+        if job.against !== nothing
+            builds["against"] = job.against
+            configs["against"] = job.against_configuration
+        end
+        if job.type == PkgEvalTypeJulia
+            test_julia!(job, builds, configs, results)
+        else
+            test_package!(job, builds, configs, results)
+        end
         nodelog(cfg, node, "finished tests for $(summary(job))")
     finally
         PkgEval.purge()
@@ -472,13 +671,10 @@ function report(job::PkgEvalJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        reply_status(job, "error", "no tests were executed")
-        reply_comment(job, "[Your package evaluation job]($(submission(job).url)) has completed, " *
-                      "but no tests were actually executed. Perhaps your package selection " *
-                      "contains misspelled names? cc @$(cfg.admin)")
+        nanosoldier_error("no tests were executed (perhaps your package selection contains misspelled names?)")
     else
-        #  prepare report + data and push it to report repo
-        target_url = ""
+        # prepare report + data and push it to report repo
+        target_url = nothing
         try
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
@@ -540,33 +736,30 @@ function report(job::PkgEvalJob, results)
                                        "headers"    => Dict("Content-Type"=>"text/html; charset=utf-8")))
                     target_url = "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(reportname)"
                 catch err
-                    rethrow(NanosoldierError("failed to upload test report", err))
+                    nanosoldier_error("failed to upload test report", err)
                 end
             end
         catch err
-            rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
+            nanosoldier_error("error when preparing/pushing to report repo", err)
+        end
+        if target_url === nothing
+            nanosoldier_error("failed to upload test report")
         end
 
         # determine the job's final status
-        state = results["has_issues"] ? "failure" : "success"
-        if job.against !== nothing
-            status = results["has_issues"] ? "possible new issues were detected" :
-                                                "no new issues were detected"
+        status = if job.against !== nothing
+            results["has_issues"] ? "possible new issues were detected" :
+                                    "no new issues were detected"
         else
-            status = results["has_issues"] ? "possible issues were detected" :
-                                                "no issues were detected"
+            results["has_issues"] ? "possible issues were detected" :
+                                    "no issues were detected"
         end
 
         # reply with the job's final status
-        reply_status(job, state, status, target_url)
-        if isempty(target_url)
-            comment = "[Your package evaluation job]($(submission(job).url)) has completed, but " *
-                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-        else
-            comment = "[Your package evaluation job]($(submission(job).url)) has completed - " *
-                        "$(status). A full report can be found [here]($(target_url))."
-        end
-        reply_comment(job, comment)
+        comment = """
+            [Your package evaluation job]($(submission(job).url)) has completed - $status.
+            A full report can be found [here]($(target_url))."""
+        reply_comment(submission(job), comment)
     end
 end
 
@@ -892,7 +1085,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
               #### Primary Build
 
               ```
-              $(build.vinfo)
+              $(results["primary.vinfo"])
               ```
               """)
 
@@ -906,7 +1099,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                   #### Comparison Build
 
                   ```
-                  $(job.against.vinfo)
+                $(results["against.vinfo"])
                   ```
                   """)
 
@@ -927,7 +1120,7 @@ function printdb(io::IO, job::PkgEvalJob, results)
     build = submission(job).build
 
     # parse Julia version info
-    m = match(r"Julia Version (.+)", build.vinfo)
+    m = match(r"Julia Version (.+)", results["primary.vinfo"])
     build_version = if m !== nothing
         tryparse(VersionNumber, m.captures[1])
     else

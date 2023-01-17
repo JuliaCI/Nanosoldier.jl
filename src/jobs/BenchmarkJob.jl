@@ -50,32 +50,48 @@ mutable struct BenchmarkJob <: AbstractJob
 end
 
 function BenchmarkJob(submission::JobSubmission)
+    # preliminary validation
+    for kwarg in keys(submission.kwargs)
+        if !in(kwarg, (:vs, :skipbuild, :isdaily))
+            nanosoldier_error("invalid keyword argument `$kwarg`")
+        end
+    end
+    if isempty(submission.args)
+        # all good
+    elseif length(submission.args) == 1
+        if !is_valid_tagpred(submission.args[1])
+            nanosoldier_error("invalid tag predicate")
+        end
+    else
+        nanosoldier_error("expected zero or one positional argument; got $(length(submission.args))")
+    end
+
     if haskey(submission.kwargs, :vs)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
             reporef, againstsha = split(againststr, SHA_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = commitref(submission.config, againstrepo, againstsha)
         elseif in(BRANCH_SEPARATOR, againststr)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
         elseif in(TAG_SEPARATOR, againststr)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
-            againstrepo = isempty(reporef) ? submission.config.trackrepo : reporef
+            againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = tagref(submission.config, againstrepo, againsttag)
         elseif againststr == SPECIAL_SELF
             againstbuild = copy(submission.build)
         else
-            error("invalid argument to `vs` keyword")
+            nanosoldier_error("invalid argument to `vs` keyword")
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch
-        merge_base = GitHub.compare(submission.config.trackrepo,
+        merge_base = GitHub.compare(submission.repo,
                                     "master", "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
-        against = commitref(submission.config, submission.config.trackrepo, merge_base.sha)
+        against = commitref(submission.config, submission.repo, merge_base.sha)
     else
         against = nothing
     end
@@ -111,15 +127,6 @@ function Base.summary(job::BenchmarkJob)
         result *= " vs. $(summary(job.against))"
     end
     return result
-end
-
-function isvalid(submission::JobSubmission, ::Type{BenchmarkJob})
-    allowed_kwargs = (:vs, :skipbuild, :isdaily)
-    args, kwargs = submission.args, submission.kwargs
-    has_valid_args = isempty(args) || (length(args) == 1 && is_valid_tagpred(first(args)))
-    has_valid_kwargs = (all(in(allowed_kwargs), keys(kwargs)) &&
-                        (length(kwargs) <= length(allowed_kwargs)))
-    return (submission.func == "runbenchmarks") && has_valid_args && has_valid_kwargs
 end
 
 submission(job::BenchmarkJob) = job.submission
@@ -229,7 +236,8 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
-        results["primary"] = execute_benchmarks!(job, julia_primary, :primary)
+        results["primary"], results["primary.vinfo"] =
+            execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
         # run the comparison job (or if it's a daily job, gather results to compare against)
@@ -253,12 +261,13 @@ function Base.run(job::BenchmarkJob)
                 end
                 found_previous_date || nodelog(cfg, node, "didn't find previous daily build data in the past 31 days")
             catch err
-                rethrow(NanosoldierError("encountered error when retrieving old daily build data", err))
+                nanosoldier_error("encountered error when retrieving old daily build data", err)
             end
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
-            results["against"] = execute_benchmarks!(job, julia_against, :against)
+            results["against"], results["against.vinfo"] =
+                execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
         if haskey(results, "against")
@@ -477,20 +486,20 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
     try
-        build.vinfo = first(split(read(```
+        vinfo = first(split(read(```
             $juliacmd -e '
                 using InteractiveUtils
                 versioninfo(verbose=true)
                 '
             ```, String), "Environment"))
     catch err
-        build.vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minimum(results)
+    return minimum(results), vinfo
 end
 
 ##########################
@@ -502,13 +511,10 @@ function report(job::BenchmarkJob, results)
     node = myid()
     cfg = submission(job).config
     if haskey(results, "primary") && isempty(results["primary"])
-        reply_status(job, "error", "no benchmarks were executed")
-        reply_comment(job, "[Your benchmark job]($(submission(job).url)) has completed, " *
-                      "but no benchmarks were actually executed. Perhaps your tag predicate " *
-                      "contains misspelled tags? cc @$(cfg.admin)")
+        nanosoldier_error("no benchmarks were executed (perhaps your tag predicate contains misspelled tags?)")
     else
         # prepare report + data and push it to report repo
-        target_url = ""
+        target_url = nothing
         try
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
@@ -529,29 +535,28 @@ function report(job::BenchmarkJob, results)
             target_url = upload_report_repo!(job, joinpath("benchmark", jobdirname(job), reportname),
                                              "upload report for $(summary(job))")
         catch err
-            rethrow(NanosoldierError("error when preparing/pushing to report repo", err))
+            nanosoldier_error("error when preparing/pushing to report repo", err)
+        end
+        if target_url === nothing
+            nanosoldier_error("failed to upload test report")
         end
 
         # determine the job's final status
-        if job.against !== nothing || haskey(results, "previous_date")
-            found_regressions = BenchmarkTools.isregression(results["judged"])
-            state = found_regressions ? "failure" : "success"
-            status = found_regressions ? "possible performance regressions were detected" :
-                                            "no performance regressions were detected"
+        status = if job.against !== nothing || haskey(results, "previous_date")
+            if BenchmarkTools.isregression(results["judged"])
+                "possible performance regressions were detected"
+            else
+                "no performance regressions were detected"
+            end
         else
-            state = "success"
-            status = "successfully executed benchmarks"
+            "successfully executed benchmarks"
         end
+
         # reply with the job's final status
-        reply_status(job, state, status, target_url)
-        if isempty(target_url)
-            comment = "[Your benchmark job]($(submission(job).url)) has completed, but " *
-                        "something went wrong when trying to upload the result data. cc @$(cfg.admin)"
-        else
-            comment = "[Your benchmark job]($(submission(job).url)) has completed - " *
-                        "$(status). A full report can be found [here]($(target_url))."
-        end
-        reply_comment(job, comment)
+        comment = """
+            [Your benchmark job]($(submission(job).url)) has completed - $status.
+            A full report can be found [here]($(target_url))."""
+        reply_comment(submission(job), comment)
     end
 end
 
@@ -697,7 +702,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
               #### Primary Build
 
               ```
-              $(build.vinfo)
+              $(results["primary.vinfo"])
               ```
               """)
 
@@ -707,7 +712,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   #### Comparison Build
 
                   ```
-                  $(job.against.vinfo)
+                  $(results["against.vinfo"])
                   ```
                   """)
     end

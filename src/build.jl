@@ -2,22 +2,18 @@
 # BuildRef #
 ############
 
-mutable struct BuildRef
+struct BuildRef
     repo::String    # the build repo
     sha::String     # the build + status SHA
     time::DateTime  # a timestamp for the build
-    vinfo::String   # versioninfo() taken during the build
 end
 
-BuildRef(repo, sha, time) = BuildRef(repo, sha, time, "retrieving versioninfo() failed")
-
-Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.time, x.vinfo)
+Base.copy(x::BuildRef) = BuildRef(x.repo, x.sha, x.time)
 
 function Base.:(==)(a::BuildRef, b::BuildRef)
     return (a.repo == b.repo &&
             a.sha == b.sha &&
-            a.time == b.time &&
-            a.vinfo == b.vinfo)
+            a.time == b.time)
 end
 
 Base.summary(build::BuildRef) = string(build.repo, SHA_SEPARATOR, snipsha(build.sha))
@@ -54,14 +50,14 @@ function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{
     run(sudo(config.user, `mkdir -m 775 $srcdir`))
     chmod(tmpdir, 0o555)
 
-    mirrordir = joinpath(workdir, "mirrors", split(config.trackrepo, "/")...)
+    mirrordir = joinpath(workdir, "mirrors", "julia")
     mkpath(dirname(mirrordir), mode=0o755)
     mkpidlock(mirrordir * ".lock") do
         if ispath(mirrordir, ".git")
             run(`$(git()) -C $mirrordir fetch --quiet --all`)
         else
             mkpath(mirrordir)
-            gitclone!(config.trackrepo, mirrordir, `--mirror`)
+            gitclone!("JuliaLang/julia", mirrordir, `--mirror`)
         end
     end
 

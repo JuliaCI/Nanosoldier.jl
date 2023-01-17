@@ -1,6 +1,7 @@
 mutable struct JobSubmission
     config::Config
-    build::BuildRef
+    repo::String                 # the repository where the job was submitted
+    build::BuildRef              # the location of the code (could be a different repo)
     statussha::String            # the SHA to send statuses to (since `build` can mutate)
     url::String                  # the URL linking to the triggering comment
     fromkind::Symbol             # `:pr`, `:review`, or `:commit`?
@@ -12,11 +13,11 @@ end
 
 function JobSubmission(config::Config, event::GitHub.WebhookEvent, submission_string)
     try
-        build, statussha, url, fromkind, prnumber = parse_event(config, event)
+        repo, build, statussha, url, fromkind, prnumber = parse_event(config, event)
         func, args, kwargs = parse_submission_string(submission_string)
-        return JobSubmission(config, build, statussha, url, fromkind, prnumber, func, args, kwargs)
+        return JobSubmission(config, repo, build, statussha, url, fromkind, prnumber, func, args, kwargs)
     catch err
-        error(string("could not parse comment into job submission: ", sprint(showerror, err)))
+        nanosoldier_error("could not parse comment into job submission: ", err)
     end
 end
 
@@ -32,11 +33,15 @@ function Base.:(==)(a::JobSubmission, b::JobSubmission)
 end
 
 function parse_event(config::Config, event::GitHub.WebhookEvent)
+    # the repository where the triggering comment was made. this may be different from
+    # the repo where the source code is located, if the comment was made on a PR.
+    target_repo = event.repository.full_name
+
     if event.kind == "commit_comment"
         # A commit was commented on, and the comment contained a trigger phrase.
         # The primary repo is the location of the comment, and the primary SHA
         # is that of the commit that was commented on.
-        repo = event.repository.full_name
+        repo = target_repo
         sha = event.payload["comment"]["commit_id"]
         url = event.payload["comment"]["html_url"]
         fromkind = :commit
@@ -77,7 +82,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
     commit = GitHub.commit(repo, sha, auth=config.auth)
     time = commit.commit.committer.date
 
-    return BuildRef(repo, sha, time), sha, url, fromkind, prnumber
+    target_repo, BuildRef(repo, sha, time), sha, url, fromkind, prnumber
 end
 
 # `x` can only be Expr, Symbol, QuoteNode, T<:Number, or T<:AbstractString
@@ -115,23 +120,26 @@ function parse_submission_string(submission_string)
     return name, args, kwargs
 end
 
-function reply_status(sub::JobSubmission, context, state, description, url=nothing)
+function reply_status(sub::JobSubmission, state, context, description, url=nothing)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
         @info "Running as part of test suite, not uploading status" state description url
-        return ""
+        return
     end
 
     if state == "failure"
+        # this means that the run succeeded, but we detected regressions.
+        # don't report that as a failed status (errors still are).
         new_state = "success"
     else
         new_state = state
     end
+
     params = Dict("state" => new_state,
                   "context" => context,
                   "description" => snip(description, 140))
     url !== nothing && (params["target_url"] = url)
-    return GitHub.create_status(sub.config.trackrepo, sub.statussha;
-                                auth = sub.config.auth, params = params)
+    GitHub.create_status(sub.repo, sub.statussha;
+                         auth = sub.config.auth, params = params)
 end
 
 function reply_comment(sub::JobSubmission, message::AbstractString)
@@ -142,30 +150,6 @@ function reply_comment(sub::JobSubmission, message::AbstractString)
 
     commentplace = sub.prnumber === nothing ? sub.statussha : sub.prnumber
     commentkind = sub.fromkind == :review ? :pr : sub.fromkind
-    return GitHub.create_comment(sub.config.trackrepo, commentplace, commentkind;
+    return GitHub.create_comment(sub.repo, commentplace, commentkind;
                                  auth = sub.config.auth, params = Dict("body" => message))
-end
-
-function upload_report_repo!(sub::JobSubmission, markdownpath, message)
-    if haskey(ENV, "NANOSOLDIER_DRYRUN")
-        @info "Running as part of test suite, not uploading report" message
-        return ""
-    end
-
-    cfg = sub.config
-    dir = reportdir(cfg)
-
-    # create a detached commit
-    run(`$(git()) -C $dir checkout --detach --quiet`)
-    run(`$(git()) -C $dir add --all`)
-    run(`$(git()) -C $dir commit --message $message --quiet`)
-    sha = readchomp(`$(git()) -C $dir rev-parse HEAD`)
-
-    # cherry-pick on top of latest master
-    run(`$(git()) -C $dir checkout --quiet master`)
-    gitreset!(dir)
-    run(`$(git()) -C $dir cherry-pick -X ours $sha`)
-
-    run(`$(git()) -C $dir push`)
-    return "https://github.com/$(reportrepo(cfg))/blob/master/$(markdownpath)"
 end
