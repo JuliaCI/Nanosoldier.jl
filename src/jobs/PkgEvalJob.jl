@@ -316,7 +316,8 @@ function determine_blacklist(job::PkgEvalJob)
             append!(blacklist, packages["unreliable"])
             nodelog(cfg, node, "Blacklisted $(length(blacklist)) packages")
         catch err
-            nodelog(cfg, node, "Failed to retrieve package blacklist: $(sprint(showerror, err))")
+            nodelog(cfg, node, "Failed to retrieve package blacklist",
+                    error=(err, stacktrace(catch_backtrace())))
         end
     else
         nodelog(cfg, node, "Not using a package blacklist")
