@@ -50,8 +50,8 @@ struct Server
                 reply_comment(submission, message)
 
                 # but put all details in the server log
-                err_str = sprint(showerror, err)
-                nodelog(config, 1, "failed submission: $phrase\n$err_str")
+                nodelog(config, 1, "failed submission: $phrase",
+                        error=(err, stacktrace(catch_backtrace())))
 
                 return HTTP.Response(400, "invalid job submission")
             end
@@ -142,7 +142,7 @@ function delegate_job(server::Server, job::AbstractJob, node)
         publish_update(job, "error", "Failed"; fallback=false)
 
         # but put all details in the server log
-        err_str = sprint(showerror, err)
-        nodelog(server.config, node, "failed job: $(summary(job))\n$err_str")
+        nodelog(server.config, node, "failed job: $(summary(job))",
+                error=(err, stacktrace(catch_backtrace())))
     end
 end
