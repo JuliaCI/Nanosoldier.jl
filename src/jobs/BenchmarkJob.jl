@@ -582,9 +582,9 @@ function printreport(io::IO, job::BenchmarkJob, results)
         joblink = "$(joblink) vs [$(againstname)]($(againstlink))"
 
         if build.repo == againstbuild.repo
-            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.sha)"
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)...$(build.sha)"
         else
-            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)..$(build.repo):$(build.sha)"
+            comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)...$(build.repo):$(build.sha)"
         end
         joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
     end
