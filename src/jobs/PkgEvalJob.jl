@@ -365,8 +365,10 @@ end
 
 # determine how many packages depend on each package (for sorting purposes).
 # this doesn't need to be super accurate, so we just use the local registry.
-function direct_dependents()
-    dependents = Dict{String,Int}()
+function package_dependents(; transitive::Bool=true)
+    dependents = Dict{String,Set{String}}()
+
+    # populate with direct dependents/dependencies
     for registry in Pkg.Registry.reachable_registries()
         for (uuid, package) in registry
             info = Pkg.Registry.registry_info(package)
@@ -380,14 +382,40 @@ function direct_dependents()
                 latest_version in version_range || continue
                 for dep in keys(deps)
                     if !haskey(dependents, dep)
-                        dependents[dep] = 0
+                        dependents[dep] = Set{String}()
                     end
-                    dependents[dep] += 1
+                    push!(dependents[dep], package.name)
                 end
             end
         end
     end
-    return dependents
+
+    if transitive
+        # now iteratively add transitive dependencies to the set of dependents
+        while true
+            changed = false
+            for package in keys(dependents)
+                transitive_deps = Set{String}()
+                for dep in dependents[package]
+                    haskey(dependents, dep) || continue
+                    for transitive_dep in dependents[dep]
+                        transitive_dep in dependents[package] && continue
+                        push!(transitive_deps, transitive_dep)
+                    end
+                end
+                if !isempty(transitive_deps)
+                    union!(dependents[package], transitive_deps)
+                    changed = true
+                end
+            end
+            if !changed
+                break
+            end
+        end
+    end
+
+    # now flatten to a dictionary of counts
+    Dict(package => length(dependents[package]) for package in keys(dependents))
 end
 
 # read the version info of a Julia configuration
@@ -985,7 +1013,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     end
 
     # report test results in groups based on the test status
-    dependents = direct_dependents()
+    dependents = package_dependents()
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
                                     :fail   => ("failed tests", "✖"),
                                     :ok     => ("passed tests", "✔"),
