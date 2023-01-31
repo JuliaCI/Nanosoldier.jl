@@ -363,6 +363,33 @@ function direct_dependencies(registry_path::String, package::String, version::Ve
     return dependents
 end
 
+# determine how many packages depend on each package (for sorting purposes).
+# this doesn't need to be super accurate, so we just use the local registry.
+function direct_dependents()
+    dependents = Dict{String,Int}()
+    for registry in Pkg.Registry.reachable_registries()
+        for (uuid, package) in registry
+            info = Pkg.Registry.registry_info(package)
+
+            # PkgEval only tests the latest version of each package
+            latest_version = maximum(keys(info.version_info))
+
+            # determine the dependencies for the latest version of this candidate
+            all_deps = Dict()
+            for (version_range, deps) in info.deps
+                latest_version in version_range || continue
+                for dep in keys(deps)
+                    if !haskey(dependents, dep)
+                        dependents[dep] = 0
+                    end
+                    dependents[dep] += 1
+                end
+            end
+        end
+    end
+    return dependents
+end
+
 # read the version info of a Julia configuration
 function get_versioninfo!(config::Configuration, results::Dict)
     try
@@ -958,13 +985,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
     end
 
     # report test results in groups based on the test status
+    dependents = direct_dependents()
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
                                     :fail   => ("failed tests", "✖"),
                                     :ok     => ("passed tests", "✔"),
                                     :skip   => ("were skipped", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
-        sort!(group, :package)
+        sort!(group, :package; by=pkg->get(dependents, pkg, 0), rev=true)
 
         if !isempty(group)
             println(io, "## $emoji Packages that $verb\n")

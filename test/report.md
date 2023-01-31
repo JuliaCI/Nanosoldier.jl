@@ -4,7 +4,7 @@
 
 *Commits:* [JuliaLang/julia@PRIMARY](https://github.com/JuliaLang/julia/commit/PRIMARY) vs [JuliaLang/julia@AGAINST](https://github.com/JuliaLang/julia/commit/AGAINST)
 
-*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/AGAINST..PRIMARY)
+*Comparison Diff:* [link](https://github.com/JuliaLang/julia/compare/AGAINST...PRIMARY)
 
 *Triggered By:* [link](https://www.test.com)
 
