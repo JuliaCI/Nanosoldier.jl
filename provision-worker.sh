@@ -42,7 +42,7 @@ cat /proc/interrupts
 # irqbalance
 
 # create a (non-privileged) user to run the build and test:
-sudo useradd nanosoldier-worker || true
+sudo useradd -m nanosoldier-worker || true
 sudo usermod -aG nanosoldier-worker `whoami`
 sudo usermod -aG nanosoldier-worker nanosoldier
 
@@ -65,4 +65,7 @@ echo "-------------"
 echo "manual steps (for each worker)"
 echo "-------------"
 echo
-echo "replace ~nanosoldier/.ssh/id_rsa* with those files from the master"
+echo "install ssh key from master server to this worker"
+echo "sudo -u nanosoldier vim ~nanosoldier/.ssh/authorized_keys"
+echo "sudo -u nanosoldier chmod 600 ~nanosoldier/.ssh/authorized_keys"
+echo " # on server # sudo -u nanosoldier scp /home/nanosoldier/.ssh/id_ed25519 /home/nanosoldier/.ssh/id_ed25519.pub `hostname`:.ssh"

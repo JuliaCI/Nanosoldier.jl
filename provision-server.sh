@@ -13,12 +13,12 @@ PATCH=`echo $VERSION | cut -d . -f 3`
 sudo apt update
 
 # create a (non-privileged) user to run the server:
-sudo useradd nanosoldier || true
+sudo useradd -m nanosoldier || true
 sudo usermod -aG nanosoldier `whoami`
 echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL
 Defaults> nanosoldier umask=0777" | sudo tee -a /etc/sudoers.d/99-nanosoldier
 
-sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_rsa.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_rsa
+sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_ed25519.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_ed25519 -t ed25519
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
 sudo -u nanosoldier ssh -T git@github.com || true
@@ -36,8 +36,8 @@ echo "-------------"
 echo
 echo "install this ssh key in github for user @nanosoldier at"
 echo "  https://github.com/settings/ssh/new"
-echo "  and on all worker machines at ~nanosoldier/.ssh/authorized_keys"
-sudo -u nanosoldier cat ~nanosoldier/.ssh/id_rsa.pub
+echo "and on all worker machines at ~nanosoldier/.ssh/authorized_keys"
+sudo -u nanosoldier cat ~nanosoldier/.ssh/id_ed25519.pub
 echo
 echo "and generate an auth-token for later at"
 echo "  https://github.com/settings/tokens/new"
@@ -66,8 +66,8 @@ echo "  . ../cset/bin/activate"
 echo "  setarch -R ../julia-$VERSION/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
 echo
 echo "or with a helper script:"
-echo "  cp bin/run_base_ci.jl .."
-echo "  chgrp nanosoldier ../run_base_ci.jl"
-echo "  chmod 660 ../run_base_ci.jl"
+echo "  (umask 007 && cp bin/run_base_ci.jl ..)"
+echo "  (umask 007 && touch ../run_base_ci.stdout ../run_base_ci.stderr)"
+echo "  sudo chgrp nanosoldier ../run_base_ci.jl ../run_base_ci.stdout ../run_base_ci.stderr"
 echo "  \${EDITOR:-vim} ../run_base_ci.jl"
 echo "  ./run_base_ci"
