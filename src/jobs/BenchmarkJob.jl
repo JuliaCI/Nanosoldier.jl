@@ -554,8 +554,8 @@ function report(job::BenchmarkJob, results)
 
         # reply with the job's final status
         comment = """
-            [Your benchmark job]($(submission(job).url)) has completed - $status.
-            A full report can be found [here]($(target_url))."""
+            The benchmark job [you requested]($(submission(job).url)) has completed - $status.
+            The [**full report**]($(target_url)) is available."""
         reply_comment(submission(job), comment)
     end
 end
