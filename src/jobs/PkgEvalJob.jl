@@ -813,8 +813,8 @@ function report(job::PkgEvalJob, results)
 
         # reply with the job's final status
         comment = """
-            [Your package evaluation job]($(submission(job).url)) has completed - $status.
-            A full report can be found [here]($(target_url))."""
+            The package evaluation job [you requested]($(submission(job).url)) has completed - $status.
+            The [**full report**]($(target_url)) is available."""
         reply_comment(submission(job), comment)
     end
 end
