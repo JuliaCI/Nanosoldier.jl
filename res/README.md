@@ -10,8 +10,9 @@ following properties:
 - payload URL: depends on where the server is hosted, e.g.,
   `http://pkgeval.nanosoldier.julialang.org:8888`
 - content type: `application/json`
+- secret: ask an administrator
 - select "Let me select individual events" and check "Commit comments", "Issue comments",
-  "Pull request review" and "Pull requests"
+  "Pull request review comments" and "Pull requests"
 
 
 ## BenchmarkJob
