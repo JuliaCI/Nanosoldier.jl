@@ -186,7 +186,8 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     configuration = Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"];
-                                  name="primary", rr=isdaily)
+                                  rr=(isdaily ? PkgEval.RREnabledOnRetry : PkgEval.RRDisabled),
+                                  name="primary")
     if jobtype == PkgEvalTypePackage
         configuration = Configuration(configuration; julia="stable")
     end
