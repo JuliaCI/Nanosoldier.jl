@@ -185,7 +185,8 @@ function PkgEvalJob(submission::JobSubmission)
         subdir = ""
     end
 
-    configuration = Configuration(; name="primary", rr=isdaily)
+    configuration = Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"];
+                                  name="primary", rr=isdaily)
     if jobtype == PkgEvalTypePackage
         configuration = Configuration(configuration; julia="stable")
     end
@@ -198,7 +199,8 @@ function PkgEvalJob(submission::JobSubmission)
         configuration = Configuration(configuration; tup...)
     end
 
-    against_configuration = Configuration(; name="against")
+    against_configuration = Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"];
+                                          name="against")
     if jobtype == PkgEvalTypePackage
         against_configuration = Configuration(against_configuration; julia="stable")
     end
