@@ -822,6 +822,51 @@ end
 # Markdown Report Generation #
 #----------------------------#
 
+module PkgEvalHistory
+    export get_history
+
+    using JSON, HTTP, Dates
+    @enum Status crash=0 fail=1 skip=3 no_data=4 ok=6
+    function get_history(days = 30)
+        # Determine the date of the last upload
+        format = dateformat"yyyy-mm/dd"
+        latest = String(HTTP.get("https://raw.githubusercontent.com/JuliaCI/NanosoldierReports/master/pkgeval/by_date/latest").body)
+        end_date = parse(Date, latest, format)
+        start_date = end_date - Day(days-1)
+
+        # Download the json data representing pkgeval results
+        content = Vector{Vector{UInt8}}(undef, days)
+        @sync for (i, date) in enumerate(start_date:Day(1):end_date)
+            date_str = Dates.format(date, format)
+            @async try
+                content[i] = HTTP.get("https://raw.githubusercontent.com/JuliaCI/NanosoldierReports/master/pkgeval/by_date/$date_str/db.json").body
+            catch _
+                @warn "Failed to fetch data for $date_str"
+                content[i] = Vector{UInt8}[]
+            end
+        end
+
+        # Convert the json data into a dict mapping packages to results
+        history = Dict{String, Vector{Status}}()
+        for (i, c) in enumerate(content)
+            isempty(c) && continue
+            json = JSON.Parser.parse(IOBuffer(c))
+            for (pkg, result) in json["tests"]
+                if !haskey(history, pkg)
+                    history[pkg] = fill(no_data, days)
+                end
+                history[pkg][i] = getproperty(@__MODULE__, Symbol(result["status"]))
+            end
+        end
+
+        # Convert the dict into a string representations
+        heading = "History ($start_date to $end_date)"
+        history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
+        heading, history_str
+    end
+end
+using .PkgEvalHistory
+
 function readable_duration(seconds)
     str = ""
     if seconds > 60*60*24
@@ -1013,6 +1058,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     end
 
     # report test results in groups based on the test status
+    history_heading, history = get_history()
     dependents = package_dependents()
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
                                     :fail   => ("failed tests", "✖"),
@@ -1037,15 +1083,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     # PkgEval always compares the same package versions, so only report it once
-                    print(io, "- $(test.package)")
+                    print(io, "| $(test.package) |")
                     if test.version !== missing
-                        print(io, " v$(test.version)")
+                        print(io, "v$(test.version) | ")
                     elseif test.source == "both" && test.version_1 !== missing
-                        print(io, " v$(test.version_1)")
+                        print(io, "v$(test.version_1) | ")
                     end
-                    print(io, ": ")
 
-                    print(io, "[$primary_status]($primary_log)")
+                    print(io, "[$primary_status]($primary_log) | ")
 
                     against_log = if cfg.bucket !== nothing
                         "https://s3.amazonaws.com/$(cfg.bucket)/pkgeval/$(jobdirname(job))/$(test.package).against.log"
@@ -1053,13 +1098,15 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         "logs/$(test.package)/against.log"
                     end
                     against_status = String(test.status_1)
-                    print(io, " vs. [$against_status]($against_log)")
+                    print(io, "[$against_status]($against_log) | ")
+                    print(io, "$(history[test.package]) |")
                 else
-                    print(io, "- [$(test.package)")
+                    print(io, "| [$(test.package)")
                     if test.version !== missing
                         print(io, " v$(test.version)")
                     end
-                    print(io, "]($primary_log)")
+                    print(io, "]($primary_log) | ")
+                    print(io, "$(history[test.package]) |")
                 end
 
                 println(io)
@@ -1075,6 +1122,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         <p>
                         """)
                     println(io)
+                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
                     println(io, """
@@ -1090,6 +1139,8 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         println(io, "Other:")
                         println(io)
                     end
+                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
                 end
