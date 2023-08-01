@@ -1061,13 +1061,13 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # report test results in groups based on the test status
     println(reportdir(submission(job).config))
     try
-        foreach(println, walkdir(reportdir(submission(job).config)))
+        foreach(println, walkdir(dirname(reportdir(submission(job).config))))
     catch x
         println("ERROR")
         println(x)
     end
     println("/home/runner/")
-    foreach(println, "/home/runner/")
+    foreach(println, walkdir("/home/runner/"))
     history_heading, history = get_history(joinpath(reportdir(submission(job).config), "pkgeval", "by_date"))
     dependents = package_dependents()
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
