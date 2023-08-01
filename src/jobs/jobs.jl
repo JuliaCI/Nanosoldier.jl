@@ -65,7 +65,7 @@ function upload_report_repo!(job::AbstractJob, markdownpath, message)
         target = joinpath(dirname(source), "redacted_vs_redacted")
         cp(source, target)
 
-        return tempdir(target)
+        return target
     end
 
     cfg = submission(job).config
