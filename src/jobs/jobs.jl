@@ -58,7 +58,14 @@ end
 function upload_report_repo!(job::AbstractJob, markdownpath, message)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
         @info "Running as part of test suite, not uploading report" message
-        return "nonexistent"
+
+        # copy the report to a path that does not depend on the commit hash to makes it
+        # easier to locate and upload as a test artifact.
+        source = reportdir(job)
+        target = joinpath(dirname(source), "redacted_vs_redacted")
+        cp(source, target)
+
+        return tempdir(target)
     end
 
     cfg = submission(job).config
