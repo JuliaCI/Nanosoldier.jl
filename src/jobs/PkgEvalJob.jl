@@ -2,6 +2,7 @@ using PkgEval
 using DataFrames
 using Feather
 using JSON
+using Dates
 using LibGit2
 using CommonMark
 using Pkg
@@ -822,55 +823,49 @@ end
 # Markdown Report Generation #
 #----------------------------#
 
-module PkgEvalHistory
-    export get_history
+@enum HistoricalStatus crash=0 fail=1 skip=3 no_data=4 ok=6
+function get_history(cfg, days = 30)
+    # Ensure repo is available locally
+    root_dir = reportdir(cfg)
+    dir = joinpath(root_dir, "pkgeval", "by_date")
+    isdir(dir || gitclone!(reportrepo(cfg), rood_dir, cfg.auth))
 
-    using JSON, Dates
-    @enum Status crash=0 fail=1 skip=3 no_data=4 ok=6
-    function get_history(cfg, days = 30)
-        # Ensure repo is available locally
-        root_dir = reportdir(cfg)
-        dir = joinpath(root_dir, "pkgeval", "by_date")
-        isdir(dir || gitclone!(reportrepo(cfg), rood_dir, cfg.auth))
+    # Determine the date of the last upload
+    format = dateformat"yyyy-mm/dd"
+    latest = read(joinpath(dir, "latest"), String)
+    end_date = parse(Date, latest, format)
+    start_date = end_date - Day(days-1)
 
-        # Determine the date of the last upload
-        format = dateformat"yyyy-mm/dd"
-        latest = read(joinpath(dir, "latest"), String)
-        end_date = parse(Date, latest, format)
-        start_date = end_date - Day(days-1)
-
-        # Download the json data representing pkgeval results
-        content = Vector{Vector{UInt8}}(undef, days)
-        @sync for (i, date) in enumerate(start_date:Day(1):end_date)
-            date_str = Dates.format(date, format)
-            @async try
-                content[i] = read(joinpath(dir, date_str, db.json))
-            catch _
-                @warn "Failed to fetch data for $date_str"
-                content[i] = Vector{UInt8}[]
-            end
+    # Download the json data representing pkgeval results
+    content = Vector{Vector{UInt8}}(undef, days)
+    @sync for (i, date) in enumerate(start_date:Day(1):end_date)
+        date_str = Dates.format(date, format)
+        @async try
+            content[i] = read(joinpath(dir, date_str, db.json))
+        catch _
+            @warn "Failed to fetch data for $date_str"
+            content[i] = Vector{UInt8}[]
         end
-
-        # Convert the json data into a dict mapping packages to results
-        history = Dict{String, Vector{Status}}()
-        for (i, c) in enumerate(content)
-            isempty(c) && continue
-            json = JSON.Parser.parse(IOBuffer(c))
-            for (pkg, result) in json["tests"]
-                if !haskey(history, pkg)
-                    history[pkg] = fill(no_data, days)
-                end
-                history[pkg][i] = getproperty(@__MODULE__, Symbol(result["status"]))
-            end
-        end
-
-        # Convert the dict into a string representations
-        heading = "History ($start_date to $end_date)"
-        history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
-        heading, history_str
     end
+
+    # Convert the json data into a dict mapping packages to results
+    history = Dict{String, Vector{HistoricalStatus}}()
+    for (i, c) in enumerate(content)
+        isempty(c) && continue
+        json = JSON.Parser.parse(IOBuffer(c))
+        for (pkg, result) in json["tests"]
+            if !haskey(history, pkg)
+                history[pkg] = fill(no_data, days)
+            end
+            history[pkg][i] = getproperty(@__MODULE__, Symbol(result["status"]))
+        end
+    end
+
+    # Convert the dict into a string representations
+    heading = "History ($start_date to $end_date)"
+    history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
+    heading, history_str
 end
-using .PkgEvalHistory
 
 function readable_duration(seconds)
     str = ""
