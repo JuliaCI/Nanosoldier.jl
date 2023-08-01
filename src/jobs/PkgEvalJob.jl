@@ -825,12 +825,13 @@ end
 module PkgEvalHistory
     export get_history
 
-    using JSON, HTTP, Dates
+    using JSON, Dates
     @enum Status crash=0 fail=1 skip=3 no_data=4 ok=6
-    function get_history(days = 30)
+    function get_history(dir, days = 30)
         # Determine the date of the last upload
         format = dateformat"yyyy-mm/dd"
-        latest = String(HTTP.get("https://raw.githubusercontent.com/JuliaCI/NanosoldierReports/master/pkgeval/by_date/latest").body)
+
+        latest = read(joinpath(dir, "latest"), String)
         end_date = parse(Date, latest, format)
         start_date = end_date - Day(days-1)
 
@@ -839,7 +840,7 @@ module PkgEvalHistory
         @sync for (i, date) in enumerate(start_date:Day(1):end_date)
             date_str = Dates.format(date, format)
             @async try
-                content[i] = HTTP.get("https://raw.githubusercontent.com/JuliaCI/NanosoldierReports/master/pkgeval/by_date/$date_str/db.json").body
+                content[i] = read(joinpath(dir, date_str, db.json))
             catch _
                 @warn "Failed to fetch data for $date_str"
                 content[i] = Vector{UInt8}[]
@@ -1058,7 +1059,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     end
 
     # report test results in groups based on the test status
-    history_heading, history = get_history()
+    history_heading, history = get_history(reportdir(submission(job).config))
     dependents = package_dependents()
     for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
                                     :fail   => ("failed tests", "✖"),
