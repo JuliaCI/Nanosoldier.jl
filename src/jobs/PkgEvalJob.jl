@@ -828,7 +828,7 @@ function get_history(cfg, days = 30)
     # Ensure repo is available locally
     root_dir = reportdir(cfg)
     dir = joinpath(root_dir, "pkgeval", "by_date")
-    isdir(dir || gitclone!(reportrepo(cfg), rood_dir, cfg.auth))
+    isdir(dir) || gitclone!(reportrepo(cfg), rood_dir, cfg.auth)
 
     # Determine the date of the last upload
     format = dateformat"yyyy-mm/dd"
