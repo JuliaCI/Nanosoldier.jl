@@ -1125,8 +1125,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         <p>
                         """)
                     println(io)
-                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
+                    five_col = any(row->row.source == "both", subgroup)
+                    println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                    println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
                     println(io, """
@@ -1142,8 +1143,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         println(io, "Other:")
                         println(io)
                     end
-                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
+                    five_col = any(row->row.source == "both", subgroup)
+                    println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                    println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
                     foreach(reportrow, eachrow(subgroup))
                     println(io)
                 end
