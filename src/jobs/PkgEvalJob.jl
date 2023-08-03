@@ -845,9 +845,10 @@ function get_history(cfg, days = 30)
     @sync for (i, date) in enumerate(start_date:Day(1):end_date)
         date_str = Dates.format(date, format)
         @async try
-            content[i] = read(joinpath(dir, date_str, db.json))
+            content[i] = read(joinpath(dir, date_str, "db.json"))
         catch _
             @warn "Failed to fetch data for $date_str"
+            @warn joinpath(dir, date_str, "db.json")
             content[i] = Vector{UInt8}[]
         end
     end
