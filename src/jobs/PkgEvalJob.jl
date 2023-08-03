@@ -835,7 +835,7 @@ function get_history(cfg, days = 30)
 
     # Determine the date of the last upload
     format = dateformat"yyyy-mm/dd"
-    latest = read(joinpath(dir, "latest"), String)
+    latest = readlink(joinpath(dir, "latest"))
     end_date = parse(Date, latest, format)
     start_date = end_date - Day(days-1)
 
