@@ -770,6 +770,7 @@ function report(job::PkgEvalJob, results)
             if cfg.bucket !== nothing
                 reportname = "report.html"
                 parser = Parser()
+                enable!(parser, TableRule())
                 ast = parser(report_md)
                 body = html(ast)
                 report_html = """
