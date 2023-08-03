@@ -1120,7 +1120,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
             function reportsubgroup(subgroup)
                 five_col = any(row->row.source == "both", eachrow(subgroup))
                 println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                println(io, five_col ? "| - | - | - | - | - |" : "| - | - |")
+                println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
                 foreach(reportrow, eachrow(subgroup))
                 println(io)
             end
