@@ -1116,6 +1116,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io)
             end
 
+            function reportsubgroup(subgroup)
+                five_col = any(row->row.source == "both", eachrow(subgroup))
+                println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
+                foreach(reportrow, eachrow(subgroup))
+                println(io)
+            end
+
             # report on a group of tests, prefixed with the reason
             function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
@@ -1126,11 +1134,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         <p>
                         """)
                     println(io)
-                    five_col = any(row->row.source == "both", eachrow(subgroup))
-                    println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
-                    foreach(reportrow, eachrow(subgroup))
-                    println(io)
+                    reportsubgroup(subgroup)
                     println(io, """
                         </p>
                         </details>
@@ -1144,11 +1148,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         println(io, "Other:")
                         println(io)
                     end
-                    five_col = any(row->row.source == "both", eachrow(subgroup))
-                    println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
-                    foreach(reportrow, eachrow(subgroup))
-                    println(io)
+                    reportsubgroup(subgroup)
                 end
             end
 
