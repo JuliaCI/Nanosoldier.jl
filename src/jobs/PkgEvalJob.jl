@@ -848,7 +848,6 @@ function get_history(cfg, days = 30)
             content[i] = read(joinpath(dir, date_str, "db.json"))
         catch _
             @warn "Failed to fetch data for $date_str"
-            @warn joinpath(dir, date_str, "db.json")
             content[i] = Vector{UInt8}[]
         end
     end
