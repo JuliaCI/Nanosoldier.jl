@@ -770,6 +770,7 @@ function report(job::PkgEvalJob, results)
             if cfg.bucket !== nothing
                 reportname = "report.html"
                 parser = Parser()
+                enable!(parser, TableRule())
                 ast = parser(report_md)
                 body = html(ast)
                 report_html = """
@@ -835,7 +836,7 @@ function get_history(cfg, days = 30)
 
     # Determine the date of the last upload
     format = dateformat"yyyy-mm/dd"
-    latest = read(joinpath(dir, "latest"), String)
+    latest = readlink(joinpath(dir, "latest"))
     end_date = parse(Date, latest, format)
     start_date = end_date - Day(days-1)
 
@@ -844,7 +845,7 @@ function get_history(cfg, days = 30)
     @sync for (i, date) in enumerate(start_date:Day(1):end_date)
         date_str = Dates.format(date, format)
         @async try
-            content[i] = read(joinpath(dir, date_str, db.json))
+            content[i] = read(joinpath(dir, date_str, "db.json"))
         catch _
             @warn "Failed to fetch data for $date_str"
             content[i] = Vector{UInt8}[]
@@ -1115,6 +1116,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 println(io)
             end
 
+            function reportsubgroup(subgroup)
+                five_col = any(row->row.source == "both", eachrow(subgroup))
+                println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
+                foreach(reportrow, eachrow(subgroup))
+                println(io)
+            end
+
             # report on a group of tests, prefixed with the reason
             function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
@@ -1125,10 +1134,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         <p>
                         """)
                     println(io)
-                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
-                    foreach(reportrow, eachrow(subgroup))
-                    println(io)
+                    reportsubgroup(subgroup)
                     println(io, """
                         </p>
                         </details>
@@ -1142,10 +1148,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
                         println(io, "Other:")
                         println(io)
                     end
-                    println(io, hasagainstbuild ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                    println(io, hasagainstbuild ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
-                    foreach(reportrow, eachrow(subgroup))
-                    println(io)
+                    reportsubgroup(subgroup)
                 end
             end
 
