@@ -1087,11 +1087,13 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 # "against" entries are suffixed with `_1` because of the join
                 if test.source == "both"
                     # PkgEval always compares the same package versions, so only report it once
-                    print(io, "| $(test.package) |")
+                    print(io, "| $(test.package) | ")
                     if test.version !== missing
                         print(io, "v$(test.version) | ")
-                    elseif test.source == "both" && test.version_1 !== missing
+                    elseif test.version_1 !== missing
                         print(io, "v$(test.version_1) | ")
+                    else
+                        print(io, "missing | ")
                     end
 
                     print(io, "[$primary_status]($primary_log) | ")
