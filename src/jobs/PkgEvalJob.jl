@@ -726,6 +726,10 @@ end
 # PkgEvalJob Reporting #
 ########################
 
+const COLOR_MAP = map(('▁' => "#60F", '▂' => "#F03", '▄' => "#FF0", '▅' => "#666", '▇' => "#0F0")) do (char, color)
+    Regex("($char+)") => SubstitutionString("<span style=\"color: $color\">\\1</span>")
+end
+
 # report job results back to GitHub
 function report(job::PkgEvalJob, results)
     node = myid()
@@ -789,6 +793,7 @@ function report(job::PkgEvalJob, results)
                     <body>$body</body>
                     </html>
                 """
+                report_html = replace(report_html, COLOR_MAP...)
                 try
                     S3.put_object("$(cfg.bucket)/pkgeval/$(jobdirname(job))",
                                   "report.html",
