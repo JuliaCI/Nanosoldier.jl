@@ -1061,6 +1061,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
                                                 package_results))
     end
 
+    # Provide a legend to interpret history plots
+    legend_entries = (('▁' + Int(s)) * '=' * string(s) for s in instances(HistoricalStatus))
+    println(io, "History Legend: ", join(legend_entries, ", "), ".\n")
+
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
