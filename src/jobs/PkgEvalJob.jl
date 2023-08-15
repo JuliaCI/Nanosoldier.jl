@@ -792,6 +792,9 @@ function report(job::PkgEvalJob, results)
                             font-family: sans-serif;
                             max-width: 65rem;
                         }
+                        table td + td + td + td + td {
+                            font-family: monospace;
+                        }
                         </style>
                     </head>
                     <body>$body</body>
