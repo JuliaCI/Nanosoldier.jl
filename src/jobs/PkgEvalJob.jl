@@ -726,8 +726,12 @@ end
 # PkgEvalJob Reporting #
 ########################
 
-const COLOR_MAP = map(('▁' => "#60F", '▂' => "#F03", '▄' => "#FF0", '▅' => "#666", '▇' => "#0F0")) do (char, color)
-    Regex("($char+)") => SubstitutionString("<span style=\"color: $color\">\\1</span>")
+const COLOR_MAP = map(('▁' => ("#60F", "crash"),
+                       '▂' => ("#F03", "fail"),
+                       '▄' => ("#FF0", "skip"),
+                       '▅' => ("#666", "no data"),
+                       '▇' => ("#0F0", "ok"))) do (char, (color, title))
+    Regex("($char+)") => SubstitutionString("<span style=\"color: $color\" title=\"$title\">\\1</span>")
 end
 
 # report job results back to GitHub
