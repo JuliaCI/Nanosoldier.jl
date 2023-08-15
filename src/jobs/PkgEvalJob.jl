@@ -840,7 +840,7 @@ end
 #----------------------------#
 
 @enum HistoricalStatus crash=0 fail=1 skip=3 no_data=4 ok=6
-function get_history(cfg, days = 30)
+function get_history(cfg, days=30)
     # Ensure repo is available locally
     root_dir = reportdir(cfg)
     dir = joinpath(root_dir, "pkgeval", "by_date")
@@ -878,7 +878,7 @@ function get_history(cfg, days = 30)
     end
 
     # Convert the dict into a string representations
-    heading = "History ($start_date to $end_date)"
+    heading = "History (last 30 days)"
     history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
     heading, history_str
 end
