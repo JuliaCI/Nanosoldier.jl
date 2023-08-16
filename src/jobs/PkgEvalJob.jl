@@ -1121,14 +1121,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     end
                     against_status = String(test.status_1)
                     print(io, "[$against_status]($against_log) | ")
-                    print(io, "<p class=\"history\">$(get(history, test.package, "missing"))</p> |")
+                    print(io, "<span class=\"history\">$(get(history, test.package, "missing"))</span> |")
                 else
                     print(io, "| [$(test.package)")
                     if test.version !== missing
                         print(io, " v$(test.version)")
                     end
                     print(io, "]($primary_log) | ")
-                    print(io, "<p class=\"history\">$(get(history, test.package, "missing"))</p> |")
+                    print(io, "<span class=\"history\">$(get(history, test.package, "missing"))</span> |")
                 end
 
                 println(io)
