@@ -726,8 +726,12 @@ end
 # PkgEvalJob Reporting #
 ########################
 
-const COLOR_MAP = map(('▁' => "#60F", '▂' => "#F03", '▄' => "#FF0", '▅' => "#666", '▇' => "#0F0")) do (char, color)
-    Regex("($char+)") => SubstitutionString("<span style=\"color: $color\">\\1</span>")
+const COLOR_MAP = map(('▁' => ("#60F", "crash"),
+                       '▂' => ("#F03", "fail"),
+                       '▄' => ("#FF0", "skip"),
+                       '▅' => ("#666", "no data"),
+                       '▇' => ("#0F0", "ok"))) do (char, (color, title))
+    Regex("($char+)") => SubstitutionString("<span style=\"color: $color\" title=\"$title\">\\1</span>")
 end
 
 # report job results back to GitHub
@@ -788,6 +792,9 @@ function report(job::PkgEvalJob, results)
                             font-family: sans-serif;
                             max-width: 65rem;
                         }
+                        .history {
+                            font-family: monospace;
+                        }
                         </style>
                     </head>
                     <body>$body</body>
@@ -833,7 +840,7 @@ end
 #----------------------------#
 
 @enum HistoricalStatus crash=0 fail=1 skip=3 no_data=4 ok=6
-function get_history(cfg, days = 30)
+function get_history(cfg, days=30)
     # Ensure repo is available locally
     root_dir = reportdir(cfg)
     dir = joinpath(root_dir, "pkgeval", "by_date")
@@ -871,7 +878,7 @@ function get_history(cfg, days = 30)
     end
 
     # Convert the dict into a string representations
-    heading = "History ($start_date to $end_date)"
+    heading = "History ($(month(start_date))-$(day(start_date)) to $(month(end_date))-$(day(end_date)))"
     history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
     heading, history_str
 end
@@ -1114,14 +1121,14 @@ function printreport(io::IO, job::PkgEvalJob, results)
                     end
                     against_status = String(test.status_1)
                     print(io, "[$against_status]($against_log) | ")
-                    print(io, "$(get(history, test.package, "missing")) |")
+                    print(io, "<span class=\"history\">$(get(history, test.package, "missing"))</span> |")
                 else
                     print(io, "| [$(test.package)")
                     if test.version !== missing
                         print(io, " v$(test.version)")
                     end
                     print(io, "]($primary_log) | ")
-                    print(io, "$(get(history, test.package, "missing")) |")
+                    print(io, "<span class=\"history\">$(get(history, test.package, "missing"))</span> |")
                 end
 
                 println(io)
