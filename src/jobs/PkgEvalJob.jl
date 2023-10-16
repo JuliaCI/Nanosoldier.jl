@@ -726,10 +726,9 @@ end
 # PkgEvalJob Reporting #
 ########################
 
-const COLOR_MAP = map(('▁' => ("#60F", "crash"),
-                       '▂' => ("#F03", "fail"),
-                       '▄' => ("#FF0", "skip"),
-                       '▅' => ("#666", "no data"),
+const COLOR_MAP = map(('▁' => ("#666", "skip"),
+                       '▃' => ("#60F", "crash"),
+                       '▅' => ("#F03", "fail"),
                        '▇' => ("#0F0", "ok"))) do (char, (color, title))
     Regex("($char+)") => SubstitutionString("<span style=\"color: $color\" title=\"$title\">\\1</span>")
 end
@@ -839,7 +838,7 @@ end
 # Markdown Report Generation #
 #----------------------------#
 
-@enum HistoricalStatus crash=0 fail=1 skip=3 no_data=4 ok=6
+@enum HistoricalStatus skip=0 crash=2 fail=4 ok=6
 function get_history(cfg, days=30)
     # Ensure repo is available locally
     root_dir = reportdir(cfg)
@@ -871,9 +870,9 @@ function get_history(cfg, days=30)
         json = JSON.Parser.parse(IOBuffer(c))
         for (pkg, result) in json["tests"]
             if !haskey(history, pkg)
-                history[pkg] = fill(no_data, days)
+                history[pkg] = HistoricalStatus[]
             end
-            history[pkg][i] = getproperty(@__MODULE__, Symbol(result["status"]))
+            push!(history[pkg], getproperty(@__MODULE__, Symbol(result["status"])))
         end
     end
 
