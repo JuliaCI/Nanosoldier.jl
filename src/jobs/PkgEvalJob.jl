@@ -423,7 +423,10 @@ function package_dependents(; transitive::Bool=true)
 end
 
 # read the version info of a Julia configuration
-function get_versioninfo!(config::Configuration, results::Dict)
+function get_versioninfo!(job::PkgEvalJob, config::Configuration, results::Dict)
+    node = myid()
+    cfg = submission(job).config
+
     try
         out = Pipe()
         PkgEval.sandboxed_julia(config, ```-e '
@@ -434,7 +437,9 @@ function get_versioninfo!(config::Configuration, results::Dict)
         close(out.in)
         first(split(read(out, String), "Environment"))
     catch err
-        string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        nodelog(cfg, node, "Failed to retrieve versioninfo()",
+                error=(err, stacktrace(catch_backtrace())))
+        string("retrieving versioninfo() failed; consult server logs for more details")
     end
 end
 
@@ -522,7 +527,7 @@ function test_julia!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results:
 
         # create a configuration
         config = Configuration(base_configs[whichbuild]; julia)
-        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
+        results["$(whichbuild).vinfo"] = get_versioninfo!(job, config, results)
         push!(configs, config)
     end
 
@@ -607,7 +612,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
         # create a configuration
         config = Configuration(base_configs[whichbuild]; registry=registry_path)
-        results["$(whichbuild).vinfo"] = get_versioninfo!(config, results)
+        results["$(whichbuild).vinfo"] = get_versioninfo!(job, config, results)
         push!(configs, config)
     end
 
