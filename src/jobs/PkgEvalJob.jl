@@ -186,11 +186,12 @@ function PkgEvalJob(submission::JobSubmission)
         subdir = ""
     end
 
-    configuration = Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"];
-                                  rr=(isdaily ? PkgEval.RREnabledOnRetry : PkgEval.RRDisabled),
-                                  name="primary")
-    if jobtype == PkgEvalTypePackage
-        configuration = Configuration(configuration; julia="stable")
+    configuration = if jobtype == PkgEvalTypePackage
+        Configuration(name="primary", julia="stable")
+    else
+        Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],
+                      rr=(isdaily ? PkgEval.RREnabledOnRetry : PkgEval.RRDisabled),
+                      name="primary")
     end
     if haskey(submission.kwargs, :configuration)
         expr = Meta.parse(submission.kwargs[:configuration])
@@ -201,10 +202,11 @@ function PkgEvalJob(submission::JobSubmission)
         configuration = Configuration(configuration; tup...)
     end
 
-    against_configuration = Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"];
-                                          name="against")
-    if jobtype == PkgEvalTypePackage
-        against_configuration = Configuration(against_configuration; julia="stable")
+    against_configuration = if jobtype == PkgEvalTypePackage
+        Configuration(name="against", julia="stable")
+    else
+        Configuration(buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],
+                      name="against")
     end
     if haskey(submission.kwargs, :vs_configuration)
         expr = Meta.parse(submission.kwargs[:vs_configuration])
