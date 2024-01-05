@@ -466,7 +466,8 @@ function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, r
                                            "x-amz-acl"  => "public-read",
                                            "headers"    => Dict("Content-Type"=>"text/plain; charset=utf-8")))
                     catch err
-                        nanosoldier_error("failed to upload test log", err)
+                        nodelog(cfg, node, "Failed to upload test log",
+                                error=(err, stacktrace(catch_backtrace())))
                     end
                 end
             end
