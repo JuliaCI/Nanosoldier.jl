@@ -158,8 +158,10 @@ function PkgEvalJob(submission::JobSubmission)
     elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch.
         # this does not apply to packages, where we compare against the latest release.
+        pr_details = GitHub.pull_request(submission.repo, submission.prnumber; auth=submission.config.auth)
+        base_branch = pr_details.base.ref
         merge_base = GitHub.compare(submission.repo,
-                                    "master", "refs/pull/$(submission.prnumber)/head";
+                                    base_branch, "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
         against = commitref(submission.config, submission.repo, merge_base.sha)
     else
