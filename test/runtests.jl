@@ -193,7 +193,9 @@ results = Dict(
             )
         )
     ),
-    "against.vinfo" => vinfo*"_against"
+    "against.vinfo" => vinfo*"_against",
+    "primary.artifact_sizes" => Dict("libLLVM.so" => 123456, "sys.so" => 789012),
+    "against.artifact_sizes" => Dict("libLLVM.so" => 123456, "sys.so" => 789012),
 )
 
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])

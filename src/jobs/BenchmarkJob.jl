@@ -238,7 +238,7 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
-        results["primary"], results["primary.vinfo"] =
+        results["primary"], results["primary.vinfo"], results["primary.artifact-sizes"] =
             execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
@@ -268,7 +268,7 @@ function Base.run(job::BenchmarkJob)
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
-            results["against"], results["against.vinfo"] =
+            results["against"], results["against.vinfo"], results["against.artifact-sizes"] =
                 execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
@@ -283,6 +283,22 @@ function Base.run(job::BenchmarkJob)
                 rm(dir, recursive=true)
             end
         end
+    end
+
+    # save artifact sizes
+    try
+        open(joinpath(tmpdir(job), "artifact-sizes.csv"), "w") do file
+            for (artifact, size) in results["primary.artifact-sizes"]
+                println(file, "$(submission(job).build.sha),$artifact,$size")
+            end
+            if job.against !== nothing
+                for (artifact, size) in results["against.artifact-sizes"]
+                    println(file, "$(job.against.sha),$artifact,$size")
+                end
+            end
+        end
+    catch err
+        vinfo = string("Saving artifact sizes failed: ", sprint(showerror, err))
     end
 
     # report results
@@ -498,10 +514,25 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
+    # Get artifact sizes
+    try
+        artifact_sizes = Dict{String, Int}()
+        julia_build_dir = splitdir(juliapath)[1]
+        lib_dir = joinpath(julia_build_dir, "usr", "lib")
+        for artifact in ("libLLVM.so", "libjulia-codegen.so", "libjulia-internal.so")
+            artifact_sizes[artifact] = filesize(joinpath(lib_dir, artifact))
+        end
+        for artifact in ("corecompiler.ji", "sys.ji", "sys.so")
+            artifact_sizes[artifact] = filesize(joinpath(lib_dir, "julia", artifact))
+        end
+    catch err
+        vinfo = string("Retrieving artifact sizes failed: ", sprint(showerror, err))
+    end
+
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minimum(results), vinfo
+    return minimum(results), vinfo, artifact_sizes
 end
 
 ##########################
