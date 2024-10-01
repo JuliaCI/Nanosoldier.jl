@@ -345,7 +345,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                 url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
                 Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
                 # These are referenced by name so they need to be added explicitly
-                foreach(Pkg.add, ("BenchmarkTools", "JSON"))
+                foreach(Pkg.add, ("BenchmarkTools", "LinuxPerf", "JSON"))
                 ' ```)
     catch ex
         @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
@@ -406,6 +406,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                       using LinearAlgebra # needed for `BLAS.set_num_threads`
                       using BaseBenchmarks
                       using BenchmarkTools
+                      using LinuxPerf
                       using Statistics
                       using JSON
 
@@ -656,13 +657,13 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   that indicate possible regressions or improvements - are shown below (thus, an empty table means that all
                   benchmark results remained invariant between builds).
 
-                  | ID | time ratio | memory ratio |
-                  |----|------------|--------------|
+                  | ID | time ratio | instruction ratio | branch ratio | memory ratio |
+                  |----|------------|-------------------|--------------|--------------|
                   """)
     else
         print(io, """
-                  | ID | time | GC time | memory | allocations |
-                  |----|------|---------|--------|-------------|
+                  | ID | time | instructions | branches| GC time | memory | allocations |
+                  |----|------|--------------|---------|---------|--------|-------------|
                   """)
     end
 
@@ -740,24 +741,36 @@ resultrow(ids, t::BenchmarkTools.Trial) = resultrow(ids, minimum(t))
 
 function resultrow(ids, t::BenchmarkTools.TrialEstimate)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
+    b_tol = intpercent(BenchmarkTools.params(t).branch_tolerance)
+    i_tol = intpercent(BenchmarkTools.params(t).instruction_tolerance)
     m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
     timestr = string(BenchmarkTools.prettytime(BenchmarkTools.time(t)), " (", t_tol, ")")
+    inststr = string(BenchmarkTools.prettycount(BenchmarkTools.instructions(t); base_unit="insts"), " (", i_tol, ")")
+    brstr = string(BenchmarkTools.prettycount(BenchmarkTools.branches(t); base_unit="branches"), " (", b_tol, ")")
     memstr = string(BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), " (", m_tol, ")")
     gcstr = BenchmarkTools.prettytime(BenchmarkTools.gctime(t))
     allocstr = string(BenchmarkTools.allocs(t))
-    return "| $(idrepr_md(ids)) | $(timestr) | $(gcstr) | $(memstr) | $(allocstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(inststr) | $(brstr) | $(gcstr) | $(memstr) | $(allocstr) |"
 end
 
 function resultrow(ids, t::BenchmarkTools.TrialJudgement)
     t_tol = intpercent(BenchmarkTools.params(t).time_tolerance)
+    i_tol = intpercent(BenchmarkTools.params(t).instruction_tolerance)
+    b_tol = intpercent(BenchmarkTools.params(t).branch_tolerance)
     m_tol = intpercent(BenchmarkTools.params(t).memory_tolerance)
     t_ratio = @sprintf("%.2f", BenchmarkTools.time(BenchmarkTools.ratio(t)))
+    i_ratio = @sprintf("%.2f", BenchmarkTools.instructions(BenchmarkTools.ratio(t)))
+    b_ratio = @sprintf("%.2f", BenchmarkTools.branches(BenchmarkTools.ratio(t)))
     m_ratio =  @sprintf("%.2f", BenchmarkTools.memory(BenchmarkTools.ratio(t)))
     t_mark = resultmark(BenchmarkTools.time(t))
+    i_mark = resultmark(BenchmarkTools.instructions(t))
+    b_mark = resultmark(BenchmarkTools.branches(t))
     m_mark = resultmark(BenchmarkTools.memory(t))
     timestr = "$(t_ratio) ($(t_tol)) $(t_mark)"
+    inststr = "$(i_ratio) ($(i_tol)) $(i_mark)"
+    brstr = "$(b_ratio) ($(b_tol)) $(b_mark)"
     memstr = "$(m_ratio) ($(m_tol)) $(m_mark)"
-    return "| $(idrepr_md(ids)) | $(timestr) | $(memstr) |"
+    return "| $(idrepr_md(ids)) | $(timestr) | $(inststr) | $(brstr) | $(memstr) |"
 end
 
 resultmark(sym::Symbol) = sym == :regression ? REGRESS_MARK : (sym == :improvement ? IMPROVE_MARK : "")

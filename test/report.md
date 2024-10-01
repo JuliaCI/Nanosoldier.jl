@@ -29,11 +29,11 @@ than `1.0` denotes a possible improvement (marked with :white_check_mark:). Only
 that indicate possible regressions or improvements - are shown below (thus, an empty table means that all
 benchmark results remained invariant between builds).
 
-| ID | time ratio | memory ratio |
-|----|------------|--------------|
-| `["g", "h", "z"]` | 1.00 (60%)  | 5.00 (27%) :x: |
-| `["g", "h", ("y", 1)]` | 2.00 (5%) :x: | 0.00 (3%) :white_check_mark: |
-| `["g", "h", ("y", 2)]` | 0.50 (5%) :white_check_mark: | 1.00 (1%)  |
+| ID | time ratio | instruction ratio | branch ratio | memory ratio |
+|----|------------|-------------------|--------------|--------------|
+| `["g", "h", "z"]` | 1.00 (60%)  | 1.00 (5%)  | 1.00 (5%)  | 5.00 (27%) :x: |
+| `["g", "h", ("y", 1)]` | 2.00 (5%) :x: | 2.00 (5%) :x: | 2.00 (5%) :x: | 0.00 (3%) :white_check_mark: |
+| `["g", "h", ("y", 2)]` | 0.50 (5%) :white_check_mark: | 0.50 (5%) :white_check_mark: | 0.50 (5%) :white_check_mark: | 1.00 (1%)  |
 
 ## Benchmark Group List
 
