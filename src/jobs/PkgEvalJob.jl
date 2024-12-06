@@ -245,6 +245,12 @@ function PkgEvalJob(submission::JobSubmission)
                 elseif in(TAG_SEPARATOR, againststr)
                     use_blacklist = false
                 end
+            elseif against !== nothing
+                # implicit vs
+                reporef, againstbranch = split(summary(against), BRANCH_SEPARATOR)
+                if againstbranch != "master"
+                    use_blacklist = false
+                end
             end
         else
             if !(configuration.julia         in ["master", "nightly"] &&
