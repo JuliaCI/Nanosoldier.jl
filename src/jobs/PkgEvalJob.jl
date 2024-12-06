@@ -158,7 +158,8 @@ function PkgEvalJob(submission::JobSubmission)
     elseif submission.prnumber !== nothing
         # if there is a PR number, we compare against the base branch.
         # this does not apply to packages, where we compare against the latest release.
-        pr_details = GitHub.pull_request(submission.repo, submission.prnumber; auth=submission.config.auth)
+        pr_details = GitHub.pull_request(submission.repo, submission.prnumber;
+                                         auth=submission.config.auth)
         base_branch = pr_details.base.ref
         merge_base = GitHub.compare(submission.repo,
                                     base_branch, "refs/pull/$(submission.prnumber)/head";
@@ -221,32 +222,38 @@ function PkgEvalJob(submission::JobSubmission)
 
     if haskey(submission.kwargs, :use_blacklist)
         use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
-    else
+    elseif jobtype == PkgEvalTypeJulia
         # normally, we use the blacklist.
         use_blacklist = true
 
-        # however, there's two exceptions:
-        # 1. daily evaluations, which are used to _create_ the blacklist,
-        #    so obviously need to test all packages
-        if isdaily
-            use_blacklist = false
-        end
-        # 2. when comparing against a specific Julia tag or branch that isn't master.
-        #    likely this branch or tag is in the past (e.g., referring to a release)
-        #    while the blacklist only encodes packages broken on the latest master.
+        # however, there's exceptions
         if jobtype == PkgEvalTypeJulia
-            if haskey(submission.kwargs, :vs)
-                againststr = Meta.parse(submission.kwargs[:vs])
-                if in(BRANCH_SEPARATOR, againststr)
-                    reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
-                    if againstbranch != "master"
-                        use_blacklist = false
-                    end
-                elseif in(TAG_SEPARATOR, againststr)
+            # 1. daily evaluations, which are used to _create_ the blacklist,
+            #    so obviously need to test all packages
+            if isdaily
+                use_blacklist = false
+            end
+            # 2. when comparing against an older version of Julia, e.g., a release branch.
+            #    we have to check if that branch hasn't diverged too much from upstream
+            #    master, which is what's used to generate the blacklist.
+            function has_diverged(ref)
+                merge_base = GitHub.compare("JuliaLang/julia", "master", ref.sha;
+                                            auth=submission.config.auth).merge_base_commit
+                commit = commitref(submission.config, submission.repo, merge_base.sha)
+                return Dates.now() - commit.time > Dates.Day(14)
+            end
+            if against !== nothing
+                if has_diverged(against)
+                    use_blacklist = false
+                end
+            else
+                if has_diverged(submission.build)
                     use_blacklist = false
                 end
             end
         else
+            # for package tests, we can only use the blacklist when using a
+            # very recent version of Julia.
             if !(configuration.julia         in ["master", "nightly"] &&
                  against_configuration.julia in ["master", "nightly"])
                 use_blacklist = false
