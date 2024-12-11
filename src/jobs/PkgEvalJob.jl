@@ -218,6 +218,14 @@ function PkgEvalJob(submission::JobSubmission)
         end
         tup = eval(expr)
         against_configuration = Configuration(against_configuration; tup...)
+    elseif haskey(submission.kwargs, :configuration)
+        # if only :configuration was specified, use that for both primary and against
+        expr = Meta.parse(submission.kwargs[:configuration])
+        if !is_valid_configuration(expr)
+            nanosoldier_error("invalid argument to `configuration` keyword (expected a tuple)")
+        end
+        tup = eval(expr)
+        against_configuration = Configuration(against_configuration; tup...)
     end
 
     if haskey(submission.kwargs, :use_blacklist)
