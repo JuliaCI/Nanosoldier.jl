@@ -225,7 +225,7 @@ end
             configuration="primary",
             package="Example",
             version=v"0.1.0",
-            status=:ok,
+            status=:test,
             reason=missing,
             duration=0.0,
             log="everything is fine",

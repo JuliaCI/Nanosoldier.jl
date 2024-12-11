@@ -746,7 +746,9 @@ end
 const COLOR_MAP = map(('▁' => ("#666", "skip"),
                        '▃' => ("#60F", "crash"),
                        '▅' => ("#F03", "fail"),
-                       '▇' => ("#0F0", "ok"))) do (char, (color, title))
+                       '▆' => ("#F60", "load"),
+                       '▇' => ("#0F0", "test"),
+                      )) do (char, (color, title))
     Regex("($char+)") => SubstitutionString("<span style=\"color: $color\" title=\"$title\">\\1</span>")
 end
 
@@ -855,7 +857,17 @@ end
 # Markdown Report Generation #
 #----------------------------#
 
-@enum HistoricalStatus skip=0 crash=2 fail=4 ok=6
+const status_blocks = Dict{String,Int}(
+    "skip"  => '▁',
+    "crash" => '▃',
+    "fail"  => '▅',
+    "load"  => '▆',
+    "test"  => '▇',
+
+    # backwards compatibility
+    "ok"    => '▇',
+)
+
 function get_history(cfg, days=30)
     # Ensure repo is available locally
     root_dir = reportdir(cfg)
@@ -881,21 +893,21 @@ function get_history(cfg, days=30)
     end
 
     # Convert the json data into a dict mapping packages to results
-    history = Dict{String, Vector{HistoricalStatus}}()
+    history = Dict{String, Vector{Char}}()
     for (i, c) in enumerate(content)
         isempty(c) && continue
         json = JSON.Parser.parse(IOBuffer(c))
         for (pkg, result) in json["tests"]
             if !haskey(history, pkg)
-                history[pkg] = HistoricalStatus[]
+                history[pkg] = Char[]
             end
-            push!(history[pkg], getproperty(@__MODULE__, Symbol(result["status"])))
+            push!(history[pkg], status_blocks[result["status"]])
         end
     end
 
     # Convert the dict into a string representations
     heading = "History ($(month(start_date))-$(day(start_date)) to $(month(end_date))-$(day(end_date)))"
-    history_str = Dict(((pkg => join('▁' + Int(s) for s in h)) for (pkg, h) in history))
+    history_str = Dict(((pkg => join(c for c in h)) for (pkg, h) in history))
     heading, history_str
 end
 
@@ -1031,14 +1043,15 @@ function printreport(io::IO, job::PkgEvalJob, results)
         end
     end
 
-    o = count(==(:ok),      results["primary"].status)
+    l = count(==(:load),    results["primary"].status)
+    t = count(==(:test),    results["primary"].status)
     s = count(==(:skip),    results["primary"].status)
     c = count(==(:crash),   results["primary"].status)
     f = count(==(:fail),    results["primary"].status)
     x = nrow(results["primary"])
 
     println(io, """
-                In total, $x packages were tested, out of which $o succeeded, $c crashed, $f failed and $s were skipped.
+                In total, $x packages were evaluated, out of which $t successfully tested, $l were not tested but did load successfully, $c crashed, $f failed and $s were skipped.
                 """)
 
     println(io)
@@ -1053,7 +1066,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
         # if this isn't a daily job, print the invocation to retest failures.
         # we do this first so that the proposed invocation includes all failure modes.
         new_failures = filter(test->test.status in [:fail, :crash] &&
-                                    test.status_1 === :ok, package_results)
+                                    test.status_1 in [:test, :load], package_results)
         if !job.isdaily && !isempty(new_failures)
             cmd = "$(repr(new_failures.package))"
             if haskey(submission(job).kwargs, :vs)
@@ -1096,10 +1109,11 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
-    for (status, (verb, emoji)) in (:crash  => ("crashed during testing", "❗"),
-                                    :fail   => ("failed tests", "✖"),
-                                    :ok     => ("passed tests", "✔"),
-                                    :skip   => ("were skipped", "➖"))
+    for (status, (verb, emoji)) in (:crash  => ("crashed", "❗"),
+                                    :fail   => ("failed", "✖"),
+                                    :test   => ("passed tests", "✔"),
+                                    :load   => ("failed but still loaded", "~"),
+                                    :skip   => ("were skipped completely", "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
         sort!(group, :package; by=pkg->get(dependents, pkg, 0), rev=true)
