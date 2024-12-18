@@ -1233,12 +1233,11 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results; headlines
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for key in sort(keys(subgroups); by=key->PkgEval.reason_severity(key.reason))
                     subgroup = subgroups[key]
-                    headline = "$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):"
                     if headlines_only
-                        println(io, headline)
+                        println(io, " - $(nrow(subgroup)) : $(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) :")
                     else
                         println(io, """
-                            <details open><summary>$headline</summary>
+                            <details open><summary>"$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):"</summary>
                             <p>
                             """)
                         println(io)
