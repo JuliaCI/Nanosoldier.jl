@@ -850,10 +850,16 @@ function report(job::PkgEvalJob, results)
                                     "no issues were detected"
         end
 
+        package_results = make_package_results(results, job.against !== nothing)
+        report_summary = sprint(io -> printpackageresults(io, job, package_results; headlines_only=true))
+
         # reply with the job's final status
         comment = """
             The package evaluation job [you requested]($(submission(job).url)) has completed - $status.
-            The [**full report**]($(target_url)) is available."""
+            The [**full report**]($(target_url)) is available.
+
+            $report_summary
+            """
         reply_comment(submission(job), comment)
     end
 end
@@ -956,6 +962,17 @@ function readable_duration(seconds)
         end
     end
     return str
+end
+
+function make_package_results(results, hasagainstbuild)
+    if hasagainstbuild
+        return leftjoin(results["primary"], results["against"],
+                                   on=:package, makeunique=true, source=:source)
+    else
+        package_results = results["primary"]
+        package_results[!, :source] .= "left_only" # fake a left join
+        return package_results
+    end
 end
 
 function printreport(io::IO, job::PkgEvalJob, results)
@@ -1063,9 +1080,9 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # print result list #
     #-------------------#
 
+    package_results = make_package_results(results, hasagainstbuild)
+
     if hasagainstbuild
-        package_results = leftjoin(results["primary"], results["against"],
-                                   on=:package, makeunique=true, source=:source)
 
         # if this isn't a daily job, print the invocation to retest failures.
         # we do this first so that the proposed invocation includes all failure modes.
@@ -1099,13 +1116,51 @@ function printreport(io::IO, job::PkgEvalJob, results)
         end
         results["has_issues"] = !isempty(new_failures)
     else
-        package_results = results["primary"]
-        package_results[!, :source] .= "left_only" # fake a left join
-
         results["has_issues"] = !isempty(filter(test->test.status in [:fail, :crash],
                                                 package_results))
     end
 
+    # main results body
+    printpackageresults(io, job, package_results)
+
+        # print build version info #
+    #--------------------------#
+
+    print(io, """
+              ## Version Info
+
+              #### Primary Build
+
+              ```
+              $(results["primary.vinfo"])
+              ```
+              """)
+
+    if haskey(submission(job).kwargs, :configuration)
+        println(io, "*Configuration*: `", submission(job).kwargs[:configuration], "`")
+    end
+
+    if hasagainstbuild
+        println(io)
+        print(io, """
+                  #### Comparison Build
+
+                  ```
+                $(results["against.vinfo"])
+                  ```
+                  """)
+
+        if haskey(submission(job).kwargs, :vs_configuration)
+            println(io, "*Configuration*: `", submission(job).kwargs[:vs_configuration], "`")
+        end
+    end
+
+    println(io, "<!-- Generated on $(now()) -->")
+
+    return nothing
+end
+
+function printpackageresults(io::IO, job::PkgEvalJob, package_results; headlines_only::Bool=false)
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
@@ -1174,30 +1229,37 @@ function printreport(io::IO, job::PkgEvalJob, results)
             end
 
             # report on a group of tests, prefixed with the reason
-            function reportgroup(group)
+            function reportgroup(group; headlines_only::Bool=false)
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for key in sort(keys(subgroups); by=key->PkgEval.reason_severity(key.reason))
                     subgroup = subgroups[key]
-                    println(io, """
-                        <details open><summary>$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):</summary>
-                        <p>
-                        """)
-                    println(io)
-                    reportsubgroup(subgroup)
-                    println(io, """
-                        </p>
-                        </details>
-                        """)
+                    headline = "$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):"
+                    if headlines_only
+                        println(io, headline)
+                    else
+                        println(io, """
+                            <details open><summary>$headline</summary>
+                            <p>
+                            """)
+                        println(io)
+                        reportsubgroup(subgroup)
+                        println(io, """
+                            </p>
+                            </details>
+                            """)
+                    end
                 end
 
-                # print tests without a reason separately, at the end
-                subgroup = group[group[!, :reason] .=== missing, :]
-                if !isempty(subgroup)
-                    if length(subgroups) > 0
-                        println(io, "Other:")
-                        println(io)
+                if !headlines_only
+                    # print tests without a reason separately, at the end
+                    subgroup = group[group[!, :reason] .=== missing, :]
+                    if !isempty(subgroup)
+                        if length(subgroups) > 0
+                            println(io, "Other:")
+                            println(io)
+                        end
+                        reportsubgroup(subgroup)
                     end
-                    reportsubgroup(subgroup)
                 end
             end
 
@@ -1209,71 +1271,40 @@ function printreport(io::IO, job::PkgEvalJob, results)
                 if !isempty(changed_tests)
                     println(io, "**$(nrow(changed_tests)) packages $verb only on the current version.**")
                     println(io)
-                    reportgroup(changed_tests)
+                    reportgroup(changed_tests; headlines_only)
                 end
 
                 # now report the other ones
                 unchanged_tests = filter(test->test.source == "left_only" ||
                                                test.status == test.status_1, group)
                 if !isempty(unchanged_tests)
-                    println(io, """
-                        <details><summary><strong>$(nrow(unchanged_tests)) packages $verb on the previous version too.</strong></summary>
-                        <p>
-                        """)
-                    unchanged_tests = copy(unchanged_tests)     # only report the
-                    unchanged_tests[!, :source] .= "left_only"  # primary result
-                    reportgroup(unchanged_tests)
-                    println(io, """
-                        </p>
-                        </details>
-                        """)
+                    headline = "$(nrow(unchanged_tests)) packages $verb on the previous version too."
+                    if headlines_only
+                        println(io, headline)
+                    else
+                        println(io, """
+                            <details><summary><strong>$headline</strong></summary>
+                            <p>
+                            """)
+                        unchanged_tests = copy(unchanged_tests)     # only report the
+                        unchanged_tests[!, :source] .= "left_only"  # primary result
+                        reportgroup(unchanged_tests)
+                        println(io, """
+                            </p>
+                            </details>
+                            """)
+                    end
                 end
             else
                 # just report on all tests
                 println(io, "$(nrow(group)) packages $verb.")
                 println(io)
-                reportgroup(group)
+                reportgroup(group; headlines_only)
             end
 
             println(io)
         end
     end
-
-    # print build version info #
-    #--------------------------#
-
-    print(io, """
-              ## Version Info
-
-              #### Primary Build
-
-              ```
-              $(results["primary.vinfo"])
-              ```
-              """)
-
-    if haskey(submission(job).kwargs, :configuration)
-        println(io, "*Configuration*: `", submission(job).kwargs[:configuration], "`")
-    end
-
-    if hasagainstbuild
-        println(io)
-        print(io, """
-                  #### Comparison Build
-
-                  ```
-                $(results["against.vinfo"])
-                  ```
-                  """)
-
-        if haskey(submission(job).kwargs, :vs_configuration)
-            println(io, "*Configuration*: `", submission(job).kwargs[:vs_configuration], "`")
-        end
-    end
-
-    println(io, "<!-- Generated on $(now()) -->")
-
-    return nothing
 end
 
 # JSON Database Generation #
