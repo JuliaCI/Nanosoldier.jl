@@ -1113,17 +1113,18 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
-    for (status, (verb, emoji)) in (:crash  => ("crashed", "❗"),
-                                    :fail   => ("failed", "✖"),
-                                    :test   => ("passed tests", "✔"),
-                                    :load   => ("failed but still loaded", "~"),
-                                    :skip   => ("were skipped completely", "➖"))
+    for (status, (title, verb, emoji)) in
+            (:crash  => ("crashed",                 "crashed",              "❗"),
+             :fail   => ("failed",                  "failed",               "✖"),
+             :test   => ("passed tests",            "passed tests",         "✔"),
+             :load   => ("at least loaded",         "successfully loaded",  "~"),
+             :skip   => ("were skipped altogether", "were skipped",         "➖"))
         # NOTE: no `groupby(package_results, :status)` because we can't impose ordering
         group = package_results[package_results[!, :status] .== status, :]
         sort!(group, :package; by=pkg->get(dependents, pkg, 0), rev=true)
 
         if !isempty(group)
-            println(io, "## $emoji Packages that $verb\n")
+            println(io, "## $emoji Packages that $title\n")
 
             # report on a single test
             function reportrow(test)
