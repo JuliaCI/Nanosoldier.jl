@@ -228,22 +228,19 @@ function PkgEvalJob(submission::JobSubmission)
         against_configuration = Configuration(against_configuration; tup...)
     end
 
+    # determine whether to use a blacklist.
+    use_blacklist = true
     if haskey(submission.kwargs, :use_blacklist)
         use_blacklist = parse(Bool, submission.kwargs[:use_blacklist])
     elseif jobtype == PkgEvalTypeJulia
-        # normally, we use the blacklist.
-        use_blacklist = true
-
-        # however, there's exceptions
-        if jobtype == PkgEvalTypeJulia
-            # 1. daily evaluations, which are used to _create_ the blacklist,
-            #    so obviously need to test all packages
-            if isdaily
-                use_blacklist = false
-            end
-            # 2. when comparing against an older version of Julia, e.g., a release branch.
-            #    we have to check if that branch hasn't diverged too much from upstream
-            #    master, which is what's used to generate the blacklist.
+        if isdaily
+            # daily evaluations, which are used to _create_ the blacklist, obviously need to
+            # test all packages
+            use_blacklist = false
+        else
+            # when comparing against an older version of Julia, e.g., a release branch, we
+            # have to check if that branch hasn't diverged too much from upstream master,
+            # which is what's used to generate the blacklist.
             function has_diverged(ref)
                 merge_base = GitHub.compare("JuliaLang/julia", "master", ref.sha;
                                             auth=submission.config.auth).merge_base_commit
@@ -259,13 +256,12 @@ function PkgEvalJob(submission::JobSubmission)
                     use_blacklist = false
                 end
             end
-        else
-            # for package tests, we can only use the blacklist when using a
-            # very recent version of Julia.
-            if !(configuration.julia         in ["master", "nightly"] &&
-                 against_configuration.julia in ["master", "nightly"])
-                use_blacklist = false
-            end
+        end
+    else
+        # for package tests, we can only use the blacklist when using a very recent Julia
+        if !(configuration.julia         in ["master", "nightly"] &&
+             against_configuration.julia in ["master", "nightly"])
+            use_blacklist = false
         end
     end
 
