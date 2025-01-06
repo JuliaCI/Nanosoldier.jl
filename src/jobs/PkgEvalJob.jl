@@ -1034,7 +1034,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
         end
 
         println(io, """
-                    Testing took $(readable_duration(results["duration"])) (or, sequentially, $(readable_duration(total_duration)) to execute $total_tests package tests suites).
+                    Testing took $(readable_duration(results["duration"])) (or, sequentially, $(readable_duration(total_duration)) to evaluate $total_tests packages).
                     """)
     end
 
