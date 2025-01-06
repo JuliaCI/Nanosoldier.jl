@@ -967,7 +967,7 @@ end
 function make_package_results(results, hasagainstbuild)
     if hasagainstbuild
         return leftjoin(results["primary"], results["against"],
-                                   on=:package, makeunique=true, source=:source)
+                        on=:package, makeunique=true, source=:source)
     else
         package_results = results["primary"]
         package_results[!, :source] .= "left_only" # fake a left join
@@ -1123,7 +1123,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     # main results body
     printpackageresults(io, job, package_results)
 
-        # print build version info #
+    # print build version info #
     #--------------------------#
 
     print(io, """
