@@ -187,32 +187,36 @@ A `PkgEvalJob` is triggered with the following syntax:
 @nanosoldier `runtests(package_selection, vs = "ref")`
 ```
 
-The package selection argument is used to decide which packages to test. It should be a list
-of package names, e.g. `["Example"]`, that will be looked up in the registry. Additionally,
-you can test all packages in the registry by using the keyword `ALL`, e.g. `runtests(ALL)`,
-which is the same as not providing a package selection argument at all.
+The **package selection argument** is used to decide which packages to test. It should be a
+list of package names, e.g. `["Example"]`, that will be looked up in the registry.
+Additionally, you can test all packages in the registry by using the keyword `ALL`, e.g.
+`runtests(ALL)`, which is the same as not providing a package selection argument at all.
 
-The `vs` keyword argument is again optional. Its syntax and behavior is identical to the
+The **`vs` keyword argument** is again optional. Its syntax and behavior is identical to the
 `BenchmarkJob` `vs` keyword argument.
 
-Both sides of the comparison can be further configured by using respectively the
-`configuration` and `vs_configuration` arguments. These options expect a named tuple where
-the elements correspond to fields of the `PkgEval.Configuration` type.
+The evaluation can be further configured by using the `configuration` argument, which
+expects a named tuple corresponding to the fields of the `PkgEval.Configuration` type.
+By default, this configuration will be used for both sides of the comparison. If you want to
+use different configurations for the two sides, you can use the `vs_configuration` argument
+in the same way.
 
-For example, a common configuration is to include buildflags that enable assertions:
+One noteworthy invocation is to compare the results between enabling and disabling
+assertions:
 
 ```
-@nanosoldier `runtests(vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],))`
+@nanosoldier `runtests(vs = "%self", configuration = (buildflags=["LLVM_ASSERTIONS=1", "FORCE_ASSERTIONS=1"],), vs_configuration = (buildflags=[],))`
 ```
 
-Another useful example makes PkgEval run under rr and use a Julia debug build for a better debugging experience:
+Another useful example makes PkgEval run under `rr` and use a Julia debug build for a better
+debugging experience:
 
 ```
 @nanosoldier `runtests(configuration = (buildflags=["JULIA_BUILD_MODE=debug"], julia_binary="julia-debug", rr=true))`
 ```
 
 If no configuration arguments are specified, the defaults as specified by the
-`PkgEval.Configuration` constructor are used.
+`PkgEval.Configuration` constructor are used, with the addition of enabling assertions.
 
 #### Reverse-CI for packages
 

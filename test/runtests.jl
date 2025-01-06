@@ -225,7 +225,7 @@ end
             configuration="primary",
             package="Example",
             version=v"0.1.0",
-            status=:ok,
+            status=:test,
             reason=missing,
             duration=0.0,
             log="everything is fine",
@@ -255,7 +255,9 @@ end
 # actual testing #
 ##################
 
-job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$(against_commit.sha)\")`")
+# NOTE: using buildflags to speed up compilation
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, vs=\"@$(against_commit.sha)\", configuration=(buildflags=[\"JULIA_CPU_TARGET=native\", \"JULIA_PRECOMPILE=0\"],))`")
 run(job)
 
 nothing
