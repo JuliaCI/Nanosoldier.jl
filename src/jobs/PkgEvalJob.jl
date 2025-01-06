@@ -1163,6 +1163,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
 end
 
 function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagainstbuild::Bool; headlines_only::Bool=false)
+    cfg = submission(job).config
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
