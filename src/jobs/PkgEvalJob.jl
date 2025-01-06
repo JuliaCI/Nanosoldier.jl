@@ -858,7 +858,9 @@ function report(job::PkgEvalJob, results)
             The package evaluation job [you requested]($(submission(job).url)) has completed - $status.
             The [**full report**]($(target_url)) is available.
 
+            <details><summary>Report summary</summary>
             $report_summary
+            </details>
             """
         reply_comment(submission(job), comment)
     end
