@@ -436,8 +436,8 @@ version = "1.10.0"
 
 [[deps.PkgEval]]
 deps = ["CodecXz", "CodecZlib", "CodecZstd", "DataFrames", "Dates", "Downloads", "Git", "GitHub", "HTTP", "JSON3", "LazyArtifacts", "Pkg", "ProgressMeter", "REPL", "Random", "Reexport", "Scratch", "Tar", "crun_jll", "rsync_jll", "s5cmd_jll"]
-git-tree-sha1 = "231a437eb47daf8d8f34d4551a79088ae020a7f7"
-repo-rev = "beda9ea6"
+git-tree-sha1 = "8d8a702398bb10a9e44c922be90298c83e8275dd"
+repo-rev = "97713b3207ef79bafac98b83ab04d68d339da4a4"
 repo-url = "https://github.com/JuliaCI/PkgEval.jl"
 uuid = "9f2e2246-6dce-11e8-3d98-4b291446da6e"
 version = "0.2.0"
