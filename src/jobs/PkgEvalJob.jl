@@ -849,9 +849,9 @@ function report(job::PkgEvalJob, results)
             results["has_issues"] ? "possible issues were detected" :
                                     "no issues were detected"
         end
-
-        package_results = make_package_results(results, job.against !== nothing)
-        report_summary = sprint(io -> printpackageresults(io, job, package_results; headlines_only=true))
+        hasagainstbuild = job.against !== nothing
+        package_results = make_package_results(results, hasagainstbuild)
+        report_summary = sprint(io -> printpackageresults(io, job, package_results, hasagainstbuild; headlines_only=true))
 
         # reply with the job's final status
         comment = """
@@ -1123,7 +1123,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     end
 
     # main results body
-    printpackageresults(io, job, package_results)
+    printpackageresults(io, job, package_results, hasagainstbuild)
 
     # print build version info #
     #--------------------------#
@@ -1162,7 +1162,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     return nothing
 end
 
-function printpackageresults(io::IO, job::PkgEvalJob, package_results; headlines_only::Bool=false)
+function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagainstbuild::Bool; headlines_only::Bool=false)
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
     dependents = package_dependents()
