@@ -463,7 +463,7 @@ function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, r
     node = myid()
     cfg = submission(job).config
 
-    nodelog(cfg, node, "proccessing results...")
+    nodelog(cfg, node, "processing results...")
     for (whichbuild, build) in builds
         tests = all_tests[(all_tests[!, :configuration] .== whichbuild), :]
         results[whichbuild] = tests
@@ -522,7 +522,7 @@ function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, r
             end
         end
     end
-    nodelog(cfg, node, "finished proccessing results")
+    nodelog(cfg, node, "finished processing results")
 end
 
 ########################
@@ -557,6 +557,7 @@ function test_julia!(job::PkgEvalJob, builds::Dict, base_configs::Dict, results:
 
     # run tests
     all_tests = withenv("CI" => true) do
+        # the CI env var changes PkgEval's progress reporting
         cpus = mycpus(submission(job).config)
         results["duration"] = @elapsed if pkgs !== nothing
             tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
@@ -648,6 +649,7 @@ function test_package!(job::PkgEvalJob, builds::Dict, base_configs::Dict, result
 
     # run tests
     all_tests = withenv("CI" => true) do
+        # the CI env var changes PkgEval's progress reporting
         cpus = mycpus(submission(job).config)
         results["duration"] = @elapsed if pkgs !== nothing
             tests = PkgEval.evaluate(configs, pkgs; ninstances=length(cpus), blacklist)
