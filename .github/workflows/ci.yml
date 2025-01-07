@@ -31,6 +31,9 @@ jobs:
 
       # set-up packages
       - uses: julia-actions/cache@v2
+        with:
+          # reports are stored in scratch spaces, which we don't want to cache
+          cache-scratchspaces: false
       - uses: julia-actions/julia-buildpkg@v1
 
       - uses: julia-actions/julia-runtest@v1
