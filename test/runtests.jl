@@ -43,7 +43,7 @@ primary_commit = GitHub.commits(repo; auth, page_limit=1)[1][10]
 against_commit = GitHub.commits(repo; auth, page_limit=1)[1][11]
 primary = BuildRef(repo, primary_commit.sha, primary_commit.commit.committer.date)
 against = BuildRef(repo, against_commit.sha, against_commit.commit.committer.date)
-config = Config("user", Dict(Any => [getpid()]), auth, "test");
+config = Config("user", Dict(Any => [getpid()]), auth, "test")
 tagpred = "ALL && !(\"tag1\" || \"tag2\")"
 pkgsel = ["Example"]
 
