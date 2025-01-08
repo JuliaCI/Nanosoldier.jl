@@ -853,14 +853,17 @@ function report(job::PkgEvalJob, results)
         end
         hasagainstbuild = job.against !== nothing
         package_results = make_package_results(results, hasagainstbuild)
-        report_summary = sprint(io -> printpackageresults(io, job, package_results, hasagainstbuild; headlines_only=true))
+        report_summary = sprint(io -> printpackageresults(io, job, package_results, hasagainstbuild; summary=true))
 
         # reply with the job's final status
         comment = """
             The package evaluation job [you requested]($(submission(job).url)) has completed - $status.
             The [**full report**]($(target_url)) is available.
+
             <details><summary>Report summary</summary>
+
             $report_summary
+
             </details>
             """
         reply_comment(submission(job), comment)
@@ -1163,7 +1166,7 @@ function printreport(io::IO, job::PkgEvalJob, results)
     return nothing
 end
 
-function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagainstbuild::Bool; headlines_only::Bool=false)
+function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagainstbuild::Bool; summary::Bool=false)
     cfg = submission(job).config
     # report test results in groups based on the test status
     history_heading, history = get_history(submission(job).config)
@@ -1224,46 +1227,42 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagains
                 println(io)
             end
 
+            # report on groups of tests
             function reportsubgroup(subgroup)
-                five_col = any(row->row.source == "both", eachrow(subgroup))
-                println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
-                println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
-                foreach(reportrow, eachrow(subgroup))
-                println(io)
-            end
+                if summary
+                    println(io, " - $(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))): $(nrow(subgroup)) packages")
+                else
+                    println(io, """
+                        <details open><summary>$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))): $(nrow(subgroup)) packages</summary>
+                        <p>
+                        """)
+                    println(io)
 
-            # report on a group of tests, prefixed with the reason
-            function reportgroup(group; headlines_only::Bool=false)
+                    five_col = any(row->row.source == "both", eachrow(subgroup))
+                    println(io, five_col ? "| Package | Version | Primary | Against | $history_heading |" : "| Package | $history_heading |")
+                    println(io, five_col ? "| ------- | ------- | ------- | ------- | ------- |" : "| ------- | ------- |")
+                    foreach(reportrow, eachrow(subgroup))
+                    println(io)
+
+                    println(io, """
+                        </p>
+                        </details>
+                        """)
+                end
+            end
+            function reportgroup(group)
                 subgroups = groupby(group, :reason; skipmissing=true)
                 for key in sort(keys(subgroups); by=key->PkgEval.reason_severity(key.reason))
-                    subgroup = subgroups[key]
-                    if headlines_only
-                        println(io, " - $(nrow(subgroup)) : $(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) :")
-                    else
-                        println(io, """
-                            <details open><summary>"$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))) ($(nrow(subgroup)) packages):"</summary>
-                            <p>
-                            """)
-                        println(io)
-                        reportsubgroup(subgroup)
-                        println(io, """
-                            </p>
-                            </details>
-                            """)
-                    end
+                    reportsubgroup(subgroups[key])
                 end
 
-                if !headlines_only
-                    # print tests without a reason separately, at the end
-                    subgroup = group[group[!, :reason] .=== missing, :]
-                    if !isempty(subgroup)
-                        if length(subgroups) > 0
-                            println(io, "Other:")
-                            println(io)
-                        end
-                        reportsubgroup(subgroup)
-                    end
+                # print tests without a reason separately, at the end
+                others = group[group[!, :reason] .=== missing, :]
+                if !isempty(others)
+                    reportsubgroup(others)
                 end
+
+                println(io)
             end
 
             if hasagainstbuild && !(job.isdaily && status === :crash)
@@ -1274,7 +1273,7 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagains
                 if !isempty(changed_tests)
                     println(io, "**$(nrow(changed_tests)) packages $verb only on the current version.**")
                     println(io)
-                    reportgroup(changed_tests; headlines_only)
+                    reportgroup(changed_tests)
                 end
 
                 # now report the other ones
@@ -1282,7 +1281,7 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagains
                                                test.status == test.status_1, group)
                 if !isempty(unchanged_tests)
                     headline = "$(nrow(unchanged_tests)) packages $verb on the previous version too."
-                    if headlines_only
+                    if summary
                         println(io, headline)
                     else
                         println(io, """
@@ -1302,7 +1301,7 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagains
                 # just report on all tests
                 println(io, "$(nrow(group)) packages $verb.")
                 println(io)
-                reportgroup(group; headlines_only)
+                reportgroup(group)
             end
 
             println(io)
