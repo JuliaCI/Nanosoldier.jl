@@ -1229,11 +1229,16 @@ function printpackageresults(io::IO, job::PkgEvalJob, package_results, hasagains
 
             # report on groups of tests
             function reportsubgroup(subgroup)
+                reason = if first(subgroup).reason === missing
+                    "other"
+                else
+                    PkgEval.reason_message(first(subgroup).reason)
+                end
                 if summary
-                    println(io, " - $(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))): $(nrow(subgroup)) packages")
+                    println(io, " - $(uppercasefirst(reason)): $(nrow(subgroup)) packages")
                 else
                     println(io, """
-                        <details open><summary>$(uppercasefirst(PkgEval.reason_message(first(subgroup).reason))): $(nrow(subgroup)) packages</summary>
+                        <details open><summary>$(uppercasefirst(reason)): $(nrow(subgroup)) packages</summary>
                         <p>
                         """)
                     println(io)
