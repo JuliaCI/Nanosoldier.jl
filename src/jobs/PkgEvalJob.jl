@@ -97,12 +97,13 @@ mutable struct PkgEvalJob <: AbstractJob
     against_configuration::Configuration
     use_blacklist::Bool
     subdir::String                   # which subdirectory to use (for package tests)
+    priority::Int                    # job priority: 1=high, 2=normal, 3=low
 end
 
 function PkgEvalJob(submission::JobSubmission)
     # preliminary validation
     for kwarg in keys(submission.kwargs)
-        if !in(kwarg, (:vs, :isdaily, :configuration, :vs_configuration, :subdir))
+        if !in(kwarg, (:vs, :isdaily, :configuration, :vs_configuration, :subdir, :priority))
             nanosoldier_error("invalid keyword argument `$kwarg`")
         end
     end
@@ -265,10 +266,12 @@ function PkgEvalJob(submission::JobSubmission)
         end
     end
 
-    return PkgEvalJob(submission, jobtype, pkgsel, against,
-                      Date(submission.build.time), isdaily,
-                      configuration, against_configuration,
-                      use_blacklist, subdir)
+    return PkgEvalJob(
+        submission, jobtype, pkgsel, against,
+        Date(submission.build.time), isdaily,
+        configuration, against_configuration,
+        use_blacklist, subdir, Nanosoldier.priority(submission)
+    )
 end
 
 function Base.summary(job::PkgEvalJob)

@@ -117,8 +117,24 @@ function parse_submission_string(submission_string)
         process_arg(parsed_args)
     end
 
+    if haskey(kwargs, :priority)
+        priority_str = strip(kwargs[:priority], '"')  # Remove quotes added by phrase_argument
+        if priority_str == "high"
+            kwargs[:priority] = "1"
+        elseif priority_str == "normal"
+            kwargs[:priority] = "2"
+        elseif priority_str == "low"
+            kwargs[:priority] = "3"
+        else
+            nanosoldier_error("invalid priority '$priority_str': must be 'high', 'normal', or 'low'")
+        end
+    end
+
     return name, args, kwargs
 end
+
+const DEFAULT_PRIORITY = "2"
+priority(sub::JobSubmission) = parse(Int, get(sub.kwargs, :priority, DEFAULT_PRIORITY))
 
 function reply_status(sub::JobSubmission, state, context, description, url=nothing)
     if haskey(ENV, "NANOSOLDIER_DRYRUN")
