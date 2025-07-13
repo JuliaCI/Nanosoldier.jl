@@ -26,7 +26,10 @@ end
 # check that isdaily is well-formed (no extra parameters, on a recent master commit, not a PR)
 # and not accidentally submitted elsewhere
 function validatate_isdaily(submission::JobSubmission)
-    if submission.prnumber === nothing && submission.kwargs == Dict(:isdaily => "true")
+    allowed_kwargs = Set([:isdaily, :priority])
+    if submission.prnumber === nothing && 
+       haskey(submission.kwargs, :isdaily) && submission.kwargs[:isdaily] == "true" &&
+       all(k -> k in allowed_kwargs, keys(submission.kwargs))
         config = submission.config
         for commit in GitHub.commits(submission.repo; auth=config.auth, page_limit=1,
                                      params=Dict("per_page" => 50))[1]
