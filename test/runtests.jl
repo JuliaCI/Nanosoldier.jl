@@ -124,6 +124,23 @@ job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=
 
 @test_throws Exception build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"invalid\")`")
 
+# Test semicolon syntax parsing for priority
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(; priority=\"high\")`")
+@test job.priority == 1
+
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(; priority=\"low\")`")
+@test job.priority == 3
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests(isdaily = true, priority = \"low\")`")
+@test job.isdaily == true
+@test job.priority == 3
+
+# Test daily jobs with semicolon syntax
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true; priority = \"high\")`")
+@test job.isdaily == true
+@test job.priority == 1
+
 #############################
 # retrieval from job queue  #
 #############################
