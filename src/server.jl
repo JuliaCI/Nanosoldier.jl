@@ -109,12 +109,22 @@ function retrieve_job!(jobs, job_type::Type, accept_daily::Bool)
     if isempty(jobs)
         return nothing
     else
-        i = findfirst(job -> isa(job, job_type) && (accept_daily || !job.isdaily), jobs)
-        if i === nothing
+        # Find all matching jobs
+        matching_indices = findall(job -> isa(job, job_type) && (accept_daily || !job.isdaily), jobs)
+        if isempty(matching_indices)
             return nothing
         else
-            job = jobs[i]
-            deleteat!(jobs, i)
+            # Find the highest priority job (lowest priority number)
+            best_idx = matching_indices[1]
+            best_priority = jobs[best_idx].priority
+            for idx in matching_indices[2:end]
+                if jobs[idx].priority < best_priority
+                    best_idx = idx
+                    best_priority = jobs[idx].priority
+                end
+            end
+            job = jobs[best_idx]
+            deleteat!(jobs, best_idx)
             return job
         end
     end

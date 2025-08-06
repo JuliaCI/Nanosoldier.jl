@@ -109,6 +109,37 @@ job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, configu
 job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests($pkgsel, configuration=(buildflags=[\"FOO=BAR\"], ))`")
 @test job.configuration.buildflags == ["FOO=BAR"]
 
+# Test priority parsing
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks()`")  # default priority
+@test job.priority == 2
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"high\")`")
+@test job.priority == 1
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"normal\")`")
+@test job.priority == 2
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"low\")`")
+@test job.priority == 3
+
+@test_throws Exception build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"invalid\")`")
+
+# Test semicolon syntax parsing for priority
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(; priority=\"high\")`")
+@test job.priority == 1
+
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(; priority=\"low\")`")
+@test job.priority == 3
+
+job = build_test_submission(PkgEvalJob, "@nanosoldier `runtests(isdaily = true, priority = \"low\")`")
+@test job.isdaily == true
+@test job.priority == 3
+
+# Test daily jobs with semicolon syntax
+job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(isdaily = true; priority = \"high\")`")
+@test job.isdaily == true
+@test job.priority == 1
+
 #############################
 # retrieval from job queue  #
 #############################
@@ -160,6 +191,28 @@ queue = [daily_job, non_daily_job]
 job = Nanosoldier.retrieve_job!(queue, Any, false)
 @test job !== nothing && !job.isdaily
 @test length(queue) == 1
+
+# Test priority queue ordering
+high_priority_job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"high\")`")
+low_priority_job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"low\")`")
+normal_priority_job = build_test_submission(BenchmarkJob, "@nanosoldier `runbenchmarks(priority=\"normal\")`")
+
+queue = [low_priority_job, high_priority_job, normal_priority_job]
+
+# Test that high priority jobs are retrieved first
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
+@test job !== nothing && job.priority == 1  # high priority
+@test length(queue) == 2
+
+# Test that normal priority jobs are retrieved before low priority
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
+@test job !== nothing && job.priority == 2  # normal priority
+@test length(queue) == 1
+
+# Test that low priority jobs are retrieved last
+job = Nanosoldier.retrieve_job!(queue, BenchmarkJob, true)
+@test job !== nothing && job.priority == 3  # low priority
+@test length(queue) == 0
 
 #########################
 # job report generation #

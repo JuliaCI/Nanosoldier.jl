@@ -47,12 +47,13 @@ mutable struct BenchmarkJob <: AbstractJob
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
     skipbuild::Bool                  # use local julia install instead of a fresh build (for testing)
+    priority::Int                    # job priority: 1=high, 2=normal, 3=low
 end
 
 function BenchmarkJob(submission::JobSubmission)
     # preliminary validation
     for kwarg in keys(submission.kwargs)
-        if !in(kwarg, (:vs, :skipbuild, :isdaily))
+        if !in(kwarg, (:vs, :skipbuild, :isdaily, :priority))
             nanosoldier_error("invalid keyword argument `$kwarg`")
         end
     end
@@ -117,8 +118,11 @@ function BenchmarkJob(submission::JobSubmission)
         first(submission.args)
     end
 
-    return BenchmarkJob(submission, tagpred, against,
-                        Date(submission.build.time), isdaily, skipbuild)
+    return BenchmarkJob(
+        submission, tagpred, against,
+        Date(submission.build.time), isdaily, skipbuild,
+        Nanosoldier.priority(submission)
+    )
 end
 
 function Base.summary(job::BenchmarkJob)
