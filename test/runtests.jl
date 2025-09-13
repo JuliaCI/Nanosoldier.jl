@@ -301,6 +301,12 @@ end
     results["against.vinfo"] = vinfo*"_against"
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
+
+    @testset "Parsing configuration" begin
+        str = "(goal=:test,)"
+        expr = Meta.parse(str)
+        @test Nanosoldier.is_valid_configuration(expr)
+    end
 end
 
 
