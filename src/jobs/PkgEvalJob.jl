@@ -65,6 +65,13 @@ const valid_tupleitem_literals = [String, Int, Bool]
 function is_valid_tupleitem(item)
     if typeof(item) in valid_tupleitem_literals
         return true
+    elseif item isa QuoteNode
+        # Support the case of `configuration = (goal=:test,)`
+        if item.value isa Symbol
+            return true
+        else
+            return false
+        end
     elseif item.head == :vect
         for element in item.args
             if !is_valid_tupleitem(element)
