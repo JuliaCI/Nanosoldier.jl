@@ -34,7 +34,7 @@ One of the most common invocations runs all benchmarks on your PR, comparing aga
 current Julia master branch:
 
 ```
-@nanosoldier `runbenchmarks()`
+@nanosoldier `runbenchmarks(ALL, vs=":master")`
 ```
 
 Similarly, you can run all package tests, e.g. if you suspect your PR might be breaking:
