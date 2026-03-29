@@ -219,6 +219,7 @@ function Base.run(job::BenchmarkJob)
     cleanup = String[]
 
     # build jobs in parallel to better utilize machine cores
+    publish_update(job, "pending", "Building Julia")
     julia_primary = @async build_benchmarksjulia!(job, :primary, cleanup)
     local julia_against
     try
@@ -242,6 +243,7 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
+        publish_update(job, "pending", "Running benchmarks")
         results["primary"], results["primary.vinfo"] =
             execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
@@ -272,6 +274,7 @@ function Base.run(job::BenchmarkJob)
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
+            publish_update(job, "pending", "Running comparison benchmarks")
             results["against"], results["against.vinfo"] =
                 execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
@@ -291,6 +294,7 @@ function Base.run(job::BenchmarkJob)
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
+    publish_update(job, "pending", "Generating report")
     report(job, results)
     nodelog(cfg, node, "completed $(summary(job))")
 end
@@ -394,6 +398,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchmedian = joinpath(tmpdatadir(job), string(benchname, ".median.json"))
     benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
     benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
+    benchprogress = joinpath(tmplogdir(job), string(benchname, ".progress"))
 
     open(shscriptpath, "w") do file
         println(file, """
@@ -439,7 +444,17 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           warmup(benchmarks)
 
                           println("RUNNING BENCHMARKS...")
-                          results = run(benchmarks; verbose=true)
+                          group_counts = Dict(k => length(BenchmarkTools.leaves(v)) for (k, v) in benchmarks)
+                          total_benchmarks = sum(values(group_counts); init=0)
+                          completed_benchmarks = 0
+                          write($(repr(benchprogress)), "0/\$total_benchmarks\n")
+                          results = BenchmarkGroup()
+                          for (group_name, group_suite) in benchmarks
+                              println("Running group: \$group_name")
+                              results[group_name] = run(group_suite; verbose=true)
+                              completed_benchmarks += group_counts[group_name]
+                              write($(repr(benchprogress)), "\$completed_benchmarks/\$total_benchmarks\n")
+                          end
 
                           println("SAVING RESULT...")
                           BenchmarkTools.save($(repr(benchminimum)), minimum(results))
@@ -480,7 +495,22 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+    bench_task = @async run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+    label = whichbuild == :against ? "comparison " : ""
+    while !istaskdone(bench_task)
+        sleep(30)
+        isfile(benchprogress) || continue
+        try
+            n_str, m_str = split(readchomp(benchprogress), "/")
+            n, m = parse(Int, n_str), parse(Int, m_str)
+            if m > 0
+                pct = round(Int, 100 * n / m)
+                publish_update(job, "pending", "Running $(label)benchmarks ($n/$m, $pct%)")
+            end
+        catch
+        end
+    end
+    fetch(bench_task)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
