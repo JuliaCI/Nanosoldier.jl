@@ -423,6 +423,11 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                       # ensure we don't leak file handles when something goes wrong
                       try
+                          # Disable GC scrubbing. We only use minimum() for judging,
+                          # which inherently excludes GC pauses
+                          BenchmarkTools.DEFAULT_PARAMETERS.gctrial = false
+                          BenchmarkTools.DEFAULT_PARAMETERS.gcsample = false
+
                           println("LOADING SUITE...")
                           BaseBenchmarks.loadall!()
 
