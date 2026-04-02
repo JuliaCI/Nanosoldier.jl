@@ -444,17 +444,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           warmup(benchmarks)
 
                           println("RUNNING BENCHMARKS...")
-                          group_counts = Dict(k => length(BenchmarkTools.leaves(v)) for (k, v) in benchmarks)
-                          total_benchmarks = sum(values(group_counts); init=0)
-                          completed_benchmarks = 0
-                          write($(repr(benchprogress)), "0/\$total_benchmarks\n")
-                          results = BenchmarkGroup()
-                          for (group_name, group_suite) in benchmarks
-                              println("Running group: \$group_name")
-                              results[group_name] = run(group_suite; verbose=true)
-                              completed_benchmarks += group_counts[group_name]
-                              write($(repr(benchprogress)), "\$completed_benchmarks/\$total_benchmarks\n")
-                          end
+                          results = run(benchmarks; verbose=true)
 
                           println("SAVING RESULT...")
                           BenchmarkTools.save($(repr(benchminimum)), minimum(results))
@@ -495,22 +485,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    bench_task = @async run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
-    label = whichbuild == :against ? "comparison " : ""
-    while !istaskdone(bench_task)
-        sleep(30)
-        isfile(benchprogress) || continue
-        try
-            n_str, m_str = split(readchomp(benchprogress), "/")
-            n, m = parse(Int, n_str), parse(Int, m_str)
-            if m > 0
-                pct = round(Int, 100 * n / m)
-                publish_update(job, "pending", "Running $(label)benchmarks ($n/$m, $pct%)")
-            end
-        catch
-        end
-    end
-    fetch(bench_task)
+    run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
