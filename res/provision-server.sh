@@ -18,9 +18,9 @@ sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondete
 sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels true'
 
 sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_ed25519.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_ed25519 -t ed25519
-sudo -u nanosoldier git config --global user.name "nanosoldier"
-sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
-sudo -u nanosoldier ssh -T git@github.com || true
+sudo -u nanosoldier sh -c 'cd && git config --global user.name "nanosoldier"'
+sudo -u nanosoldier sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
+sudo -u nanosoldier sh -c 'cd && ssh -T git@github.com' || true
 
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
 sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'"

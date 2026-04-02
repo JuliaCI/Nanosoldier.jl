@@ -4,6 +4,9 @@ on:
     branches: [master]
     tags: ["*"]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 jobs:
   provision:
     name: Test provision scripts
@@ -15,7 +18,12 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Run provision-server.sh
-        run: ./res/provision-server.sh
+        run: |
+          # provision-server.sh runs julia as nanosoldier to instantiate the project,
+          # so the checkout and all ancestor dirs need to be traversable
+          dir="$PWD"; while [[ "$dir" != "/" ]]; do sudo chmod o+x "$dir"; dir=$(dirname "$dir"); done
+          chmod -R o+rX .
+          ./res/provision-server.sh
 
       - name: Verify provisioning
         run: |
