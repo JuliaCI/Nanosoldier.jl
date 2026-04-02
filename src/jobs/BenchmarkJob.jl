@@ -219,6 +219,7 @@ function Base.run(job::BenchmarkJob)
     cleanup = String[]
 
     # build jobs in parallel to better utilize machine cores
+    publish_update(job, "pending", "Building Julia")
     julia_primary = @async build_benchmarksjulia!(job, :primary, cleanup)
     local julia_against
     try
@@ -242,6 +243,7 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
+        publish_update(job, "pending", "Running benchmarks")
         results["primary"], results["primary.vinfo"] =
             execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
@@ -272,6 +274,7 @@ function Base.run(job::BenchmarkJob)
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
+            publish_update(job, "pending", "Running comparison benchmarks")
             results["against"], results["against.vinfo"] =
                 execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
@@ -291,6 +294,7 @@ function Base.run(job::BenchmarkJob)
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
+    publish_update(job, "pending", "Generating report")
     report(job, results)
     nodelog(cfg, node, "completed $(summary(job))")
 end
