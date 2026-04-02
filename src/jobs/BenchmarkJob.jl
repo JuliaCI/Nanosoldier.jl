@@ -589,8 +589,21 @@ function report(job::BenchmarkJob, results)
         end
 
         # reply with the job's final status
+        s = countsummary(results)
+        summary_line = if s.iscomparison
+            "$(s.total) benchmarks were executed, $(s.regressions) showed regressions, and $(s.improvements) showed improvements."
+        else
+            "$(s.total) benchmarks were executed."
+        end
+        build = submission(job).build
+        commit_line = "[`$(snipsha(build.sha))`](https://github.com/$(build.repo)/commit/$(build.sha))"
+        if job.against !== nothing
+            against = job.against
+            commit_line = "$(commit_line) vs [`$(snipsha(against.sha))`](https://github.com/$(against.repo)/commit/$(against.sha))"
+        end
         comment = """
-            The benchmark job [you requested]($(submission(job).url)) has completed - $status.
+            The benchmark job [you requested]($(submission(job).url)) has completed - $status. $(summary_line)
+            *Commit$(job.against !== nothing ? "s" : ""):* $(commit_line)
             The [**full report**]($(target_url)) is available."""
         reply_comment(submission(job), comment)
     end
@@ -598,6 +611,31 @@ end
 
 # Markdown Report Generation #
 #----------------------------#
+
+function countsummary(results)
+    iscomparison = haskey(results, "judged")
+    if !iscomparison
+        total = length(BenchmarkTools.leaves(results["primary"]))
+        return (total=total, regressions=0, improvements=0, iscomparison=false)
+    end
+    entries = BenchmarkTools.leaves(results["judged"])
+    total = length(entries)
+    regressions = count(((_, t),) -> BenchmarkTools.isregression(t), entries)
+    improvements = count(((_, t),) -> BenchmarkTools.isimprovement(t), entries)
+    return (total=total, regressions=regressions, improvements=improvements, iscomparison=true)
+end
+
+function printsummary(io::IO, s::NamedTuple)
+    if s.iscomparison
+        println(io, "## Summary\n")
+        println(io, "**$(s.total)** benchmarks were executed, **$(s.regressions)** showed regressions, and **$(s.improvements)** showed improvements.")
+        println(io)
+    else
+        println(io, "## Summary\n")
+        println(io, "**$(s.total)** benchmarks were executed.")
+        println(io)
+    end
+end
 
 const REGRESS_MARK = ":x:"
 const IMPROVE_MARK = ":white_check_mark:"
@@ -634,12 +672,18 @@ function printreport(io::IO, job::BenchmarkJob, results)
         end
     end
 
+    s = countsummary(results)
+
     # print report preface + job properties #
     #---------------------------------------#
 
     println(io, """
-                # Benchmark Report
+                # Benchmark Report""")
 
+    println(io)
+    printsummary(io, s)
+
+    println(io, """
                 ## Job Properties
 
                 *Commit$(hasagainstbuild ? "s" : ""):* $(joblink)

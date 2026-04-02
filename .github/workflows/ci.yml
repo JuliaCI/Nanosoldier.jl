@@ -30,7 +30,7 @@ jobs:
           arch: ${{ matrix.arch }}
 
       # set-up packages
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
         with:
           # reports are stored in scratch spaces, which we don't want to cache
           cache-scratchspaces: false

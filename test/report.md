@@ -1,5 +1,9 @@
 # Benchmark Report
 
+## Summary
+
+**4** benchmarks were executed, **2** showed regressions, and **2** showed improvements.
+
 ## Job Properties
 
 *Commits:* [JuliaLang/julia@PRIMARY](https://github.com/JuliaLang/julia/commit/PRIMARY) vs [JuliaLang/julia@AGAINST](https://github.com/JuliaLang/julia/commit/AGAINST)
