@@ -398,7 +398,6 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchmedian = joinpath(tmpdatadir(job), string(benchname, ".median.json"))
     benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
     benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
-    benchprogress = joinpath(tmplogdir(job), string(benchname, ".progress"))
 
     open(shscriptpath, "w") do file
         println(file, """
