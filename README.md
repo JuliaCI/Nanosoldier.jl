@@ -237,6 +237,69 @@ request on a package repository. The execution cycle is slightly different:
   registry (implying that your `Project.toml` should contain a version bump). The `vs` side
   of the comparison will use an unmodified version of the registry.
 
+In addition, a rendered version of the report as well as the logs for each package are uploaded to AWS, and will be posted as a reply on GitHub where the job was invoked.
+
+## Initial Setup for BenchmarksJob
+
+On all computers:
+```
+echo "if this is a shared machine, you must use a password to secure this:"
+[ -f ~/.ssh/id_rsa ] || ssh-keygen -f ~/.ssh/id_rsa
+echo "add to https://github.com/settings/keys:"
+cat ~/.ssh/id_rsa.pub
+EDITOR=vim git config --global --edit
+sudo mkdir /nanosoldier
+sudo chown `whoami` /nanosoldier
+cd /nanosoldier
+git clone <URL>
+cd ./Nanosoldier.jl
+git checkout <branch>
+./provision-<worker|server>.sh
+```
+
+On main server:
+```
+scp ~nanosoldier/.ssh/id_rsa ~nanosoldier/.ssh/id_rsa.pub <workers>:
+ssh -t <workers> sudo chown nanosoldier:nanosoldier id_rsa id_rsa.pub
+ssh -t <workers> sudo mv id_rsa id_rsa.pub ~nanosoldier/.ssh
+ssh -t <workers> sudo -u nanosoldier cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+ssh -t <workers> sudo -u nanosoldier "bash -c 'cat ~nanosoldier/.ssh/id_rsa.pub >> ~nanosoldier/.ssh/authorized_keys'"
+sudo -u nanosoldier ssh <workers> exit
+# repeat above for every worker, then:
+sudo -u nanosoldier scp ~nanosoldier/.ssh/known_hosts <workers>:.ssh
+```
+
+To run:
+
+```
+cd /nanosoldier/Nanosoldier.jl
+byobu
+./run_base_ci
+```
+
+## Upgrading for BenchmarksJob
+
+# on server
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+sed -i -e 's/\<1\.6\.6\>/1.8.2/' provision-server.sh run_base_ci README.md
+chmod 666 *.toml
+sudo -u nanosoldier ../julia-1.8.2/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+chmod 664 *.toml
+./provision-server.sh
+git add -u
+git commit
+git push
+```
+
+# on each worker
+```
+cd /nanosoldier/Nanosoldier.jl
+git pull
+./provision-worker.sh
+```
+
 
 ## Acknowledgements
 
