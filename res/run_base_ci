@@ -5,8 +5,9 @@ cd "`dirname $0`"
 export JULIA_PROJECT=~+
 cd ..
 echo $JULIA_PROJECT
+JULIA_VERSION=$(ls -d julia-*/bin/julia | sort -V | tail -1 | cut -d/ -f1 | sed 's/julia-//')
 exec sudo -u nanosoldier --preserve-env=JULIA_PROJECT \
     tmux new bash -c " \
-    setarch -R julia-1.8.2/bin/julia run_base_ci.jl \
+    setarch -R julia-$JULIA_VERSION/bin/julia run_base_ci.jl \
     2> >(umask 007 && exec setsid -w tee -a run_base_ci.stderr) \
     1> >(umask 007 && exec setsid -w tee -a run_base_ci.stdout)"

@@ -11,6 +11,7 @@ MINOR=`echo $VERSION | cut -d . -f 2`
 PATCH=`echo $VERSION | cut -d . -f 3`
 
 sudo apt update
+sudo apt install -y tmux
 
 # create a (non-privileged) user to run the server:
 sudo useradd -m nanosoldier || true
