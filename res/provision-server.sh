@@ -23,7 +23,7 @@ sudo -u nanosoldier sh -c 'cd && git config --global user.email "nanosoldierjuli
 sudo -u nanosoldier sh -c 'cd && ssh -T git@github.com' || true
 
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
-sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --project=$HERE/.. -e 'using Pkg; Pkg.instantiate()'"
+sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$HERE/.. -e 'using Pkg; Pkg.instantiate()'"
 
 set +v
 

@@ -34,13 +34,14 @@ jobs:
 
           # juliaup installed and configured
           sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup --version'
-          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config'
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect'
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels'
 
           # ssh key generated
           test -f ~nanosoldier/.ssh/id_ed25519.pub
 
           # julia can instantiate the project
-          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --project=$PWD/res -e 'using Pkg; Pkg.status()'"
+          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$PWD -e 'using Pkg; Pkg.status()'"
 
           # tmux installed
           tmux -V
