@@ -4,12 +4,6 @@ set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
 cd "$HERE/.."
 
-VERSION=1.10.7
-
-MAJOR=`echo $VERSION | cut -d . -f 1`
-MINOR=`echo $VERSION | cut -d . -f 2`
-PATCH=`echo $VERSION | cut -d . -f 3`
-
 sudo apt update
 sudo apt install -y tmux
 
@@ -19,14 +13,17 @@ sudo usermod -aG nanosoldier `whoami`
 echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL
 Defaults> nanosoldier umask=0777" | sudo tee -a /etc/sudoers.d/99-nanosoldier
 
+sudo -u nanosoldier sh -c '[ -x "$HOME/.juliaup/bin/juliaup" ] || curl -fsSL https://install.julialang.org | sh -s -- --yes'
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect true'
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels true'
+
 sudo -u nanosoldier [ -f ~nanosoldier/.ssh/id_ed25519.pub ] || sudo -u nanosoldier ssh-keygen -N '' -f ~nanosoldier/.ssh/id_ed25519 -t ed25519
 sudo -u nanosoldier git config --global user.name "nanosoldier"
 sudo -u nanosoldier git config --global user.email "nanosoldierjulia@gmail.com"
 sudo -u nanosoldier ssh -T git@github.com || true
 
-[ -d julia-$VERSION ] || curl -fL https://julialang-s3.julialang.org/bin/linux/x64/$MAJOR.$MINOR/julia-$VERSION-linux-x86_64.tar.gz | tar xz
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
-sudo -u nanosoldier julia-$VERSION/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'
+sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --project=$HERE -e 'using Pkg; Pkg.instantiate()'"
 
 set +v
 
@@ -64,7 +61,7 @@ echo "  export GITHUB_SECRET=<random-string>"
 echo "  export GITHUB_PORT=<random-port>"
 echo "  export JULIA_PROJECT=`dirname $0`"
 echo "  . ../cset/bin/activate"
-echo "  setarch -R ../julia-$VERSION/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
+echo "  setarch -R \$HOME/.juliaup/bin/julia -L bin/setup_test_ci.jl -e 'using Sockets; run(server, IPv4(0), ENV[\"GITHUB_PORT\"])'"
 echo
 echo "or with a helper script:"
 echo "  (umask 007 && cp bin/run_base_ci.jl ..)"

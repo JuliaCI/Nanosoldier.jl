@@ -285,7 +285,7 @@ byobu
 cd /nanosoldier/Nanosoldier.jl
 git pull
 chmod 666 *.toml
-sudo -u nanosoldier $(ls -d ../julia-*/bin/julia | sort -V | tail -1) --project=. -e 'using Pkg; Pkg.update()'
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/julia --project=. -e '\''using Pkg; Pkg.update()'\'''
 chmod 664 *.toml
 ./res/provision-server.sh
 git add -u

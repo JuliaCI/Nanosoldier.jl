@@ -17,6 +17,16 @@ following properties:
 
 ## BenchmarkJob
 
+Julia is managed via [juliaup](https://github.com/JuliaLang/juliaup). The provision scripts
+install it for the `nanosoldier` user and configure two settings:
+
+- `manifestversiondetect true` — automatically selects the Julia version matching the
+  `julia_version` field in `Manifest.toml`, so no hardcoded version is needed anywhere.
+- `autoinstallchannels true` — automatically installs any required Julia version on first use.
+
+To update Julia, update `Manifest.toml` (e.g. via `Pkg.update()` with the new version) and
+juliaup will install and use the new version automatically on the next run.
+
 On all computers:
 
 ```
@@ -63,7 +73,7 @@ byobu
 cd /nanosoldier/Nanosoldier.jl
 git pull
 chmod 666 *.toml
-sudo -u nanosoldier ../julia-1.6.6/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/julia --project=. -e '\''using Pkg; Pkg.update()'\'''
 chmod 664 *.toml
 ./provision-server.sh
 git add -u
