@@ -5,6 +5,38 @@ on:
     tags: ["*"]
   pull_request:
 jobs:
+  provision:
+    name: Test provision scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Allow unprivileged user namespaces"
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Run provision-server.sh
+        run: ./res/provision-server.sh
+
+      - name: Verify provisioning
+        run: |
+          set -eux
+          # user was created with home dir
+          id nanosoldier
+          test -d ~nanosoldier
+
+          # juliaup installed and configured
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup --version'
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config'
+
+          # ssh key generated
+          test -f ~nanosoldier/.ssh/id_ed25519.pub
+
+          # julia can instantiate the project
+          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --project=$PWD/res -e 'using Pkg; Pkg.status()'"
+
+          # tmux installed
+          tmux -V
+
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
