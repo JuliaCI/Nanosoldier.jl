@@ -17,7 +17,7 @@ sudo -u nanosoldier sh -c '[ -x "$HOME/.juliaup/bin/juliaup" ] || curl -fsSL htt
 sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect true'
 sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels true'
 
-sudo -u nanosoldier sh -c 'cd && mkdir -p .ssh && [ -f .ssh/id_ed25519.pub ] || ssh-keygen -N "" -f .ssh/id_ed25519 -t ed25519'
+sudo -u nanosoldier sh -c 'cd && mkdir -p .ssh && { [ -f .ssh/id_ed25519.pub ] || ssh-keygen -N "" -f .ssh/id_ed25519 -t ed25519; }'
 sudo -u nanosoldier sh -c 'cd && git config --global user.name "nanosoldier"'
 sudo -u nanosoldier sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
 sudo -u nanosoldier sh -c 'cd && ssh -T git@github.com' || true
