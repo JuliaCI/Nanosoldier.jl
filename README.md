@@ -254,7 +254,7 @@ cd /nanosoldier
 git clone <URL>
 cd ./Nanosoldier.jl
 git checkout <branch>
-./provision-<worker|server>.sh
+./res/provision-<worker|server>.sh
 ```
 
 On main server:
@@ -287,7 +287,7 @@ git pull
 chmod 666 *.toml
 sudo -u nanosoldier $(ls -d ../julia-*/bin/julia | sort -V | tail -1) --project=. -e 'using Pkg; Pkg.update()'
 chmod 664 *.toml
-./provision-server.sh
+./res/provision-server.sh
 git add -u
 git commit
 git push
@@ -298,7 +298,7 @@ git push
 ```sh
 cd /nanosoldier/Nanosoldier.jl
 git pull
-./provision-worker.sh
+./res/provision-worker.sh
 ```
 
 ## Acknowledgements
