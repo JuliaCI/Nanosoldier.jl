@@ -237,6 +237,69 @@ request on a package repository. The execution cycle is slightly different:
   registry (implying that your `Project.toml` should contain a version bump). The `vs` side
   of the comparison will use an unmodified version of the registry.
 
+In addition, a rendered version of the report as well as the logs for each package are uploaded to AWS, and will be posted as a reply on GitHub where the job was invoked.
+
+## Initial Setup for BenchmarksJob
+
+On all computers:
+```
+echo "if this is a shared machine, you must use a password to secure this:"
+[ -f ~/.ssh/id_ed25519.pub ] || ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+echo "add to https://github.com/settings/keys:"
+cat ~/.ssh/id_ed25519.pub
+EDITOR=vim git config --global --edit
+sudo mkdir /nanosoldier
+sudo chown `whoami` /nanosoldier
+cd /nanosoldier
+git clone <URL>
+cd ./Nanosoldier.jl
+git checkout <branch>
+./res/provision-<worker|server>.sh
+```
+
+On main server:
+```
+scp ~nanosoldier/.ssh/id_ed25519 ~nanosoldier/.ssh/id_ed25519.pub <workers>:
+ssh -t <workers> sudo chown nanosoldier:nanosoldier id_ed25519 id_ed25519.pub
+ssh -t <workers> sudo mv id_ed25519 id_ed25519.pub ~nanosoldier/.ssh
+ssh -t <workers> sudo -u nanosoldier cat .ssh/id_ed25519.pub >> .ssh/authorized_keys
+ssh -t <workers> sudo -u nanosoldier "bash -c 'cat ~nanosoldier/.ssh/id_ed25519.pub >> ~nanosoldier/.ssh/authorized_keys'"
+sudo -u nanosoldier ssh <workers> exit
+# repeat above for every worker, then:
+sudo -u nanosoldier scp ~nanosoldier/.ssh/known_hosts <workers>:.ssh
+```
+
+To run:
+
+```
+cd /nanosoldier/Nanosoldier.jl
+byobu
+./run_base_ci
+```
+
+## Upgrading for BenchmarksJob
+
+### On server
+
+```sh
+cd /nanosoldier/Nanosoldier.jl
+git pull
+chmod 666 *.toml
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/julia --project=. -e '\''using Pkg; Pkg.update()'\'''
+chmod 664 *.toml
+./res/provision-server.sh
+git add -u
+git commit
+git push
+```
+
+### On each worker
+
+```sh
+cd /nanosoldier/Nanosoldier.jl
+git pull
+./res/provision-worker.sh
+```
 
 ## Acknowledgements
 

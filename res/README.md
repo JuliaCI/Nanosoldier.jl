@@ -17,13 +17,23 @@ following properties:
 
 ## BenchmarkJob
 
+Julia is managed via [juliaup](https://github.com/JuliaLang/juliaup). The provision scripts
+install it for the `nanosoldier` user and configure two settings:
+
+- `manifestversiondetect true` — automatically selects the Julia version matching the
+  `julia_version` field in `Manifest.toml`, so no hardcoded version is needed anywhere.
+- `autoinstallchannels true` — automatically installs any required Julia version on first use.
+
+To update Julia, update `Manifest.toml` (e.g. via `Pkg.update()` with the new version) and
+juliaup will install and use the new version automatically on the next run.
+
 On all computers:
 
 ```
 echo "if this is a shared machine, you must use a password to secure this:"
-[ -f ~/.ssh/id_rsa ] || ssh-keygen -f ~/.ssh/id_rsa
+[ -f ~/.ssh/id_ed25519.pub ] || ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
 echo "add to https://github.com/settings/keys:"
-cat ~/.ssh/id_rsa.pub
+cat ~/.ssh/id_ed25519.pub
 EDITOR=vim git config --global --edit
 sudo mkdir /nanosoldier
 sudo chown `whoami` /nanosoldier
@@ -37,11 +47,11 @@ git checkout <branch>
 On main server:
 
 ```
-scp ~nanosoldier/.ssh/id_rsa ~nanosoldier/.ssh/id_rsa.pub <workers>:
-ssh -t <workers> sudo chown nanosoldier:nanosoldier id_rsa id_rsa.pub
-ssh -t <workers> sudo mv id_rsa id_rsa.pub ~nanosoldier/.ssh
-ssh -t <workers> sudo -u nanosoldier cat .ssh/id_rsa.pub >> .ssh/authorized_keys
-ssh -t <workers> sudo -u nanosoldier "bash -c 'cat ~nanosoldier/.ssh/id_rsa.pub >> ~nanosoldier/.ssh/authorized_keys'"
+scp ~nanosoldier/.ssh/id_ed25519 ~nanosoldier/.ssh/id_ed25519.pub <workers>:
+ssh -t <workers> sudo chown nanosoldier:nanosoldier id_ed25519 id_ed25519.pub
+ssh -t <workers> sudo mv id_ed25519 id_ed25519.pub ~nanosoldier/.ssh
+ssh -t <workers> sudo -u nanosoldier cat .ssh/id_ed25519.pub >> .ssh/authorized_keys
+ssh -t <workers> sudo -u nanosoldier "bash -c 'cat ~nanosoldier/.ssh/id_ed25519.pub >> ~nanosoldier/.ssh/authorized_keys'"
 sudo -u nanosoldier ssh <workers> exit
 # repeat above for every worker, then:
 sudo -u nanosoldier scp ~nanosoldier/.ssh/known_hosts <workers>:.ssh
@@ -63,7 +73,7 @@ byobu
 cd /nanosoldier/Nanosoldier.jl
 git pull
 chmod 666 *.toml
-sudo -u nanosoldier ../julia-1.6.6/bin/julia --project=. -e 'using Pkg; Pkg.update()'
+sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/julia --project=. -e '\''using Pkg; Pkg.update()'\'''
 chmod 664 *.toml
 ./provision-server.sh
 git add -u

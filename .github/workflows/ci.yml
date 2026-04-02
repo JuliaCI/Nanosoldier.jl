@@ -4,7 +4,56 @@ on:
     branches: [master]
     tags: ["*"]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 jobs:
+  provision:
+    name: Test provision scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Allow unprivileged user namespaces"
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Run provision-server.sh
+        run: |
+          # provision-server.sh runs julia as nanosoldier to instantiate the project,
+          # so the checkout and all ancestor dirs need to be traversable
+          dir="$PWD"; while [[ "$dir" != "/" ]]; do sudo chmod o+x "$dir"; dir=$(dirname "$dir"); done
+          chmod -R o+rX .
+          ./res/provision-server.sh
+
+      - name: Verify provisioning
+        run: |
+          set -eux
+          # user was created with home dir
+          id nanosoldier
+          test -d ~nanosoldier
+
+          # juliaup installed and configured
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup --version'
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect'
+          sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels'
+
+          # ssh key generated
+          test -f ~nanosoldier/.ssh/id_ed25519.pub
+
+          # julia can instantiate the project
+          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$PWD -e 'using Pkg; Pkg.status()'"
+
+          # Nanosoldier loads successfully
+          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$PWD -e 'using Nanosoldier'"
+
+          # shell scripts parse without syntax errors
+          bash -n res/provision-server.sh
+          bash -n res/provision-worker.sh
+          bash -n res/run_base_ci
+
+          # tmux installed
+          tmux -V
+
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
