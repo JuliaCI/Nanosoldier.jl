@@ -43,6 +43,14 @@ jobs:
           # julia can instantiate the project
           sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$PWD -e 'using Pkg; Pkg.status()'"
 
+          # Nanosoldier loads successfully
+          sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$PWD -e 'using Nanosoldier'"
+
+          # shell scripts parse without syntax errors
+          bash -n res/provision-server.sh
+          bash -n res/provision-worker.sh
+          bash -n res/run_base_ci
+
           # tmux installed
           tmux -V
 
