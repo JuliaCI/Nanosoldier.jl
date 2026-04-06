@@ -2,7 +2,7 @@
 
 set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
-cd "$HERE/.."
+cd "$HERE/../.."
 "$HERE/provision-server.sh"
 set +v
 
