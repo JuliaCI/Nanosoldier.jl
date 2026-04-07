@@ -3,7 +3,7 @@
 set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
 cd "$HERE/../.."
-NEWUSER=nanosoldier
+NEWUSER=ubuntu
 
 sudo apt update
 sudo apt install -y tmux
@@ -13,7 +13,7 @@ sudo useradd -m $NEWUSER || true
 sudo usermod -s /bin/bash $NEWUSER
 sudo usermod -aG $NEWUSER `whoami`
 echo "`whoami` ALL= ($NEWUSER) NOPASSWD: ALL
-Defaults> $NEWUSER umask=0777" | sudo tee -a /etc/sudoers.d/99-nanosoldier
+Defaults> $NEWUSER umask=0777" | sudo tee /etc/sudoers.d/99-nanosoldier
 
 sudo -u $NEWUSER sh -c '[ -x "$HOME/.juliaup/bin/juliaup" ] || curl -fsSL https://install.julialang.org | sh -s -- --yes'
 sudo -u $NEWUSER sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect true'
