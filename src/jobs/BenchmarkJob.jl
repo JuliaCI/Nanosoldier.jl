@@ -495,15 +495,15 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
-    try
-        vinfo = first(split(read(```
+    vinfo = try
+        first(split(read(```
             $juliacmd -e '
                 using InteractiveUtils
                 versioninfo(verbose=true)
                 '
             ```, String), "Environment"))
     catch err
-        vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
     # delete the builddir now that we're done with it

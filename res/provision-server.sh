@@ -23,11 +23,11 @@ sudo -u $NEWUSER sh -c 'cd && mkdir -p .ssh && { [ -f .ssh/id_ed25519.pub ] || s
 echo "
 Host nanosoldier? nanosoldier?.csail.mit.edu
   ProxyJump none
-  User nanosoldier
+  User $NEWUSER
 " | sudo -u $NEWUSER tee -a /home/$NEWUSER/.ssh/config
 sudo -u $NEWUSER touch /home/$NEWUSER/.ssh/authorized_keys
-sudo -u $NEWUSER chmod 700 /home/$NEWUSER/.ssh/config
-sudo -u $NEWUSER chmod 700 /home/$NEWUSER/.ssh/authorized_keys
+sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/config
+sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/authorized_keys
 sudo -u $NEWUSER sh -c 'cd && git config --global user.name "nanosoldier"'
 sudo -u $NEWUSER sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
 sudo -u $NEWUSER sh -c 'cd && ssh -T git@github.com' || true
