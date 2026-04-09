@@ -120,7 +120,7 @@ function BenchmarkJob(submission::JobSubmission)
 
     return BenchmarkJob(
         submission, tagpred, against,
-        Date(submission.build.time), isdaily, skipbuild,
+        Dates.today(), isdaily, skipbuild,
         Nanosoldier.priority(submission)
     )
 end
@@ -249,12 +249,12 @@ function Base.run(job::BenchmarkJob)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
         # run the comparison job (or if it's a daily job, gather results to compare against)
-        if job.isdaily # get results from previous day (if it doesn't exists, check the past 31 days)
+        if job.isdaily # get results from previous day (if it doesn't exists, check the past 91 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !found_previous_date && i < 31
+                while !found_previous_date && i < 91
                     check_date = job.date - Dates.Day(i)
                     check_data = retrieve_daily_benchmark_data!(cfg, check_date)
                     if check_data !== nothing
