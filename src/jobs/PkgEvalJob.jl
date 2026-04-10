@@ -528,7 +528,7 @@ function process_results!(job::PkgEvalJob, builds::Dict, all_tests::DataFrame, r
                         "sha"   => build.sha,
                     )
                 )
-                JSON.print(io, json)
+                JSON.json(io, json)
             end
         end
     end
@@ -922,7 +922,7 @@ function get_history(cfg, days=30)
     history = Dict{String, Vector{Char}}()
     for (i, c) in enumerate(content)
         isempty(c) && continue
-        json = JSON.Parser.parse(IOBuffer(c))
+        json = JSON.parse(IOBuffer(c))
         for (pkg, result) in json["tests"]
             if !haskey(history, pkg)
                 history[pkg] = Char[]
@@ -1360,7 +1360,7 @@ function printdb(io::IO, job::PkgEvalJob, results)
     end
     json["tests"] = tests
 
-    JSON.print(io, json)
+    JSON.json(io, json)
 
     return
 end
