@@ -1,0 +1,7 @@
+[deps]
+BaseBenchmarks = "d7f09723-0a21-57e2-b9ef-316b714b6879"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+
+[sources]
+BaseBenchmarks = {url = "https://github.com/JuliaCI/BaseBenchmarks.jl", rev = "master"}
