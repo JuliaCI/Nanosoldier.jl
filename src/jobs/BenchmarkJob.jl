@@ -391,6 +391,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchout = joinpath(tmplogdir(job), string(benchname, ".out"))
     bencherr = joinpath(tmplogdir(job), string(benchname, ".err"))
     benchminimum = joinpath(tmpdatadir(job), string(benchname, ".minimum.json"))
+    benchmedian = joinpath(tmpdatadir(job), string(benchname, ".median.json"))
+    benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
+    benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
 
     open(shscriptpath, "w") do file
         println(file, """
@@ -407,6 +410,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                       using LinearAlgebra # needed for `BLAS.set_num_threads`
                       using BaseBenchmarks
                       using BenchmarkTools
+                      using Statistics
                       using JSON
 
                       println(now(), " | starting benchscript.jl (STDOUT/STDERR will be redirected to the result folder)")
@@ -435,25 +439,34 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           warmup(benchmarks)
 
                           println("RUNNING BENCHMARKS...")
-                          # Run each benchmark individually and keep only the minimum
-                          # estimate, so that the full Trial sample data can be GC'd
+                          # Run each benchmark individually and keep only the per-benchmark
+                          # estimates, so that the full Trial sample data can be GC'd
                           # between benchmarks instead of accumulating in memory.
                           minresults = BenchmarkGroup()
+                          medianresults = BenchmarkGroup()
+                          meanresults = BenchmarkGroup()
+                          stdresults = BenchmarkGroup()
                           for (ids, benchmark) in BenchmarkTools.leaves(benchmarks)
                               println("  benchmarking ", ids, "...")
                               trial = run(benchmark; verbose=true)
-                              group = minresults
-                              for id in ids[1:end-1]
-                                  if !haskey(group, id)
-                                      group[id] = BenchmarkGroup()
+                              for (results, f) in ((minresults, minimum), (medianresults, median),
+                                                   (meanresults, mean), (stdresults, std))
+                                  group = results
+                                  for id in ids[1:end-1]
+                                      if !haskey(group, id)
+                                          group[id] = BenchmarkGroup()
+                                      end
+                                      group = group[id]
                                   end
-                                  group = group[id]
+                                  group[ids[end]] = f(trial)
                               end
-                              group[ids[end]] = minimum(trial)
                           end
 
                           println("SAVING RESULT...")
                           BenchmarkTools.save($(repr(benchminimum)), minresults)
+                          BenchmarkTools.save($(repr(benchmedian)), medianresults)
+                          BenchmarkTools.save($(repr(benchmean)), meanresults)
+                          BenchmarkTools.save($(repr(benchstd)), stdresults)
 
                           println("DONE!")
                       finally
