@@ -5,7 +5,7 @@ HERE=`realpath $(dirname $0)`
 cd "$HERE/../.."
 "$HERE/provision-server.sh"
 set +v
-NEWUSER=ubuntu
+: ${NEWUSER:=nanosoldier}
 
 # See https://juliaci.github.io/BenchmarkTools.jl/stable/linuxtips/
 # for an explanation of these configuration options

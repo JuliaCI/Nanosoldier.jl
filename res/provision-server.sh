@@ -3,7 +3,7 @@
 set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
 cd "$HERE/../.."
-NEWUSER=ubuntu
+: ${NEWUSER:=nanosoldier}
 
 sudo apt update
 sudo apt install -y tmux
