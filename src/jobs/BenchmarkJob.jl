@@ -443,13 +443,34 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           warmup(benchmarks)
 
                           println("RUNNING BENCHMARKS...")
-                          results = run(benchmarks; verbose=true)
+                          # Run each benchmark individually and keep only the per-benchmark
+                          # estimates, so that the full Trial sample data can be GC'd
+                          # between benchmarks instead of accumulating in memory.
+                          minresults = BenchmarkGroup()
+                          medianresults = BenchmarkGroup()
+                          meanresults = BenchmarkGroup()
+                          stdresults = BenchmarkGroup()
+                          for (ids, benchmark) in BenchmarkTools.leaves(benchmarks)
+                              println("  benchmarking ", ids, "...")
+                              trial = run(benchmark; verbose=true)
+                              for (results, f) in ((minresults, minimum), (medianresults, median),
+                                                   (meanresults, mean), (stdresults, std))
+                                  group = results
+                                  for id in ids[1:end-1]
+                                      if !haskey(group, id)
+                                          group[id] = BenchmarkGroup()
+                                      end
+                                      group = group[id]
+                                  end
+                                  group[ids[end]] = f(trial)
+                              end
+                          end
 
                           println("SAVING RESULT...")
-                          BenchmarkTools.save($(repr(benchminimum)), minimum(results))
-                          BenchmarkTools.save($(repr(benchmedian)), median(results))
-                          BenchmarkTools.save($(repr(benchmean)), mean(results))
-                          BenchmarkTools.save($(repr(benchstd)), std(results))
+                          BenchmarkTools.save($(repr(benchminimum)), minresults)
+                          BenchmarkTools.save($(repr(benchmedian)), medianresults)
+                          BenchmarkTools.save($(repr(benchmean)), meanresults)
+                          BenchmarkTools.save($(repr(benchstd)), stdresults)
 
                           println("DONE!")
                       finally
