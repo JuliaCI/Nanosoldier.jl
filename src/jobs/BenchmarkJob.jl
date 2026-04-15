@@ -333,7 +333,16 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     tmpproject = joinpath(builddir, "environment")
     mkdir(tmpproject, mode=0o775)
     chown(tmpproject, -1, gid)
+    # Copy all versioned manifests from testenvs/ so Julia picks the right one.
+    testenvs = joinpath(pkgdir(Nanosoldier), "testenvs")
+    for f in readdir(testenvs)
+        dst = joinpath(tmpproject, f)
+        cp(joinpath(testenvs, f), dst)
+        chown(dst, -1, gid)
+        chmod(dst, 0o664)
+    end
     juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
+        "JULIA_PKG_PRECOMPILE_AUTO" => "0",
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],
         "USER" => ENV["USER"],
@@ -342,32 +351,14 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     nodelog(cfg, node, "...setting up benchmark scripts/environment...")
 
-    # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "master" : "nanosoldier"
-    try
-        run(```$juliacmd -e '
-                using Pkg
-                # update local Julia packages for the relevant Julia version
-                Pkg.update()
-                url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
-                Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
-                # These are referenced by name so they need to be added explicitly
-                foreach(Pkg.add, ("BenchmarkTools", "JSON"))
-                ' ```)
-    catch ex
-        @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
-    end
-    let BaseBenchmarks = read(```
-            $juliacmd -e '
-                import BaseBenchmarks
-                print(dirname(dirname(pathof(BaseBenchmarks))))
-                ' ```, String)
-        run(`$(git()) -C $BaseBenchmarks fetch --all --quiet`)
-        run(`$(git()) -C $BaseBenchmarks reset --hard --quiet origin/$(branchname)`)
-    end
-
-    run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`))
+    run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg;
+        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="$(branchname)");
+        Pkg.update("BaseBenchmarks");
+        Pkg.status();
+        Pkg.precompile();'
+    `))
 
     cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
