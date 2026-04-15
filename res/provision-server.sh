@@ -2,28 +2,38 @@
 
 set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
-cd "$HERE/.."
+cd "$HERE/../.."
+: ${NEWUSER:=nanosoldier}
 
 sudo apt update
 sudo apt install -y tmux
 
 # create a (non-privileged) user to run the server:
-sudo useradd -m nanosoldier || true
-sudo usermod -aG nanosoldier `whoami`
-echo "`whoami` ALL= (nanosoldier) NOPASSWD: ALL
-Defaults> nanosoldier umask=0777" | sudo tee -a /etc/sudoers.d/99-nanosoldier
+sudo useradd -m $NEWUSER || true
+sudo usermod -s /bin/bash $NEWUSER
+sudo usermod -aG $NEWUSER `whoami`
+echo "`whoami` ALL= ($NEWUSER) NOPASSWD: ALL
+Defaults> $NEWUSER umask=0777" | sudo tee /etc/sudoers.d/99-nanosoldier
 
-sudo -u nanosoldier sh -c '[ -x "$HOME/.juliaup/bin/juliaup" ] || curl -fsSL https://install.julialang.org | sh -s -- --yes'
-sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect true'
-sudo -u nanosoldier sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels true'
+sudo -u $NEWUSER sh -c '[ -x "$HOME/.juliaup/bin/juliaup" ] || curl -fsSL https://install.julialang.org | sh -s -- --yes'
+sudo -u $NEWUSER sh -c '$HOME/.juliaup/bin/juliaup config manifestversiondetect true'
+sudo -u $NEWUSER sh -c '$HOME/.juliaup/bin/juliaup config autoinstallchannels true'
 
-sudo -u nanosoldier sh -c 'cd && mkdir -p .ssh && { [ -f .ssh/id_ed25519.pub ] || ssh-keygen -N "" -f .ssh/id_ed25519 -t ed25519; }'
-sudo -u nanosoldier sh -c 'cd && git config --global user.name "nanosoldier"'
-sudo -u nanosoldier sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
-sudo -u nanosoldier sh -c 'cd && ssh -T git@github.com' || true
+sudo -u $NEWUSER sh -c 'cd && mkdir -p .ssh && { [ -f .ssh/id_ed25519.pub ] || ssh-keygen -N "" -f .ssh/id_ed25519 -t ed25519; }'
+echo "
+Host nanosoldier? nanosoldier?.csail.mit.edu
+  ProxyJump none
+  User $NEWUSER
+" | sudo -u $NEWUSER tee -a /home/$NEWUSER/.ssh/config
+sudo -u $NEWUSER touch /home/$NEWUSER/.ssh/authorized_keys
+sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/config
+sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/authorized_keys
+sudo -u $NEWUSER sh -c 'cd && git config --global user.name "nanosoldier"'
+sudo -u $NEWUSER sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
+sudo -u $NEWUSER sh -c 'cd && ssh -T git@github.com' || true
 
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
-sudo -u nanosoldier sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$HERE/.. -e 'using Pkg; Pkg.instantiate()'"
+sudo -u $NEWUSER sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$HERE/.. -e 'using Pkg; Pkg.instantiate()'"
 
 set +v
 
@@ -32,10 +42,10 @@ echo "-------------"
 echo "manual steps (for master machine, not workers):"
 echo "-------------"
 echo
-echo "install this ssh key in github for user @nanosoldier at"
+echo "install this ssh key in github for user @$NEWUSER at"
 echo "  https://github.com/settings/ssh/new"
-echo "and on all worker machines at ~nanosoldier/.ssh/authorized_keys"
-sudo -u nanosoldier cat ~nanosoldier/.ssh/id_ed25519.pub
+echo "and on all worker machines at /home/$NEWUSER/.ssh/authorized_keys"
+sudo -u $NEWUSER cat /home/$NEWUSER/.ssh/id_ed25519.pub
 echo
 echo "and generate an auth-token for later at"
 echo "  https://github.com/settings/tokens/new"
@@ -54,7 +64,7 @@ echo "  ensure ssh (TCP 22) is not blocked for your ip address"
 echo "  ensure all other ports are blocked"
 echo
 echo "these special values, you will insert into env."
-echo "to use, as user 'nanosoldier':"
+echo "to use, as user '$NEWUSER':"
 echo "  cd `dirname $0`"
 echo "  export GITHUB_AUTH=<auth-token>"
 echo "  export GITHUB_SECRET=<random-string>"
@@ -66,6 +76,6 @@ echo
 echo "or with a helper script:"
 echo "  (umask 007 && cp bin/run_base_ci.jl ..)"
 echo "  (umask 007 && touch ../run_base_ci.stdout ../run_base_ci.stderr)"
-echo "  sudo chgrp nanosoldier ../run_base_ci.jl ../run_base_ci.stdout ../run_base_ci.stderr"
+echo "  sudo chgrp $NEWUSER ../run_base_ci.jl ../run_base_ci.stdout ../run_base_ci.stderr"
 echo "  \${EDITOR:-vim} ../run_base_ci.jl"
 echo "  ./run_base_ci"
