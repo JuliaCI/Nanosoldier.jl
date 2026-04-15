@@ -251,10 +251,15 @@ results = Dict(
 
 results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 
+# Write generated reports to a directory that CI can upload as an artifact
+reportoutdir = joinpath(@__DIR__, "reports")
+mkpath(reportoutdir)
+
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
     md = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha)
     md2 = sprint(io->Nanosoldier.printreport(io, job, results))
+    write(joinpath(reportoutdir, "benchmark_report.md"), md2)
     chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
 end
 
@@ -287,6 +292,7 @@ end
     )
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
+    write(joinpath(reportoutdir, "pkgeval_report_primary_only.md"), report)
 
     job.against = against
     results["against"] = DataFrame(
@@ -301,6 +307,7 @@ end
     results["against.vinfo"] = vinfo*"_against"
 
     report = sprint(io -> Nanosoldier.printreport(io, job, results))
+    write(joinpath(reportoutdir, "pkgeval_report_comparison.md"), report)
 
     @testset "Parsing configuration" begin
         str = "(goal=:test,)"
