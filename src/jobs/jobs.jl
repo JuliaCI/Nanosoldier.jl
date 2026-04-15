@@ -32,7 +32,7 @@ function validatate_isdaily(submission::JobSubmission)
        all(k -> k in allowed_kwargs, keys(submission.kwargs))
         config = submission.config
         for commit in GitHub.commits(submission.repo; auth=config.auth, page_limit=1,
-                                     params=Dict("per_page" => 50))[1]
+                                     params=Dict("per_page" => 100))[1]
             if commit.sha == submission.statussha
                 return
             end

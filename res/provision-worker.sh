@@ -2,9 +2,10 @@
 
 set -euv -o pipefail
 HERE=`realpath $(dirname $0)`
-cd "$HERE/.."
+cd "$HERE/../.."
 "$HERE/provision-server.sh"
 set +v
+: ${NEWUSER:=nanosoldier}
 
 # See https://juliaci.github.io/BenchmarkTools.jl/stable/linuxtips/
 # for an explanation of these configuration options
@@ -44,17 +45,17 @@ cat /proc/interrupts
 # create a (non-privileged) user to run the build and test:
 sudo useradd -m nanosoldier-worker || true
 sudo usermod -aG nanosoldier-worker `whoami`
-sudo usermod -aG nanosoldier-worker nanosoldier
+sudo usermod -aG nanosoldier-worker $NEWUSER
 
-echo "nanosoldier ALL= NOPASSWD:\\
+echo "$NEWUSER ALL= NOPASSWD:\\
         /nanosoldier/cset/bin/cset set *,\\
         /nanosoldier/cset/bin/cset shield *,\\
        !/nanosoldier/cset/bin/cset shield *-e*,\\
         /nanosoldier/cset/bin/cset shield -e -- sudo -n -u nanosoldier-worker -- *
-nanosoldier,nanosoldier-worker ALL= NOPASSWD:\\
+$NEWUSER,nanosoldier-worker ALL= NOPASSWD:\\
         /nanosoldier/cset/bin/cset proc *,\\
        !/nanosoldier/cset/bin/cset proc *-e*
-nanosoldier ALL= (nanosoldier-worker) NOPASSWD: ALL
+$NEWUSER ALL= (nanosoldier-worker) NOPASSWD: ALL
 `whoami` ALL= (nanosoldier-worker) NOPASSWD: ALL
 Defaults> nanosoldier-worker umask=0777" | sudo tee /etc/sudoers.d/99-nanosoldier-worker
 
@@ -66,6 +67,6 @@ echo "manual steps (for each worker)"
 echo "-------------"
 echo
 echo "install ssh key from master server to this worker"
-echo "sudo -u nanosoldier vim ~nanosoldier/.ssh/authorized_keys"
-echo "sudo -u nanosoldier chmod 600 ~nanosoldier/.ssh/authorized_keys"
-echo " # on server # sudo -u nanosoldier scp /home/nanosoldier/.ssh/id_ed25519 /home/nanosoldier/.ssh/id_ed25519.pub `hostname`:.ssh"
+echo "sudo -u $NEWUSER vim ~$NEWUSER/.ssh/authorized_keys"
+echo "sudo -u $NEWUSER chmod 600 ~$NEWUSER/.ssh/authorized_keys"
+echo " # on server # sudo -u $NEWUSER scp /home/$NEWUSER/.ssh/id_ed25519 /home/$NEWUSER/.ssh/id_ed25519.pub `hostname`:.ssh"
