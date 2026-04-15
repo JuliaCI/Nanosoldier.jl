@@ -7,6 +7,7 @@
 # performed to ensure that the tag predicate is grammatically correct.
 
 const VALID_TAG_PRED_SYMS = (:!, :&&, :||, :call, :ALL)
+const MAX_BENCHMARK_ERRORS = 100
 
 function is_valid_tagpred(tagpred::AbstractString)
     parsed = Meta.parse(tagpred)
@@ -244,7 +245,7 @@ function Base.run(job::BenchmarkJob)
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
         publish_update(job, "pending", "Running benchmarks")
-        results["primary"], results["primary.vinfo"] =
+        results["primary"], results["primary.vinfo"], results["primary.errors"] =
             execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
@@ -275,7 +276,7 @@ function Base.run(job::BenchmarkJob)
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
             publish_update(job, "pending", "Running comparison benchmarks")
-            results["against"], results["against.vinfo"] =
+            results["against"], results["against.vinfo"], results["against.errors"] =
                 execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
         end
@@ -389,6 +390,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchmedian = joinpath(tmpdatadir(job), string(benchname, ".median.json"))
     benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
     benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
+    bencherrors = joinpath(tmpdatadir(job), string(benchname, ".errors.json"))
 
     open(shscriptpath, "w") do file
         println(file, """
@@ -434,13 +436,51 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           warmup(benchmarks)
 
                           println("RUNNING BENCHMARKS...")
-                          results = run(benchmarks; verbose=true)
+                          # Run each benchmark individually and keep only the per-benchmark
+                          # estimates, so that the full Trial sample data can be GC'd
+                          # between benchmarks instead of accumulating in memory.
+                          minresults = BenchmarkGroup()
+                          medianresults = BenchmarkGroup()
+                          meanresults = BenchmarkGroup()
+                          stdresults = BenchmarkGroup()
+                          bencherrorlist = Vector{Pair{Vector{Any}, String}}()
+                          for (ids, benchmark) in BenchmarkTools.leaves(benchmarks)
+                              println("  benchmarking ", ids, "...")
+                              try
+                                  trial = run(benchmark; verbose=true)
+                                  for (results, f) in ((minresults, minimum), (medianresults, median),
+                                                       (meanresults, mean), (stdresults, std))
+                                      group = results
+                                      for id in ids[1:end-1]
+                                          if !haskey(group, id)
+                                              group[id] = BenchmarkGroup()
+                                          end
+                                          group = group[id]
+                                      end
+                                      group[ids[end]] = f(trial)
+                                  end
+                              catch err
+                                  # Log full backtrace to stderr (private log file) but only
+                                  # record the error type for the public report.
+                                  println(stderr, "  FAILED benchmark ", ids, ":")
+                                  Base.showerror(stderr, err, catch_backtrace())
+                                  println(stderr)
+                                  push!(bencherrorlist, ids => string(typeof(err)))
+                                  if length(bencherrorlist) >= $(MAX_BENCHMARK_ERRORS)
+                                      println(stderr, "  Too many benchmark errors ($(MAX_BENCHMARK_ERRORS)), aborting remaining benchmarks.")
+                                      break
+                                  end
+                              end
+                          end
 
                           println("SAVING RESULT...")
-                          BenchmarkTools.save($(repr(benchminimum)), minimum(results))
-                          BenchmarkTools.save($(repr(benchmedian)), median(results))
-                          BenchmarkTools.save($(repr(benchmean)), mean(results))
-                          BenchmarkTools.save($(repr(benchstd)), std(results))
+                          BenchmarkTools.save($(repr(benchminimum)), minresults)
+                          BenchmarkTools.save($(repr(benchmedian)), medianresults)
+                          BenchmarkTools.save($(repr(benchmean)), meanresults)
+                          BenchmarkTools.save($(repr(benchstd)), stdresults)
+                          open($(repr(bencherrors)), "w") do io
+                              JSON.print(io, [Dict("id" => ids, "error" => msg) for (ids, msg) in bencherrorlist])
+                          end
 
                           println("DONE!")
                       finally
@@ -483,6 +523,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     run(sudo(`$cset shield --reset`))
 
     minresults = BenchmarkTools.load(benchminimum)[1]
+    errors = isfile(bencherrors) ? JSON.parsefile(bencherrors) : []
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
@@ -500,7 +541,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # delete the builddir now that we're done with it
     rm(builddir, recursive=true)
 
-    return minresults, vinfo
+    return minresults, vinfo, errors
 end
 
 ##########################
@@ -560,6 +601,7 @@ function report(job::BenchmarkJob, results)
         else
             "$(s.total) benchmarks were executed."
         end
+        s.errors > 0 && (summary_line *= " $(s.errors) benchmarks failed.")
         build = submission(job).build
         commit_line = "[`$(snipsha(build.sha))`](https://github.com/$(build.repo)/commit/$(build.sha))"
         if job.against !== nothing
@@ -579,25 +621,30 @@ end
 
 function countsummary(results)
     iscomparison = haskey(results, "judged")
+    nerrors = length(get(results, "primary.errors", [])) + length(get(results, "against.errors", []))
     if !iscomparison
         total = length(BenchmarkTools.leaves(results["primary"]))
-        return (total=total, regressions=0, improvements=0, iscomparison=false)
+        return (total=total, regressions=0, improvements=0, errors=nerrors, iscomparison=false)
     end
     entries = BenchmarkTools.leaves(results["judged"])
     total = length(entries)
     regressions = count(((_, t),) -> BenchmarkTools.isregression(t), entries)
     improvements = count(((_, t),) -> BenchmarkTools.isimprovement(t), entries)
-    return (total=total, regressions=regressions, improvements=improvements, iscomparison=true)
+    return (total=total, regressions=regressions, improvements=improvements, errors=nerrors, iscomparison=true)
 end
 
 function printsummary(io::IO, s::NamedTuple)
     if s.iscomparison
         println(io, "## Summary\n")
-        println(io, "**$(s.total)** benchmarks were executed, **$(s.regressions)** showed regressions, and **$(s.improvements)** showed improvements.")
+        msg = "**$(s.total)** benchmarks were executed, **$(s.regressions)** showed regressions, and **$(s.improvements)** showed improvements."
+        s.errors > 0 && (msg *= " **$(s.errors)** benchmarks failed.")
+        println(io, msg)
         println(io)
     else
         println(io, "## Summary\n")
-        println(io, "**$(s.total)** benchmarks were executed.")
+        msg = "**$(s.total)** benchmarks were executed."
+        s.errors > 0 && (msg *= " **$(s.errors)** benchmarks failed.")
+        println(io, msg)
         println(io)
     end
 end
@@ -738,6 +785,42 @@ function printreport(io::IO, job::BenchmarkJob, results)
     end
 
     println(io)
+
+    # print benchmark errors (if any) #
+    #----------------------------------#
+    primary_errors = get(results, "primary.errors", [])
+    against_errors = get(results, "against.errors", [])
+    if !isempty(primary_errors) || !isempty(against_errors)
+        println(io, "## Errors")
+        println(io)
+        println(io, "The following benchmarks failed during execution (check the build log for full stack traces):")
+        println(io)
+        if !isempty(primary_errors)
+            if iscomparisonjob
+                println(io, "#### Primary Build\n")
+            end
+            for entry in primary_errors
+                ids = entry["id"]
+                msg = entry["error"]
+                println(io, "- ", idrepr_md(ids), ": `", msg, "`")
+            end
+            println(io)
+        end
+        if !isempty(against_errors)
+            println(io, "#### Comparison Build\n")
+            for entry in against_errors
+                ids = entry["id"]
+                msg = entry["error"]
+                println(io, "- ", idrepr_md(ids), ": `", msg, "`")
+            end
+            println(io)
+        end
+        if length(primary_errors) >= MAX_BENCHMARK_ERRORS || length(against_errors) >= MAX_BENCHMARK_ERRORS
+            println(io, "**Note:** The maximum number of benchmark errors ($MAX_BENCHMARK_ERRORS) was reached; remaining benchmarks were skipped.")
+            println(io)
+        end
+        println(io)
+    end
 
     # print build version info #
     #--------------------------#
