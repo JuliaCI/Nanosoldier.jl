@@ -338,9 +338,11 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     for f in readdir(testenvs)
         dst = joinpath(tmpproject, f)
         cp(joinpath(testenvs, f), dst)
+        chown(dst, -1, gid)
         chmod(dst, 0o664)
     end
     juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
+        "JULIA_PKG_PRECOMPILE_AUTO" => "0",
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],
         "USER" => ENV["USER"],
@@ -352,9 +354,10 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "master" : "nanosoldier"
     run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg;
-        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="$(branchname)", allow_autoprecomp=false);
+        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="$(branchname)");
         Pkg.update("BaseBenchmarks");
-        Pkg.status();'
+        Pkg.status();
+        Pkg.precompile();'
     `))
 
     cset = abspath("cset/bin/cset")
