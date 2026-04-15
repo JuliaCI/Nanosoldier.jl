@@ -1,0 +1,53 @@
+name: Update testenvs manifests
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'  # every Monday at 04:00 UTC
+
+jobs:
+  update:
+    name: Update manifests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install juliaup
+        run: curl -fsSL https://install.julialang.org | sh -s -- --yes
+
+      - name: Update manifests
+        env:
+          JULIA_PKG_USE_CLI_GIT: true
+        run: |
+          export PATH="$HOME/.juliaup/bin:$PATH"
+
+          # Update each existing versioned manifest with its corresponding Julia version.
+          # Julia X.Y writes back to Manifest-vX.Y.toml in-place when it finds one.
+          for manifest in testenvs/Manifest-v*.toml; do
+            ver=$(basename "$manifest" | sed 's/Manifest-v\(.*\)\.toml/\1/')
+            echo "--- Updating $manifest (Julia $ver) ---"
+            juliaup add "$ver"
+            julia "+$ver" --project=testenvs -e 'using Pkg; Pkg.update(); Pkg.status()'
+          done
+
+          # Run nightly separately. If it has bumped to a new minor version there will
+          # be no matching Manifest-vX.Y.toml, so Pkg will fall back to creating
+          # Manifest.toml — rename it to the versioned name.
+          juliaup add nightly
+          nightly_ver=$(julia +nightly -e 'print(VERSION.major, ".", VERSION.minor)')
+          echo "--- Nightly is Julia $nightly_ver ---"
+          julia +nightly --project=testenvs -e 'using Pkg; Pkg.update(); Pkg.status()'
+          if [ -f testenvs/Manifest.toml ]; then
+            echo "New nightly version ($nightly_ver) — creating Manifest-v${nightly_ver}.toml"
+            mv testenvs/Manifest.toml "testenvs/Manifest-v${nightly_ver}.toml"
+          fi
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: update-testenvs-manifests
+          commit-message: "testenvs: update manifests"
+          title: "testenvs: update manifests"
+          body: "Automated update of `testenvs/` manifests via the *Update testenvs manifests* workflow."

@@ -121,7 +121,7 @@ function BenchmarkJob(submission::JobSubmission)
 
     return BenchmarkJob(
         submission, tagpred, against,
-        Date(submission.build.time), isdaily, skipbuild,
+        Dates.today(), isdaily, skipbuild,
         Nanosoldier.priority(submission)
     )
 end
@@ -220,6 +220,7 @@ function Base.run(job::BenchmarkJob)
     cleanup = String[]
 
     # build jobs in parallel to better utilize machine cores
+    publish_update(job, "pending", "Building Julia")
     julia_primary = @async build_benchmarksjulia!(job, :primary, cleanup)
     local julia_against
     try
@@ -243,17 +244,18 @@ function Base.run(job::BenchmarkJob)
         # run primary job
         julia_primary = fetch(julia_primary)
         nodelog(cfg, node, "running primary build for $(summary(job))")
+        publish_update(job, "pending", "Running benchmarks")
         results["primary"], results["primary.vinfo"], results["primary.errors"] =
             execute_benchmarks!(job, julia_primary, :primary)
         nodelog(cfg, node, "finished primary build for $(summary(job))")
 
         # run the comparison job (or if it's a daily job, gather results to compare against)
-        if job.isdaily # get results from previous day (if it doesn't exists, check the past 31 days)
+        if job.isdaily # get results from previous day (if it doesn't exists, check the past 91 days)
             try
                 nodelog(cfg, node, "retrieving results from previous daily build")
                 found_previous_date = false
                 i = 1
-                while !found_previous_date && i < 31
+                while !found_previous_date && i < 91
                     check_date = job.date - Dates.Day(i)
                     check_data = retrieve_daily_benchmark_data!(cfg, check_date)
                     if check_data !== nothing
@@ -273,6 +275,7 @@ function Base.run(job::BenchmarkJob)
         elseif job.against !== nothing # run comparison build
             julia_against = fetch(julia_against)
             nodelog(cfg, node, "running comparison build for $(summary(job))")
+            publish_update(job, "pending", "Running comparison benchmarks")
             results["against"], results["against.vinfo"], results["against.errors"] =
                 execute_benchmarks!(job, julia_against, :against)
             nodelog(cfg, node, "finished comparison build for $(summary(job))")
@@ -292,6 +295,7 @@ function Base.run(job::BenchmarkJob)
 
     # report results
     nodelog(cfg, node, "reporting results for $(summary(job))")
+    publish_update(job, "pending", "Generating report")
     report(job, results)
     nodelog(cfg, node, "completed $(summary(job))")
 end
@@ -330,7 +334,16 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     tmpproject = joinpath(builddir, "environment")
     mkdir(tmpproject, mode=0o775)
     chown(tmpproject, -1, gid)
+    # Copy all versioned manifests from testenvs/ so Julia picks the right one.
+    testenvs = joinpath(pkgdir(Nanosoldier), "testenvs")
+    for f in readdir(testenvs)
+        dst = joinpath(tmpproject, f)
+        cp(joinpath(testenvs, f), dst)
+        chown(dst, -1, gid)
+        chmod(dst, 0o664)
+    end
     juliacmd = setenv(`$juliapath --project=$tmpproject --startup-file=no`,
+        "JULIA_PKG_PRECOMPILE_AUTO" => "0",
         "LANG" => get(ENV, "LANG", "C.UTF-8"),
         "HOME" => ENV["HOME"],
         "USER" => ENV["USER"],
@@ -339,32 +352,14 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     nodelog(cfg, node, "...setting up benchmark scripts/environment...")
 
-    # add/update BaseBenchmarks for the relevant Julia version + use branch specified by cfg
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "master" : "nanosoldier"
-    try
-        run(```$juliacmd -e '
-                using Pkg
-                # update local Julia packages for the relevant Julia version
-                Pkg.update()
-                url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
-                Pkg.develop(PackageSpec(name="BaseBenchmarks", url=url))
-                # These are referenced by name so they need to be added explicitly
-                foreach(Pkg.add, ("BenchmarkTools", "JSON"))
-                ' ```)
-    catch ex
-        @error "updating BaseBenchmarks failed (attempting to continue)" _exception=ex
-    end
-    let BaseBenchmarks = read(```
-            $juliacmd -e '
-                import BaseBenchmarks
-                print(dirname(dirname(pathof(BaseBenchmarks))))
-                ' ```, String)
-        run(`$(git()) -C $BaseBenchmarks fetch --all --quiet`)
-        run(`$(git()) -C $BaseBenchmarks reset --hard --quiet origin/$(branchname)`)
-    end
-
-    run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg; Pkg.instantiate(); Pkg.status()'`))
+    run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg;
+        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="$(branchname)");
+        Pkg.update("BaseBenchmarks");
+        Pkg.status();
+        Pkg.precompile();'
+    `))
 
     cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
@@ -532,15 +527,15 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # Get the verbose output of versioninfo for the build, throwing away
     # environment information that is useless/potentially risky to expose.
-    try
-        vinfo = first(split(read(```
+    vinfo = try
+        first(split(read(```
             $juliacmd -e '
                 using InteractiveUtils
                 versioninfo(verbose=true)
                 '
             ```, String), "Environment"))
     catch err
-        vinfo = string("retrieving versioninfo() failed: ", sprint(showerror, err))
+        string("retrieving versioninfo() failed: ", sprint(showerror, err))
     end
 
     # delete the builddir now that we're done with it
