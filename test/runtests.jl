@@ -255,14 +255,20 @@ results["judged"] = BenchmarkTools.judge(results["primary"], results["against"])
 reportoutdir = joinpath(@__DIR__, "reports")
 mkpath(reportoutdir)
 
-@test begin
+@testset "Benchmark report" begin
     mdpath = joinpath(@__DIR__, "report.md")
     nscommit = Nanosoldier.nanosoldier_commit()
-    md = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
-                 "NANOSOLDIER_COMMIT" => nscommit, "NSSHORT" => Nanosoldier.snipsha(nscommit))
-    md2 = sprint(io->Nanosoldier.printreport(io, job, results))
-    write(joinpath(reportoutdir, "benchmark_report.md"), md2)
-    chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
+    expected = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
+                       "NANOSOLDIER_COMMIT" => nscommit, "NSSHORT" => Nanosoldier.snipsha(nscommit))
+    actual = sprint(io->Nanosoldier.printreport(io, job, results))
+    write(joinpath(reportoutdir, "benchmark_report.md"), actual)
+    expected_lines = chomp.(collect(eachline(IOBuffer(expected))))
+    actual_lines   = chomp.(collect(eachline(IOBuffer(actual))))
+    for i in 1:max(length(expected_lines), length(actual_lines))
+        e = get(expected_lines, i, "<missing>")
+        a = get(actual_lines, i, "<missing>")
+        @test e == a
+    end
 end
 
 @testset "Markdown" begin
