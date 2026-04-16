@@ -89,10 +89,12 @@ jobs:
         env:
           GITHUB_AUTH: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: uploads-to-NanosoldierReports
           path: /home/runner/.julia/scratchspaces/89f34f1a-2e6b-52eb-a20f-77051b03b735/workdir/NanosoldierReports/pkgeval/by_hash/redacted_vs_redacted/
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: generated-reports
           path: test/reports/
