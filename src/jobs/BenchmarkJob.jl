@@ -844,6 +844,14 @@ function printreport(io::IO, job::BenchmarkJob, results)
                   ```
                   """)
     end
+
+    nscommit = nanosoldier_commit()
+    println(io)
+    print(io, """
+              #### Nanosoldier
+              Nanosoldier commit: [`$(snipsha(nscommit))`](https://github.com/JuliaCI/Nanosoldier.jl/commit/$(nscommit))
+              """)
+
     return nothing
 end
 

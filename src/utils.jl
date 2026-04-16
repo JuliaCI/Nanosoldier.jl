@@ -40,3 +40,12 @@ function gitreset!(dir)
     run(`$(git()) -C $dir fetch --quiet --all`)
     run(`$(git()) -C $dir reset --quiet --hard origin/master`)
 end
+
+function nanosoldier_commit()
+    dir = pkgdir(@__MODULE__)
+    try
+        return readchomp(`$(git()) -C $dir rev-parse HEAD`)
+    catch
+        return "unknown"
+    end
+end
