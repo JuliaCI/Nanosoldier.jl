@@ -100,3 +100,6 @@ Intel(R) Core(TM) i5-4288U CPU @ 2.60GHz:
   LLVM: libLLVM-3.3
 _against
 ```
+
+#### Nanosoldier
+Nanosoldier commit: [`NSSHORT`](https://github.com/JuliaCI/Nanosoldier.jl/commit/NANOSOLDIER_COMMIT)

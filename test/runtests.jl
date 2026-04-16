@@ -257,7 +257,9 @@ mkpath(reportoutdir)
 
 @test begin
     mdpath = joinpath(@__DIR__, "report.md")
-    md = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha)
+    nscommit = Nanosoldier.nanosoldier_commit()
+    md = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
+                 "NANOSOLDIER_COMMIT" => nscommit, "NSSHORT" => Nanosoldier.snipsha(nscommit))
     md2 = sprint(io->Nanosoldier.printreport(io, job, results))
     write(joinpath(reportoutdir, "benchmark_report.md"), md2)
     chomp.(eachline(IOBuffer(md))) == chomp.(eachline(IOBuffer(md2)))
