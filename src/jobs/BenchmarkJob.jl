@@ -355,7 +355,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     nodelog(cfg, node, "updating local BaseBenchmarks repo")
     branchname = cfg.testmode ? "master" : "nanosoldier"
     run(sudo(cfg.user, `$(setenv(juliacmd, nothing, dir=builddir)) -e 'using Pkg;
-        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="$(branchname)");
+        Pkg.add(; url="https://github.com/JuliaCI/BaseBenchmarks.jl", rev="'$(branchname)'");
         Pkg.update("BaseBenchmarks");
         Pkg.status();
         Pkg.precompile();'
