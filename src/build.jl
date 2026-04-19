@@ -38,9 +38,8 @@ function sync_srcs!(fromdir, todir, link::Bool)
     end
 end
 
-# if a PR number is included, attempt to build from the PR's merge commit
 # TODO: re-use PkgEval's BinaryBuilder-based build?
-function build_julia!(config::Config, build::BuildRef, logpath, prnumber::Union{Int,Nothing}=nothing)
+function build_julia!(config::Config, build::BuildRef, logpath)
     # make a temporary workdir for our build
     gid = parse(Int, readchomp(`id -g $(config.user)`))
     tmpdir = mktempdir(workdir)

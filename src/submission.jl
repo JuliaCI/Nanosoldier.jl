@@ -58,8 +58,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
     elseif event.kind == "pull_request"
         # A PR was opened, and the description body contained a trigger phrase.
         # The primary repo is the location of the head branch, and the primary
-        # SHA is that of the head commit. The PR number is provided, so that the
-        # build can execute on the relevant merge commit.
+        # SHA is that of the head commit.
         repo = event.payload["pull_request"]["head"]["repo"]["full_name"]
         sha = event.payload["pull_request"]["head"]["sha"]
         url = event.payload["pull_request"]["html_url"]
@@ -68,8 +67,7 @@ function parse_event(config::Config, event::GitHub.WebhookEvent)
     elseif event.kind == "issue_comment"
         # A comment was made in a PR, and it contained a trigger phrase. The
         # primary repo is the location of the PR's head branch, and the primary
-        # SHA is that of the head commit. The PR number is provided, so that the
-        # build can execute on the relevant merge commit.
+        # SHA is that of the head commit.
         pr = GitHub.pull_request(event.repository, event.payload["issue"]["number"], auth=config.auth)
         repo = pr.head.repo.full_name
         sha = pr.head.sha

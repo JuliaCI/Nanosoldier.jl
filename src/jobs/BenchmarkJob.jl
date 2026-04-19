@@ -45,6 +45,8 @@ mutable struct BenchmarkJob <: AbstractJob
     submission::JobSubmission        # the original submission
     tagpred::String                  # predicate string to be fed to @tagged
     against::Union{BuildRef,Nothing} # the comparison build (if available)
+    against_mergebase::Union{String,Nothing} # branch name if against was resolved via merge-base
+    against_hint::Union{String,Nothing}      # hint message for the reply comment
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
     skipbuild::Bool                  # use local julia install instead of a fresh build (for testing)
@@ -68,6 +70,8 @@ function BenchmarkJob(submission::JobSubmission)
         nanosoldier_error("expected zero or one positional argument; got $(length(submission.args))")
     end
 
+    against_mergebase = nothing
+    against_hint = nothing
     if haskey(submission.kwargs, :vs)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
@@ -78,6 +82,15 @@ function BenchmarkJob(submission::JobSubmission)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
+            # If vs matches the PR's base branch, hint that omitting vs gives
+            # a merge-base comparison which is usually what users want.
+            if submission.prnumber !== nothing && againstrepo == submission.repo
+                pr_details = GitHub.pull_request(submission.repo, submission.prnumber;
+                                                auth=submission.config.auth)
+                if againstbranch == pr_details.base.ref
+                    against_hint = "**Tip:** `vs=\"$(againststr)\"` compares against the tip of `$(againstbranch)`. To compare against the merge-base instead (only changes introduced by this PR), omit the `vs` argument."
+                end
+            end
         elseif in(TAG_SEPARATOR, againststr)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.repo : reporef
@@ -89,13 +102,15 @@ function BenchmarkJob(submission::JobSubmission)
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
-        # if there is a PR number, we compare against the base branch
+        # if there is a PR number, we compare against the merge-base of the
+        # base branch, so the comparison only reflects changes in the PR.
         pr_details = GitHub.pull_request(submission.repo, submission.prnumber; auth=submission.config.auth)
         base_branch = pr_details.base.ref
         merge_base = GitHub.compare(submission.repo,
                                     base_branch, "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
         against = commitref(submission.config, submission.repo, merge_base.sha)
+        against_mergebase = base_branch
     else
         against = nothing
     end
@@ -120,7 +135,7 @@ function BenchmarkJob(submission::JobSubmission)
     end
 
     return BenchmarkJob(
-        submission, tagpred, against,
+        submission, tagpred, against, against_mergebase, against_hint,
         Dates.today(), isdaily, skipbuild,
         Nanosoldier.priority(submission)
     )
@@ -196,11 +211,8 @@ function Base.run(job::BenchmarkJob)
     cfg = submission(job).config
 
     # make temporary directory for job results
-    # Why not create the job's actual report directory now instead? The answer is that
-    # the commit SHA that currently describes the job might change if we find out that
-    # we should use a merge commit instead. To avoid confusion, we dump all the results
-    # to this temporary directory first, then move the data to the correct location
-    # in the reporting phase.
+    # We dump results here first, then move to the final report directory in the
+    # reporting phase.
     nodelog(cfg, node, "creating temporary directory for benchmark results")
     if isdir(tmpdir(job))
         nodelog(cfg, node, "...removing old temporary directory...")
@@ -309,13 +321,7 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
         juliapath = joinpath(Sys.BINDIR, "julia")
     else
         nodelog(cfg, node, "...building julia...")
-        # If we're doing the primary build from a PR, feed `build_julia!` the PR number
-        # so that it knows to attempt a build from the merge commit
-        if whichbuild == :primary && submission(job).fromkind == :pr
-            juliadir = build_julia!(cfg, build, tmplogdir(job), submission(job).prnumber)
-        else
-            juliadir = build_julia!(cfg, build, tmplogdir(job))
-        end
+        juliadir = build_julia!(cfg, build, tmplogdir(job))
         push!(cleanup, juliadir)
         juliapath = joinpath(juliadir, "julia", "julia")
     end
@@ -610,8 +616,8 @@ function report(job::BenchmarkJob, results)
         end
         comment = """
             The benchmark job [you requested]($(submission(job).url)) has completed - $status. $(summary_line)
-            *Commit$(job.against !== nothing ? "s" : ""):* $(commit_line)
-            The [**full report**]($(target_url)) is available."""
+            *Commit$(job.against !== nothing ? "s" : ""):* $(commit_line)$(job.against_mergebase !== nothing ? " (comparing against merge-base of `$(job.against_mergebase)`)" : "")
+            The [**full report**]($(target_url)) is available.$(job.against_hint !== nothing ? "\n\n$(job.against_hint)" : "")"""
         reply_comment(submission(job), comment)
     end
 end
@@ -672,7 +678,10 @@ function printreport(io::IO, job::BenchmarkJob, results)
         else
             comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)...$(build.repo):$(build.sha)"
         end
-        joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
+        joblink = "$(joblink)\n\n*Comparison Diff:* [$(snipsha(againstbuild.sha))...$(snipsha(build.sha))]($(comparelink))"
+        if job.against_mergebase !== nothing
+            joblink = "$(joblink)\n\n*Note:* Comparison is against the merge-base of `$(job.against_mergebase)` (the common ancestor of the PR branch and `$(job.against_mergebase)`), so it reflects only the PR's changes."
+        end
     end
 
     if job.isdaily && hasprevdate
@@ -680,7 +689,7 @@ function printreport(io::IO, job::BenchmarkJob, results)
         # previous_repo = results["previous_repo"] # unnecessary
         if !isempty(previous_sha)
             comparelink = "https://github.com/$(build.repo)/compare/$(previous_sha)...$(build.sha)"
-            joblink = "$(joblink)\n\n*Comparison Range:* [link]($(comparelink))"
+            joblink = "$(joblink)\n\n*Comparison Range:* [$(snipsha(previous_sha))...$(snipsha(build.sha))]($(comparelink))"
         end
     end
 
