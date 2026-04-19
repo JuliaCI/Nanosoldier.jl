@@ -109,5 +109,6 @@ function publish_update(job::AbstractJob, state, description, url=nothing;
     end
 end
 
+include("summary_plot.jl")
 include("BenchmarkJob.jl")
 include("PkgEvalJob.jl")

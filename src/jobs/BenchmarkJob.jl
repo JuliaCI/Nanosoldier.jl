@@ -561,7 +561,7 @@ function report(job::BenchmarkJob, results)
             nodelog(cfg, node, "...generating report...")
             reportname = "report.md"
             open(joinpath(tmpdir(job), reportname), "w") do file
-                printreport(file, job, results)
+                printreport(file, job, results; outdir=tmpdir(job))
             end
             nodelog(cfg, node, "...tarring data...")
             open(joinpath(tmpdir(job), "data.tar.zst"), "w") do io
@@ -652,7 +652,7 @@ end
 const REGRESS_MARK = ":x:"
 const IMPROVE_MARK = ":white_check_mark:"
 
-function printreport(io::IO, job::BenchmarkJob, results)
+function printreport(io::IO, job::BenchmarkJob, results; outdir::Union{Nothing,AbstractString}=nothing)
     build = submission(job).build
     buildname = string(build.repo, SHA_SEPARATOR, build.sha)
     buildlink = "https://github.com/$(build.repo)/commit/$(build.sha)"
@@ -694,6 +694,28 @@ function printreport(io::IO, job::BenchmarkJob, results)
 
     println(io)
     printsummary(io, s)
+
+    # Try to render the spread-of-changes plot next to the report. The image
+    # filename is referenced relative to the report directory.
+    if iscomparisonjob && outdir !== nothing
+        plot_filename = "summary.png"
+        plot_path = joinpath(outdir, plot_filename)
+        diff_str = if hasagainstbuild
+            "$(snipsha(job.against.sha))..$(snipsha(build.sha))"
+        elseif job.isdaily && hasprevdate && !isempty(results["previous_sha"])
+            "$(snipsha(results["previous_sha"]))..$(snipsha(build.sha))"
+        else
+            snipsha(build.sha)
+        end
+        plot_title = "Outliers of $(s[2]) regressions, $(s[3]) improvements of $(s[1]) benchmarks  —  $(diff_str)"
+        try
+            if write_summary_plot(plot_path, results["judged"], plot_title)
+                println(io, "![Spread of changes]($(plot_filename))\n")
+            end
+        catch err
+            @error "failed to render summary plot" _exception=(err, catch_backtrace())
+        end
+    end
 
     println(io, """
                 ## Job Properties
