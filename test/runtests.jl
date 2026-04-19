@@ -258,7 +258,9 @@ mkpath(reportoutdir)
 @testset "Benchmark report" begin
     mdpath = joinpath(@__DIR__, "report.md")
     nscommit = Nanosoldier.nanosoldier_commit()
-    expected = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
+    expected = replace(read(mdpath, String), "PRIMARYSHORT" => Nanosoldier.snipsha(primary_commit.sha),
+                       "AGAINSTSHORT" => Nanosoldier.snipsha(against_commit.sha),
+                       "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
                        "NANOSOLDIER_COMMIT" => nscommit, "NSSHORT" => Nanosoldier.snipsha(nscommit))
     actual = sprint(io->Nanosoldier.printreport(io, job, results))
     write(joinpath(reportoutdir, "benchmark_report.md"), actual)
