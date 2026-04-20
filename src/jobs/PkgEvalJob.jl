@@ -98,6 +98,8 @@ mutable struct PkgEvalJob <: AbstractJob
     type::PkgEvalType                # the type of job
     pkgsel::Vector{String}           # selection of packages
     against::Union{BuildRef,Nothing} # the comparison build (if available)
+    against_mergebase::Union{String,Nothing} # branch name if against was resolved via merge-base
+    against_hint::Union{String,Nothing}      # hint message for the reply comment
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
     configuration::Configuration
@@ -143,6 +145,8 @@ function PkgEvalJob(submission::JobSubmission)
         end
     end
 
+    against_mergebase = nothing
+    against_hint = nothing
     if haskey(submission.kwargs, :vs)
         againststr = Meta.parse(submission.kwargs[:vs])
         if in(SHA_SEPARATOR, againststr) # e.g. againststr == christopher-dG/julia@e83b7559df94b3050603847dbd6f3674058027e6
@@ -153,6 +157,15 @@ function PkgEvalJob(submission::JobSubmission)
             reporef, againstbranch = split(againststr, BRANCH_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.repo : reporef
             againstbuild = branchref(submission.config, againstrepo, againstbranch)
+            # If vs matches the PR's base branch, hint that omitting vs gives
+            # a merge-base comparison which is usually what users want.
+            if submission.prnumber !== nothing && againstrepo == submission.repo
+                pr_details = GitHub.pull_request(submission.repo, submission.prnumber;
+                                                auth=submission.config.auth)
+                if againstbranch == pr_details.base.ref
+                    against_hint = "**Tip:** `vs=\"$(againststr)\"` compares against the tip of `$(againstbranch)`. To compare against the merge-base instead (only changes introduced by this PR), omit the `vs` argument."
+                end
+            end
         elseif in(TAG_SEPARATOR, againststr)
             reporef, againsttag = split(againststr, TAG_SEPARATOR)
             againstrepo = isempty(reporef) ? submission.repo : reporef
@@ -164,7 +177,8 @@ function PkgEvalJob(submission::JobSubmission)
         end
         against = againstbuild
     elseif submission.prnumber !== nothing
-        # if there is a PR number, we compare against the base branch.
+        # if there is a PR number, we compare against the merge-base of the
+        # base branch, so the comparison only reflects changes in the PR.
         # this does not apply to packages, where we compare against the latest release.
         pr_details = GitHub.pull_request(submission.repo, submission.prnumber;
                                          auth=submission.config.auth)
@@ -173,6 +187,7 @@ function PkgEvalJob(submission::JobSubmission)
                                     base_branch, "refs/pull/$(submission.prnumber)/head";
                                     auth=submission.config.auth).merge_base_commit
         against = commitref(submission.config, submission.repo, merge_base.sha)
+        against_mergebase = base_branch
     else
         against = nothing
     end
@@ -274,7 +289,7 @@ function PkgEvalJob(submission::JobSubmission)
     end
 
     return PkgEvalJob(
-        submission, jobtype, pkgsel, against,
+        submission, jobtype, pkgsel, against, against_mergebase, against_hint,
         Date(submission.build.time), isdaily,
         configuration, against_configuration,
         use_blacklist, subdir, Nanosoldier.priority(submission)
@@ -677,11 +692,8 @@ function Base.run(job::PkgEvalJob)
     cfg = submission(job).config
 
     # make temporary directory for job results
-    # Why not create the job's actual report directory now instead? The answer is that
-    # the commit SHA that currently describes the job might change if we find out that
-    # we should use a merge commit instead. To avoid confusion, we dump all the results
-    # to this temporary directory first, then move the data to the correct location
-    # in the reporting phase.
+    # We dump results here first, then move to the final report directory in the
+    # reporting phase.
     nodelog(cfg, node, "creating temporary directory for benchmark results")
     if isdir(tmpdir(job))
         nodelog(cfg, node, "...removing old temporary directory...")
@@ -867,8 +879,8 @@ function report(job::PkgEvalJob, results)
 
         # reply with the job's final status
         comment = """
-            The package evaluation job [you requested]($(submission(job).url)) has completed - $status.
-            The [**full report**]($(target_url)) is available.
+            The package evaluation job [you requested]($(submission(job).url)) has completed - $status.$(job.against_mergebase !== nothing ? " (comparing against merge-base of `$(job.against_mergebase)`)" : "")
+            The [**full report**]($(target_url)) is available.$(job.against_hint !== nothing ? "\n\n$(job.against_hint)" : "")
 
             <details><summary>Report summary</summary>
 
@@ -1014,7 +1026,10 @@ function printreport(io::IO, job::PkgEvalJob, results)
         else
             comparelink = "https://github.com/$(againstbuild.repo)/compare/$(againstbuild.sha)...$(build.repo):$(build.sha)"
         end
-        joblink = "$(joblink)\n\n*Comparison Diff:* [link]($(comparelink))"
+        joblink = "$(joblink)\n\n*Comparison Diff:* [$(snipsha(againstbuild.sha))...$(snipsha(build.sha))]($(comparelink))"
+        if job.against_mergebase !== nothing
+            joblink = "$(joblink)\n\n*Note:* Comparison is against the merge-base of `$(job.against_mergebase)` (the common ancestor of the PR branch and `$(job.against_mergebase)`), so it reflects only the PR's changes."
+        end
     end
 
     # print report preface + job properties #
