@@ -73,8 +73,10 @@ function write_summary_plot(dest_path::AbstractString,
     xticks_pos = [-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]
     xticks_lab = [@sprintf("%.2g×", 2.0^t) for t in xticks_pos]
 
+    plot_height = max(460, 180 + (nr + ni) * 18)
+
     plt = plot(;
-        size = (900, 460),
+        size = (900, plot_height),
         framestyle = :zerolines,
         grid = :all,
         gridalpha = 0.3,
