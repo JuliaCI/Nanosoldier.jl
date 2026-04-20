@@ -260,7 +260,7 @@ mkpath(reportoutdir)
     nscommit = Nanosoldier.nanosoldier_commit()
     expected = replace(read(mdpath, String), "PRIMARY" => primary_commit.sha, "AGAINST" => against_commit.sha,
                        "NANOSOLDIER_COMMIT" => nscommit, "NSSHORT" => Nanosoldier.snipsha(nscommit))
-    actual = sprint(io->Nanosoldier.printreport(io, job, results))
+    actual = sprint(io->Nanosoldier.printreport(io, job, results; outdir=reportoutdir))
     write(joinpath(reportoutdir, "benchmark_report.md"), actual)
     expected_lines = chomp.(collect(eachline(IOBuffer(expected))))
     actual_lines   = chomp.(collect(eachline(IOBuffer(actual))))
