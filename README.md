@@ -108,6 +108,18 @@ compare against. The following syntax is supported for reference string:
 - `"owner/repo@sha"`: the commit specified by `sha` in the repository `owner/repo`
 - `"owner/repo#tag"`: the commit pointed to by the tag named `tag` in the repository `owner/repo`
 
+The `debuginfo` keyword argument (default `false`) enables collection of per-benchmark
+diagnostics. When set to `true`, each side of the benchmark run writes a
+`<sha>_<primary|against>.debuginfo.jsonl` file (one JSON record per line) into the result
+data directory, capturing the wall clock timestamp, elapsed run time, RSS, and cumulative
+GC stats around each benchmark plus the warmup and overall start/finish events. This is
+useful for monitoring progress of a long-running job (the file can be tailed) and for
+post-hoc inspection of which benchmarks dominate runtime or memory:
+
+```
+@nanosoldier `runbenchmarks(ALL, vs=":master", debuginfo = true)`
+```
+
 #### Benchmark Results
 
 Once a `BenchmarkJob` is complete, the results are uploaded to the

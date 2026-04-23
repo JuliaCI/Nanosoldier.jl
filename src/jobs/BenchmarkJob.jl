@@ -48,13 +48,14 @@ mutable struct BenchmarkJob <: AbstractJob
     date::Dates.Date                 # the date of the submitted job
     isdaily::Bool                    # is the job a daily job?
     skipbuild::Bool                  # use local julia install instead of a fresh build (for testing)
+    debuginfo::Bool                  # record per-benchmark wall clock / RSS / GC diagnostics
     priority::Int                    # job priority: 1=high, 2=normal, 3=low
 end
 
 function BenchmarkJob(submission::JobSubmission)
     # preliminary validation
     for kwarg in keys(submission.kwargs)
-        if !in(kwarg, (:vs, :skipbuild, :isdaily, :priority))
+        if !in(kwarg, (:vs, :skipbuild, :isdaily, :debuginfo, :priority))
             nanosoldier_error("invalid keyword argument `$kwarg`")
         end
     end
@@ -113,6 +114,12 @@ function BenchmarkJob(submission::JobSubmission)
         isdaily = false
     end
 
+    if haskey(submission.kwargs, :debuginfo)
+        debuginfo = submission.kwargs[:debuginfo] == "true"
+    else
+        debuginfo = false
+    end
+
     tagpred = if isempty(submission.args)
         "ALL"
     else
@@ -121,7 +128,7 @@ function BenchmarkJob(submission::JobSubmission)
 
     return BenchmarkJob(
         submission, tagpred, against,
-        Dates.today(), isdaily, skipbuild,
+        Dates.today(), isdaily, skipbuild, debuginfo,
         Nanosoldier.priority(submission)
     )
 end
@@ -390,6 +397,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     benchmean = joinpath(tmpdatadir(job), string(benchname, ".mean.json"))
     benchstd = joinpath(tmpdatadir(job), string(benchname, ".std.json"))
     bencherrors = joinpath(tmpdatadir(job), string(benchname, ".errors.json"))
+    benchdebuginfo = job.debuginfo ? joinpath(tmpdatadir(job), string(benchname, ".debuginfo.jsonl")) : ""
 
     open(shscriptpath, "w") do file
         println(file, """
@@ -417,8 +425,36 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                       olderr = stderr
                       redirect_stderr(bencherr)
 
+                      # Optional debuginfo log: when enabled, append one JSON record per
+                      # event (start/finish of each benchmark, plus run start/end) capturing
+                      # wall clock time, RSS and GC stats so a long-running job can be
+                      # monitored externally by tailing the file.
+                      const debuginfo_path = $(repr(benchdebuginfo))
+                      const debuginfo_io = isempty(debuginfo_path) ? nothing : open(debuginfo_path, "w")
+                      const run_start_ns = time_ns()
+                      function debuglog(event::AbstractString; extra...)
+                          debuginfo_io === nothing && return
+                          gc = Base.gc_num()
+                          record = Dict{String,Any}(
+                              "event" => event,
+                              "timestamp" => string(now()),
+                              "elapsed_s" => (time_ns() - run_start_ns) / 1e9,
+                              "rss_bytes" => Sys.maxrss(),
+                              "gc_total_time_ns" => gc.total_time,
+                              "gc_total_allocd_bytes" => gc.total_allocd,
+                          )
+                          for (k, v) in extra
+                              record[String(k)] = v
+                          end
+                          JSON.print(debuginfo_io, record)
+                          println(debuginfo_io)
+                          flush(debuginfo_io)
+                          return
+                      end
+
                       # ensure we don't leak file handles when something goes wrong
                       try
+                          debuglog("run_start")
                           println("LOADING SUITE...")
                           BaseBenchmarks.loadall!()
 
@@ -432,7 +468,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
                           println("WARMING UP BENCHMARKS...")
+                          debuglog("warmup_start")
                           warmup(benchmarks)
+                          debuglog("warmup_finish")
 
                           println("RUNNING BENCHMARKS...")
                           # Run each benchmark individually and keep only the per-benchmark
@@ -445,6 +483,8 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           bencherrorlist = Vector{Pair{Vector{Any}, String}}()
                           for (ids, benchmark) in BenchmarkTools.leaves(benchmarks)
                               println("  benchmarking ", ids, "...")
+                              debuglog("benchmark_start", id=ids)
+                              bench_t0 = time_ns()
                               try
                                   trial = run(benchmark; verbose=true)
                                   for (results, f) in ((minresults, minimum), (medianresults, median),
@@ -458,6 +498,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                                       end
                                       group[ids[end]] = f(trial)
                                   end
+                                  debuglog("benchmark_finish", id=ids,
+                                           wall_s=(time_ns() - bench_t0) / 1e9,
+                                           status="ok")
                               catch err
                                   # Log full backtrace to stderr (private log file) but only
                                   # record the error type for the public report.
@@ -465,6 +508,9 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                                   Base.showerror(stderr, err, catch_backtrace())
                                   println(stderr)
                                   push!(bencherrorlist, ids => string(typeof(err)))
+                                  debuglog("benchmark_finish", id=ids,
+                                           wall_s=(time_ns() - bench_t0) / 1e9,
+                                           status="error", error=string(typeof(err)))
                                   if length(bencherrorlist) >= $(MAX_BENCHMARK_ERRORS)
                                       println(stderr, "  Too many benchmark errors ($(MAX_BENCHMARK_ERRORS)), aborting remaining benchmarks.")
                                       break
@@ -482,11 +528,13 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                           end
 
                           println("DONE!")
+                          debuglog("run_finish")
                       finally
                           redirect_stdout(oldout)
                           close(benchout)
                           redirect_stderr(olderr)
                           close(bencherr)
+                          debuginfo_io === nothing || close(debuginfo_io)
                       end
                       """)
     end
