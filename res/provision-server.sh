@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -euv -o pipefail
-HERE=`realpath $(dirname $0)`
-cd "$HERE/../.."
+HERE=`realpath $(dirname $0)/..`
+cd "$HERE/.."
 : ${NEWUSER:=nanosoldier}
 
 sudo apt update
@@ -30,10 +30,11 @@ sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/config
 sudo -u $NEWUSER chmod 600 /home/$NEWUSER/.ssh/authorized_keys
 sudo -u $NEWUSER sh -c 'cd && git config --global user.name "nanosoldier"'
 sudo -u $NEWUSER sh -c 'cd && git config --global user.email "nanosoldierjulia@gmail.com"'
+sudo -u $NEWUSER sh -c 'cd && git config --global --add safe.directory '"$HERE"
 sudo -u $NEWUSER sh -c 'cd && ssh -T git@github.com' || true
 
 [ -d PkgEval.jl ] || git clone https://github.com/JuliaCI/PkgEval.jl
-sudo -u $NEWUSER sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$HERE/.. -e 'using Pkg; Pkg.instantiate()'"
+sudo -u $NEWUSER sh -c "\$HOME/.juliaup/bin/julia --color=yes --project=$HERE -e 'using Pkg; Pkg.instantiate()'"
 
 set +v
 
