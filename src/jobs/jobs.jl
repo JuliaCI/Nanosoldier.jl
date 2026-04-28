@@ -26,7 +26,7 @@ end
 # check that isdaily is well-formed (no extra parameters, on a recent master commit, not a PR)
 # and not accidentally submitted elsewhere
 function validatate_isdaily(submission::JobSubmission)
-    allowed_kwargs = Set([:isdaily, :priority])
+    allowed_kwargs = Set([:isdaily, :priority, :debuginfo])
     if submission.prnumber === nothing && 
        haskey(submission.kwargs, :isdaily) && submission.kwargs[:isdaily] == "true" &&
        all(k -> k in allowed_kwargs, keys(submission.kwargs))
