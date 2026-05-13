@@ -14,7 +14,7 @@ version = "1.11.0"
 
 [[deps.BaseBenchmarks]]
 deps = ["BenchmarkTools", "Dates", "Distributed", "InteractiveUtils", "LinearAlgebra", "Printf", "REPL", "Random", "Serialization", "SparseArrays", "StableRNGs", "Statistics"]
-git-tree-sha1 = "a3db7da4730852661c874ff5eaf6f0e405f5e4c3"
+git-tree-sha1 = "bc08f8c0eef7bdf526e464cfddaa84d1ff2ae456"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
 uuid = "d7f09723-0a21-57e2-b9ef-316b714b6879"
