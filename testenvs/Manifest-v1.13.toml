@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.13.0-beta3"
+julia_version = "1.13.0-rc1"
 manifest_format = "2.1"
 project_hash = "6ec6547680a82c7acff794ad31e37dc357dc3831"
 
@@ -14,7 +14,7 @@ version = "1.11.0"
 
 [[deps.BaseBenchmarks]]
 deps = ["BenchmarkTools", "Dates", "Distributed", "InteractiveUtils", "LinearAlgebra", "Printf", "REPL", "Random", "Serialization", "SparseArrays", "StableRNGs", "Statistics"]
-git-tree-sha1 = "a3db7da4730852661c874ff5eaf6f0e405f5e4c3"
+git-tree-sha1 = "bc08f8c0eef7bdf526e464cfddaa84d1ff2ae456"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaCI/BaseBenchmarks.jl"
 uuid = "d7f09723-0a21-57e2-b9ef-316b714b6879"
@@ -64,10 +64,10 @@ version = "1.11.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
-git-tree-sha1 = "67c6f1f085cb2671c93fe34244c9cccde30f7a26"
+git-tree-sha1 = "fe23330af47b8ab4e135b2ff65f7398c3a2bfc65"
 registries = "General"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "1.5.0"
+version = "1.5.2"
 
     [deps.JSON.extensions]
     JSONArrowExt = ["ArrowTypes"]
@@ -105,10 +105,10 @@ version = "0.3.30+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+git-tree-sha1 = "5d5e0a78e971354b1c7bff0655d11fdc1b0e12c8"
 registries = "General"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
+version = "2.8.4"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -181,10 +181,10 @@ weakdeps = ["SparseArrays"]
 
 [[deps.StructUtils]]
 deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "aab80fbf866600f3299dd7f6656d80e7be177cfe"
+git-tree-sha1 = "dd974aefe288ef2898733aecf40858dc86742d74"
 registries = "General"
 uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
-version = "2.7.2"
+version = "2.8.1"
 
     [deps.StructUtils.extensions]
     StructUtilsMeasurementsExt = ["Measurements"]
