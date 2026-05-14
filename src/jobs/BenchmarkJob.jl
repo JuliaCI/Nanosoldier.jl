@@ -659,6 +659,11 @@ function report(job::BenchmarkJob, results)
             The benchmark job [you requested]($(submission(job).url)) has completed - $status. $(summary_line)
             *Commit$(job.against !== nothing ? "s" : ""):* $(commit_line)
             The [**full report**]($(target_url)) is available."""
+        if s.iscomparison
+            cfg = submission(job).config
+            summary_img_url = "https://github.com/$(reportrepo(cfg))/raw/master/benchmark/$(jobdirname(job))/summary.png"
+            comment *= "\n<img src=$(summary_img_url)>"
+        end
         reply_comment(submission(job), comment)
     end
 end
