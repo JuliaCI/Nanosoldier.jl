@@ -69,7 +69,8 @@ function write_summary_plot(dest_path::AbstractString,
     y_gap_center = nr + 0.5 + GAP / 2
 
     xpad = 0.45
-    xlims_top = (minimum(xvals) - xpad, maximum(xvals) + xpad)
+    half_range = maximum(abs.(xvals)) + xpad
+    xlims_top = (-half_range, half_range)
     xticks_pos = [-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]
     xticks_lab = [@sprintf("%.2g×", 2.0^t) for t in xticks_pos]
 
