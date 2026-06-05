@@ -684,7 +684,7 @@ end
 # ratio (primary / previous) reaches the per-metric threshold (i.e. +50%). Time
 # and memory have independent thresholds so they can be tuned separately.
 const DAILY_ISSUE_REGRESSION_RATIO_TIME = 1.5
-const DAILY_ISSUE_REGRESSION_RATIO_MEMORY = 1.5
+const DAILY_ISSUE_REGRESSION_RATIO_MEMORY = 1.01
 
 # Metrics scanned for severe daily regressions. Each accessor doubles as the
 # judgement reader (on a TrialJudgement), the ratio reader (on a TrialRatio) and
@@ -765,7 +765,7 @@ function regression_issue_content(job::BenchmarkJob, results, regressions, targe
     end
     println(io, "*Full report:* [link]($(target_url))")
 
-    title = "Daily benchmark regressions for $(job.date): $(n) regression$(plural) ≥50%"
+    title = "Daily benchmark regressions for $(job.date): $(n) regression$(plural) notable change"
     return title, String(take!(io))
 end
 
