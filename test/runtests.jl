@@ -280,6 +280,33 @@ mkpath(reportoutdir)
     end
 end
 
+@testset "Daily regression issue" begin
+    regressions = Nanosoldier.severe_time_regressions(results)
+    # only ("y", 1) regressed in time (2.0x); "z" only regressed in memory
+    @test length(regressions) == 1
+    r = regressions[1]
+    @test r.ids == ["g", "h", ("y", 1)]
+    @test r.ratio == 2.0
+    @test r.primarytime == 2.0
+    @test r.againsttime == 1.0
+
+    @test isempty(Nanosoldier.severe_time_regressions(results; ratio_threshold=3.0))
+
+    daily_results = copy(results)
+    daily_results["previous_sha"] = against_commit.sha
+    daily_results["previous_date"] = job.date
+    title, body = Nanosoldier.regression_issue_content(job, daily_results, regressions, "https://example.com/report.md")
+    @test occursin("≥50% slower", title)
+    @test occursin("1 benchmark", title)
+    @test occursin("2.00x", body)
+    @test occursin("perf.julialang.org/?tab=perf&start=$(against_commit.sha)&end=$(primary_commit.sha)", body)
+    @test occursin("compare/$(against_commit.sha)...$(primary_commit.sha)", body)
+    @test occursin("https://example.com/report.md", body)
+
+    # opt-out (issuerepo === nothing) must not attempt to open an issue
+    @test Nanosoldier.open_regression_issue(job, daily_results, "https://example.com/report.md") === nothing
+end
+
 @testset "Markdown" begin
     @test Nanosoldier.markdown_escaped("abc") == "abc"
     @test Nanosoldier.markdown_escaped(raw"a\`*_#+-.!{}[]()<>|b") == raw"a\\\`\*\_\#\+\-\.\!\{\}\[\]\(\)\<\>\|b"

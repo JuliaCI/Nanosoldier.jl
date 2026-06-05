@@ -9,6 +9,7 @@ struct Config
     admin::String                   # GitHub handle of the server administrator
     bucket::Union{Nothing,String}   # AWS bucket to upload large files too
     testmode::Bool                  # if true, jobs will run as test jobs
+    issuerepo::Union{Nothing,String} # the repo where daily regression issues are opened (nothing disables)
 
     function Config(user, nodes, auth, secret;
                     cpus = Dict{Int,Vector{Int}}(),
@@ -16,10 +17,11 @@ struct Config
                     trigger =  r"\@nanosoldier\s*`runbenchmarks\(.*?\)`",
                     admin = "",
                     bucket = nothing,
-                    testmode = false)
+                    testmode = false,
+                    issuerepo = nothing)
         isempty(nodes) && throw(ArgumentError("need at least one node to work on"))
         return new(user, nodes, cpus, auth, secret,
-                   reportrepo, trigger, admin, bucket, testmode)
+                   reportrepo, trigger, admin, bucket, testmode, issuerepo)
     end
 end
 
