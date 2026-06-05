@@ -281,24 +281,38 @@ mkpath(reportoutdir)
 end
 
 @testset "Daily regression issue" begin
-    regressions = Nanosoldier.severe_time_regressions(results)
-    # only ("y", 1) regressed in time (2.0x); "z" only regressed in memory
-    @test length(regressions) == 1
-    r = regressions[1]
-    @test r.ids == ["g", "h", ("y", 1)]
-    @test r.ratio == 2.0
-    @test r.primarytime == 2.0
-    @test r.againsttime == 1.0
+    regressions = Nanosoldier.severe_regressions(results)
+    # ("y", 1) regressed in time (2.0x); "z" regressed in memory (5.0x)
+    @test length(regressions) == 2
+    # sorted worst-first: the memory regression (5.0x) precedes the time one (2.0x)
+    @test regressions[1].ids == ["g", "h", "z"]
+    @test regressions[1].metric == "memory"
+    @test regressions[1].ratio == 5.0
+    @test regressions[1].primaryval == 5.0
+    @test regressions[1].againstval == 1.0
+    @test regressions[2].ids == ["g", "h", ("y", 1)]
+    @test regressions[2].metric == "time"
+    @test regressions[2].ratio == 2.0
+    @test regressions[2].primaryval == 2.0
+    @test regressions[2].againstval == 1.0
 
-    @test isempty(Nanosoldier.severe_time_regressions(results; ratio_threshold=3.0))
+    # raising the time threshold to 3.0x drops the time regression, keeping memory
+    high = Nanosoldier.severe_regressions(results; time_ratio_threshold=3.0)
+    @test length(high) == 1
+    @test high[1].metric == "memory"
+
+    # the time and memory thresholds are independent
+    @test isempty(Nanosoldier.severe_regressions(results; time_ratio_threshold=3.0, memory_ratio_threshold=6.0))
 
     daily_results = copy(results)
     daily_results["previous_sha"] = against_commit.sha
     daily_results["previous_date"] = job.date
     title, body = Nanosoldier.regression_issue_content(job, daily_results, regressions, "https://example.com/report.md")
-    @test occursin("≥50% slower", title)
-    @test occursin("1 benchmark", title)
+    @test occursin("≥50%", title)
+    @test occursin("2 regression", title)
     @test occursin("2.00x", body)
+    @test occursin("5.00x", body)
+    @test occursin("memory", body)
     @test occursin("perf.julialang.org/?tab=perf&start=$(against_commit.sha)&end=$(primary_commit.sha)", body)
     @test occursin("compare/$(against_commit.sha)...$(primary_commit.sha)", body)
     @test occursin("https://example.com/report.md", body)
