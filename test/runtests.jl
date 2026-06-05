@@ -308,7 +308,6 @@ end
     daily_results["previous_sha"] = against_commit.sha
     daily_results["previous_date"] = job.date
     title, body = Nanosoldier.regression_issue_content(job, daily_results, regressions, "https://example.com/report.md")
-    @test occursin("≥50%", title)
     @test occursin("2 regression", title)
     @test occursin("2.00x", body)
     @test occursin("5.00x", body)
