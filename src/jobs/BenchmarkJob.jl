@@ -665,7 +665,108 @@ function report(job::BenchmarkJob, results)
             comment *= "\n<img src=$(summary_img_url)>"
         end
         reply_comment(submission(job), comment)
+
+        # for daily jobs, open a tracking issue if any benchmarks regressed severely
+        if job.isdaily
+            try
+                open_regression_issue(job, results, target_url)
+            catch err
+                nodelog(cfg, node, "failed to open regression issue", error=err)
+            end
+        end
     end
+end
+
+# Regression Issue Reporting #
+#----------------------------#
+
+# A daily benchmark time regression is severe enough to open a tracking issue
+# once its time ratio (primary / previous) reaches this threshold (i.e. +50%).
+const DAILY_ISSUE_REGRESSION_RATIO = 1.5
+
+# Traverse a BenchmarkGroup along `ids` and return the recorded time (ns), or
+# `nothing` if the path is missing or doesn't terminate in an estimate.
+function lookup_estimate_time(group, ids)
+    node = group
+    for id in ids
+        node isa BenchmarkTools.BenchmarkGroup && haskey(node, id) || return nothing
+        node = node[id]
+    end
+    return node isa BenchmarkTools.TrialEstimate ? BenchmarkTools.time(node) : nothing
+end
+
+# Collect benchmarks whose time regressed by at least `ratio_threshold` between
+# the previous (`against`) and current (`primary`) builds, sorted worst-first.
+function severe_time_regressions(results; ratio_threshold=DAILY_ISSUE_REGRESSION_RATIO)
+    haskey(results, "judged") || return NamedTuple[]
+    primary = get(results, "primary", nothing)
+    against = get(results, "against", nothing)
+    regressions = NamedTuple[]
+    for (ids, t) in BenchmarkTools.leaves(results["judged"])
+        BenchmarkTools.time(t) === :regression || continue
+        ratio = BenchmarkTools.time(BenchmarkTools.ratio(t))
+        ratio >= ratio_threshold || continue
+        push!(regressions, (ids = ids, ratio = ratio,
+                            primarytime = primary === nothing ? nothing : lookup_estimate_time(primary, ids),
+                            againsttime = against === nothing ? nothing : lookup_estimate_time(against, ids)))
+    end
+    sort!(regressions; by = r -> r.ratio, rev = true)
+    return regressions
+end
+
+# Build the (title, body) for a daily regression tracking issue.
+function regression_issue_content(job::BenchmarkJob, results, regressions, target_url)
+    build = submission(job).build
+    previous_sha = get(results, "previous_sha", "")
+    n = length(regressions)
+    plural = n == 1 ? "" : "s"
+
+    io = IOBuffer()
+    println(io, "The [daily benchmark build]($(target_url)) for $(job.date) detected ",
+                "**$(n)** benchmark$(plural) that regressed by 50% or more relative to the previous daily build.")
+    println(io)
+    println(io, "| Benchmark | time ratio | before → after |")
+    println(io, "|-----------|-----------:|----------------|")
+    for r in regressions
+        before = r.againsttime === nothing ? "?" : BenchmarkTools.prettytime(r.againsttime)
+        after = r.primarytime === nothing ? "?" : BenchmarkTools.prettytime(r.primarytime)
+        println(io, "| ", idrepr_md(r.ids), " | ", @sprintf("%.2fx", r.ratio), " | ", before, " → ", after, " |")
+    end
+    println(io)
+
+    if !isempty(previous_sha)
+        comparelink = "https://github.com/$(build.repo)/compare/$(previous_sha)...$(build.sha)"
+        perflink = "https://perf.julialang.org/?tab=perf&start=$(previous_sha)&end=$(build.sha)&stat=min-wall-time"
+        println(io, "*Commit range:* [`$(snipsha(previous_sha))`...`$(snipsha(build.sha))`]($(comparelink))")
+        println(io)
+        println(io, "*Comparison on perf.julialang.org:* [link]($(perflink))")
+        println(io)
+    end
+    println(io, "*Full report:* [link]($(target_url))")
+
+    title = "Daily benchmark regressions for $(job.date): $(n) benchmark$(plural) ≥50% slower"
+    return title, String(take!(io))
+end
+
+# Open a GitHub issue summarizing severe daily regressions, if any. Does nothing
+# unless the job is daily, the config opts in via `issuerepo`, and at least one
+# benchmark crossed the regression threshold.
+function open_regression_issue(job::BenchmarkJob, results, target_url)
+    cfg = submission(job).config
+    issuerepo = cfg.issuerepo
+    issuerepo === nothing && return nothing
+    haskey(results, "previous_date") || return nothing
+
+    regressions = severe_time_regressions(results)
+    isempty(regressions) && return nothing
+
+    title, body = regression_issue_content(job, results, regressions, target_url)
+    if haskey(ENV, "NANOSOLDIER_DRYRUN")
+        @info "Running as part of test suite, not opening regression issue" title
+        return nothing
+    end
+    return GitHub.create_issue(issuerepo; auth = cfg.auth,
+                               params = Dict("title" => title, "body" => body))
 end
 
 # Markdown Report Generation #

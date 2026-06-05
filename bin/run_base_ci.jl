@@ -10,6 +10,7 @@ port = Int(0xffff)
 
 config = Nanosoldier.Config("nanosoldier-worker", nodes, auth, secret;
                             reportrepo = "JuliaCI/NanosoldierReports",
+                            issuerepo = "JuliaLang/julia",
                             testmode = false)
 
 server = Nanosoldier.Server(config)
