@@ -680,35 +680,55 @@ end
 # Regression Issue Reporting #
 #----------------------------#
 
-# A daily benchmark time regression is severe enough to open a tracking issue
-# once its time ratio (primary / previous) reaches this threshold (i.e. +50%).
-const DAILY_ISSUE_REGRESSION_RATIO = 1.5
+# A daily benchmark regression is severe enough to open a tracking issue once its
+# ratio (primary / previous) reaches the per-metric threshold (i.e. +50%). Time
+# and memory have independent thresholds so they can be tuned separately.
+const DAILY_ISSUE_REGRESSION_RATIO_TIME = 1.5
+const DAILY_ISSUE_REGRESSION_RATIO_MEMORY = 1.01
 
-# Traverse a BenchmarkGroup along `ids` and return the recorded time (ns), or
+# Metrics scanned for severe daily regressions. Each accessor doubles as the
+# judgement reader (on a TrialJudgement), the ratio reader (on a TrialRatio) and
+# the value reader (on a TrialEstimate), and `pretty` formats a raw value.
+const REGRESSION_METRICS = (
+    (name = "time",   accessor = BenchmarkTools.time,   pretty = BenchmarkTools.prettytime),
+    (name = "memory", accessor = BenchmarkTools.memory, pretty = BenchmarkTools.prettymemory),
+)
+
+# Traverse a BenchmarkGroup along `ids` and return the recorded TrialEstimate, or
 # `nothing` if the path is missing or doesn't terminate in an estimate.
-function lookup_estimate_time(group, ids)
+function lookup_estimate(group, ids)
     node = group
     for id in ids
         node isa BenchmarkTools.BenchmarkGroup && haskey(node, id) || return nothing
         node = node[id]
     end
-    return node isa BenchmarkTools.TrialEstimate ? BenchmarkTools.time(node) : nothing
+    return node isa BenchmarkTools.TrialEstimate ? node : nothing
 end
 
-# Collect benchmarks whose time regressed by at least `ratio_threshold` between
-# the previous (`against`) and current (`primary`) builds, sorted worst-first.
-function severe_time_regressions(results; ratio_threshold=DAILY_ISSUE_REGRESSION_RATIO)
+# Collect benchmarks whose time or memory regressed by at least the metric's
+# threshold between the previous (`against`) and current (`primary`) builds, with
+# one entry per regressed metric, sorted worst-first. A benchmark that regressed
+# in both time and memory yields two entries.
+function severe_regressions(results;
+                            time_ratio_threshold=DAILY_ISSUE_REGRESSION_RATIO_TIME,
+                            memory_ratio_threshold=DAILY_ISSUE_REGRESSION_RATIO_MEMORY)
     haskey(results, "judged") || return NamedTuple[]
     primary = get(results, "primary", nothing)
     against = get(results, "against", nothing)
+    thresholds = Dict("time" => time_ratio_threshold, "memory" => memory_ratio_threshold)
     regressions = NamedTuple[]
     for (ids, t) in BenchmarkTools.leaves(results["judged"])
-        BenchmarkTools.time(t) === :regression || continue
-        ratio = BenchmarkTools.time(BenchmarkTools.ratio(t))
-        ratio >= ratio_threshold || continue
-        push!(regressions, (ids = ids, ratio = ratio,
-                            primarytime = primary === nothing ? nothing : lookup_estimate_time(primary, ids),
-                            againsttime = against === nothing ? nothing : lookup_estimate_time(against, ids)))
+        primaryest = primary === nothing ? nothing : lookup_estimate(primary, ids)
+        againstest = against === nothing ? nothing : lookup_estimate(against, ids)
+        for metric in REGRESSION_METRICS
+            metric.accessor(t) === :regression || continue
+            ratio = metric.accessor(BenchmarkTools.ratio(t))
+            ratio >= thresholds[metric.name] || continue
+            push!(regressions, (ids = ids, metric = metric.name, ratio = ratio,
+                                pretty = metric.pretty,
+                                primaryval = primaryest === nothing ? nothing : metric.accessor(primaryest),
+                                againstval = againstest === nothing ? nothing : metric.accessor(againstest)))
+        end
     end
     sort!(regressions; by = r -> r.ratio, rev = true)
     return regressions
@@ -723,14 +743,15 @@ function regression_issue_content(job::BenchmarkJob, results, regressions, targe
 
     io = IOBuffer()
     println(io, "The [daily benchmark build]($(target_url)) for $(job.date) detected ",
-                "**$(n)** benchmark$(plural) that regressed by 50% or more relative to the previous daily build.")
+                "**$(n)** benchmark regression$(plural) of 50% or more in time or memory ",
+                "relative to the previous daily build.")
     println(io)
-    println(io, "| Benchmark | time ratio | before → after |")
-    println(io, "|-----------|-----------:|----------------|")
+    println(io, "| Benchmark | metric | ratio | before → after |")
+    println(io, "|-----------|--------|------:|----------------|")
     for r in regressions
-        before = r.againsttime === nothing ? "?" : BenchmarkTools.prettytime(r.againsttime)
-        after = r.primarytime === nothing ? "?" : BenchmarkTools.prettytime(r.primarytime)
-        println(io, "| ", idrepr_md(r.ids), " | ", @sprintf("%.2fx", r.ratio), " | ", before, " → ", after, " |")
+        before = r.againstval === nothing ? "?" : r.pretty(r.againstval)
+        after = r.primaryval === nothing ? "?" : r.pretty(r.primaryval)
+        println(io, "| ", idrepr_md(r.ids), " | ", r.metric, " | ", @sprintf("%.2fx", r.ratio), " | ", before, " → ", after, " |")
     end
     println(io)
 
@@ -744,7 +765,7 @@ function regression_issue_content(job::BenchmarkJob, results, regressions, targe
     end
     println(io, "*Full report:* [link]($(target_url))")
 
-    title = "Daily benchmark regressions for $(job.date): $(n) benchmark$(plural) ≥50% slower"
+    title = "Daily benchmark regressions for $(job.date): $(n) regression$(plural) notable change"
     return title, String(take!(io))
 end
 
@@ -757,7 +778,7 @@ function open_regression_issue(job::BenchmarkJob, results, target_url)
     issuerepo === nothing && return nothing
     haskey(results, "previous_date") || return nothing
 
-    regressions = severe_time_regressions(results)
+    regressions = severe_regressions(results)
     isempty(regressions) && return nothing
 
     title, body = regression_issue_content(job, results, regressions, target_url)
