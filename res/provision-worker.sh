@@ -1,9 +1,9 @@
 #!/bin/bash
 
 set -euv -o pipefail
-HERE=`realpath $(dirname $0)`
-cd "$HERE/../.."
-"$HERE/provision-server.sh"
+HERE=`realpath $(dirname $0)/..`
+cd "$HERE/.."
+"$HERE/res/provision-server.sh"
 set +v
 : ${NEWUSER:=nanosoldier}
 
@@ -19,8 +19,8 @@ set -v
 pip install cpuset-py3
 deactivate
 
-#sudo ln -f "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
-sudo cp "$HERE/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
+#sudo ln -f "$HERE/res/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
+sudo cp "$HERE/res/sysctl.conf" /etc/sysctl.d/99-nanosoldier.conf
 sudo service procps force-reload
 echo "1" | sudo tee /sys/devices/system/cpu/cpu*/online > /dev/null
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
