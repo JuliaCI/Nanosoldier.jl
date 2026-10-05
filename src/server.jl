@@ -1,3 +1,17 @@
+const TRUSTED_ASSOCIATIONS = ("OWNER", "MEMBER", "COLLABORATOR")
+
+# Jobs build and run the requested code on our machines, so only accept requests from the
+# repository's owners, organization members and collaborators, plus its own GitHub Actions
+# (which posts the daily benchmark request). The association comes with the webhook, so this
+# also works in package repositories where we cannot query collaborators.
+function trusted_commenter(payload)
+    container = get(payload, "comment", get(payload, "pull_request", get(payload, "issue", nothing)))
+    container isa AbstractDict || return false
+    get(container, "author_association", "") in TRUSTED_ASSOCIATIONS && return true
+    user = get(container, "user", nothing)
+    return user isa AbstractDict && get(user, "login", "") == "github-actions[bot]"
+end
+
 struct Server
     config::Config
     jobs::Vector{AbstractJob}
@@ -17,6 +31,9 @@ struct Server
             end
             if haskey(event.payload, "action") && !in(event.payload["action"], ("created", "opened"))
                 return HTTP.Response(204, "no action taken (submission was from an edit, close, or delete)")
+            end
+            if !trusted_commenter(event.payload)
+                return HTTP.Response(204, "no action taken (commenter is not a member or collaborator)")
             end
 
             # TODO: JobSubmission construction can fail (e.g., in case of duplicate kwargs)

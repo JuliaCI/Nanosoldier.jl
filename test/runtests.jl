@@ -51,6 +51,23 @@ pkgsel = ["Example"]
 # submission parsing and validation #
 #####################################
 
+@testset "trusted commenters" begin
+    comment(assoc, login="someone") =
+        Dict{String,Any}("comment" => Dict{String,Any}("author_association" => assoc,
+                                                       "user" => Dict{String,Any}("login" => login)))
+    for assoc in ("OWNER", "MEMBER", "COLLABORATOR")
+        @test Nanosoldier.trusted_commenter(comment(assoc))
+    end
+    for assoc in ("CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE")
+        @test !Nanosoldier.trusted_commenter(comment(assoc))
+    end
+    @test Nanosoldier.trusted_commenter(comment("NONE", "github-actions[bot]"))
+    # PRs opened with the trigger phrase in their body
+    @test Nanosoldier.trusted_commenter(Dict{String,Any}("pull_request" => Dict{String,Any}("author_association" => "MEMBER")))
+    @test !Nanosoldier.trusted_commenter(Dict{String,Any}("pull_request" => Dict{String,Any}("author_association" => "NONE")))
+    @test !Nanosoldier.trusted_commenter(Dict{String,Any}())
+end
+
 function build_test_submission(jobtyp, submission_string)
     func, args, kwargs = Nanosoldier.parse_submission_string(submission_string)
     submission = JobSubmission(config, repo, primary, primary.sha, "https://www.test.com", :commit, nothing, func, args, kwargs)
