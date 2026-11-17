@@ -304,11 +304,7 @@ function Base.run(job::BenchmarkJob)
         end
     finally
         for dir in cleanup
-            if ispath(dir)
-                run(sudo(cfg.user, `chmod -R ug+rwX $dir/julia`)) # make it rwx
-                Base.Filesystem.prepare_for_deletion(dir)
-                rm(dir, recursive=true)
-            end
+            rm_build!(cfg, dir)
         end
     end
 
@@ -333,6 +329,46 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
         juliapath = joinpath(juliadir, "julia", "julia")
     end
     return juliapath
+end
+
+# `/proc/vmstat` counters that show whether page faults in `MADV_HUGEPAGE` regions got
+# huge pages. A rising `thp_fault_fallback` during a run means physical memory is too
+# fragmented for 2 MiB pages, which makes benchmarks that allocate large arrays much slower.
+const VMSTAT_COUNTERS = ("thp_fault_alloc", "thp_fault_fallback",
+                         "compact_stall", "compact_fail", "compact_success")
+
+function read_vmstat(path="/proc/vmstat")
+    counters = Dict{String,Int}()
+    isfile(path) || return counters
+    for line in eachline(path)
+        fields = split(line)
+        length(fields) == 2 || continue
+        name, value = fields
+        name in VMSTAT_COUNTERS || continue
+        counters[name] = parse(Int, value)
+    end
+    return counters
+end
+
+function vmstat_delta(before::Dict{String,Int}, after::Dict{String,Int})
+    return join(("$name=$(after[name] - before[name])" for name in VMSTAT_COUNTERS
+                 if haskey(before, name) && haskey(after, name)), " ")
+end
+
+# Drop the page cache and compact memory, so that the benchmark starts with as many free
+# 2 MiB blocks as possible and compaction does not stall inside a timed sample. The server
+# user may run this script through sudo (set up by res/provision-worker.sh). A failure is
+# not fatal: the results are just noisier.
+function prep_memory!(cfg::Config, node)
+    script = joinpath(pkgdir(Nanosoldier), "res", "nanosoldier-prep-memory")
+    nodelog(cfg, node, "...dropping caches and compacting memory...")
+    try
+        run(sudo(`$script`))
+    catch err
+        @warn "memory compaction failed; continuing without it" exception=err
+        nodelog(cfg, node, "...memory compaction failed ($(sprint(showerror, err))), continuing...")
+    end
+    return
 end
 
 function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
@@ -533,7 +569,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                               JSON.print(io, [Dict("id" => ids, "error" => msg) for (ids, msg) in bencherrorlist])
                           end
 
-                          println("DONE!")
+                          println("DONE! (maxrss: ", Sys.maxrss() >> 20, " MiB)")
                           debuglog("run_finish")
                       finally
                           redirect_stdout(oldout)
@@ -566,9 +602,18 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     run(sudo(`$cset shield -c $(join(cpus, ",")) -k on`))
     run(sudo(`$cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`))
 
+    # start every run from the same, defragmented memory state
+    prep_memory!(cfg, node)
+    vmstat_before = read_vmstat()
+
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+    try
+        run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+    finally
+        # thp_fault_fallback should stay near 0; growth means huge pages are scarce again
+        nodelog(cfg, node, "...vmstat changes during benchmarks: $(vmstat_delta(vmstat_before, read_vmstat()))")
+    end
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")

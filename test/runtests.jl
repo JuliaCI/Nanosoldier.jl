@@ -299,6 +299,42 @@ mkpath(reportoutdir)
     end
 end
 
+@testset "Benchmark memory state" begin
+    mktempdir() do dir
+        vmstat = joinpath(dir, "vmstat")
+        write(vmstat, """
+            nr_free_pages 123
+            thp_fault_alloc 10
+            thp_fault_fallback 5
+            compact_stall 7
+            compact_fail 6
+            compact_success 1
+            thp_fault_fallback_charge 99
+            """)
+        before = Nanosoldier.read_vmstat(vmstat)
+        @test before == Dict("thp_fault_alloc" => 10, "thp_fault_fallback" => 5,
+                             "compact_stall" => 7, "compact_fail" => 6, "compact_success" => 1)
+        after = Dict("thp_fault_alloc" => 50, "thp_fault_fallback" => 5,
+                     "compact_stall" => 9, "compact_fail" => 8, "compact_success" => 1)
+        @test Nanosoldier.vmstat_delta(before, after) ==
+              "thp_fault_alloc=40 thp_fault_fallback=0 compact_stall=2 compact_fail=2 compact_success=0"
+        @test isempty(Nanosoldier.read_vmstat(joinpath(dir, "missing")))
+        @test Nanosoldier.vmstat_delta(Dict{String,Int}(), after) == ""
+    end
+    if Sys.islinux()
+        @test haskey(Nanosoldier.read_vmstat(), "thp_fault_alloc")
+    end
+    withenv("NANOSOLDIER_BUILDDIR" => nothing) do
+        @test Nanosoldier.buildroot() == Nanosoldier.workdir
+    end
+    withenv("NANOSOLDIER_BUILDDIR" => "") do
+        @test Nanosoldier.buildroot() == Nanosoldier.workdir
+    end
+    withenv("NANOSOLDIER_BUILDDIR" => "/nanosoldier-build") do
+        @test Nanosoldier.buildroot() == "/nanosoldier-build"
+    end
+end
+
 @testset "Daily regression issue" begin
     regressions = Nanosoldier.severe_regressions(results)
     # ("y", 1) regressed in time (2.0x); "z" regressed in memory (5.0x)

@@ -1,0 +1,8 @@
+#!/bin/sh
+# The server runs this through sudo (allowed by provision-worker.sh), with no arguments,
+# right before each benchmark process, so that every run starts with a compacted heap and
+# free 2 MiB blocks instead of stalling on compaction in a timed sample.
+set -e
+sync
+echo 3 > /proc/sys/vm/drop_caches
+echo 1 > /proc/sys/vm/compact_memory

@@ -87,3 +87,24 @@ cd /nanosoldier/Nanosoldier.jl
 git pull
 ./provision-worker.sh
 ```
+
+`provision-worker.sh` also sets up the workers' memory so that transparent huge pages stay
+available to the benchmarks: it caps the ZFS ARC (`ZFS_ARC_MAX`, default 4 GiB), adds
+`movablecore=` to the kernel command line (`MOVABLECORE`, default RAM minus about 8 GiB),
+mounts a tmpfs for the Julia build trees (`BUILDDIR=/nanosoldier-build`, size
+`BUILDDIR_SIZE`) and allows the server to run `res/nanosoldier-prep-memory` through sudo
+before each benchmark process, to drop caches and compact memory. The ARC cap
+and `movablecore=` only take effect after a reboot. `res/run_base_ci` points the server
+at the tmpfs through `NANOSOLDIER_BUILDDIR` when it is mounted; without that variable,
+builds go to the Scratch.jl `workdir` as before.
+
+To check a worker after rebooting:
+
+```
+grep -A1 'zone *Movable' /proc/zoneinfo
+cat /sys/module/zfs/parameters/zfs_arc_max
+df -h /nanosoldier-build
+```
+
+For each benchmark run, the node log records the change in the THP and compaction counters
+of `/proc/vmstat` during the run. `thp_fault_fallback` should stay close to 0.
