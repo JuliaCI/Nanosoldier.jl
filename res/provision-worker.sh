@@ -89,7 +89,7 @@ fi
 sudo update-grub
 
 # 3. Build Julia in a size-limited tmpfs instead of on ZFS, so builds don't churn the ARC.
-#    The server finds it through NANOSOLDIER_BUILDDIR (set by res/run_base_ci). A PR job
+#    The server uses it whenever it is mounted (see `buildroot` in src/build.jl). A PR job
 #    keeps two build trees here while its benchmarks run, and there is no swap, so this
 #    memory is unavailable to the benchmarks. A build tree (with .git) of julia 1.15-DEV was
 #    about 2.3 GB at its peak; the cap only bounds what a runaway build can take.

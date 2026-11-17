@@ -41,10 +41,15 @@ end
 # Root directory for the per-build Julia trees. On the benchmark workers this is a
 # size-limited tmpfs (see res/provision-worker.sh), so that building Julia does not churn
 # the ZFS ARC, which fragments kernel memory and starves the benchmarks of huge pages.
-# Persistent state (mirrors/, srccache/) always stays on disk under `workdir`.
-function buildroot()
+# It is detected on the host the job runs on, since workers may be started over ssh
+# without the server's environment; NANOSOLDIER_BUILDDIR overrides it. Persistent state
+# (mirrors/, srccache/) always stays on disk under `workdir`.
+const DEFAULT_BUILDROOT = "/nanosoldier-build"
+
+function buildroot(default=DEFAULT_BUILDROOT)
     root = get(ENV, "NANOSOLDIER_BUILDDIR", "")
-    return isempty(root) ? workdir : root
+    isempty(root) || return root
+    return ismount(default) ? default : workdir
 end
 
 # Delete a build tree created by `build_julia!`. Its `julia` subdirectory is owned by

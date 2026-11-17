@@ -94,9 +94,10 @@ available to the benchmarks: it caps the ZFS ARC (`ZFS_ARC_MAX`, default 4 GiB),
 mounts a tmpfs for the Julia build trees (`BUILDDIR=/nanosoldier-build`, size
 `BUILDDIR_SIZE`) and allows the server to run `res/nanosoldier-prep-memory` through sudo
 before each benchmark process, to drop caches and compact memory. The ARC cap
-and `movablecore=` only take effect after a reboot. `res/run_base_ci` points the server
-at the tmpfs through `NANOSOLDIER_BUILDDIR` when it is mounted; without that variable,
-builds go to the Scratch.jl `workdir` as before.
+and `movablecore=` only take effect after a reboot. Each benchmark node builds Julia under
+`/nanosoldier-build` when that is a mount point on its host, and otherwise in the
+Scratch.jl `workdir` as before; set `NANOSOLDIER_BUILDDIR` in the node's environment to use
+another directory (for example, if provisioned with a different `BUILDDIR`).
 
 To check a worker after rebooting:
 

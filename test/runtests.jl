@@ -325,13 +325,15 @@ end
         @test haskey(Nanosoldier.read_vmstat(), "thp_fault_alloc")
     end
     withenv("NANOSOLDIER_BUILDDIR" => nothing) do
-        @test Nanosoldier.buildroot() == Nanosoldier.workdir
+        @test Nanosoldier.buildroot("/nonexistent") == Nanosoldier.workdir
+        @test Nanosoldier.buildroot(@__DIR__) == Nanosoldier.workdir # not a mount point
+        @test Nanosoldier.buildroot("/") == "/"
     end
     withenv("NANOSOLDIER_BUILDDIR" => "") do
-        @test Nanosoldier.buildroot() == Nanosoldier.workdir
+        @test Nanosoldier.buildroot("/nonexistent") == Nanosoldier.workdir
     end
-    withenv("NANOSOLDIER_BUILDDIR" => "/nanosoldier-build") do
-        @test Nanosoldier.buildroot() == "/nanosoldier-build"
+    withenv("NANOSOLDIER_BUILDDIR" => "/somewhere") do
+        @test Nanosoldier.buildroot("/") == "/somewhere"
     end
 end
 
