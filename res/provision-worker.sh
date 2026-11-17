@@ -105,6 +105,10 @@ if mountpoint -q "$BUILDDIR"; then
 else
     sudo mount "$BUILDDIR"
 fi
+# a remount ignores the uid/gid/mode options, so apply them to the mounted tmpfs directly
+# (e.g. when running this again with a different NEWUSER)
+sudo chown "$(id -u $NEWUSER):$(id -g $NEWUSER)" "$BUILDDIR"
+sudo chmod 0755 "$BUILDDIR"
 df -h "$BUILDDIR"
 
 set +v
