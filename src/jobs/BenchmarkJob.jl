@@ -409,18 +409,14 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         Pkg.status();
         Pkg.precompile();""")`))
 
-    cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JSON file so that we can retrieve them.
     #
-    # CPU shielding requires passwordless sudo access to `cset`. To enable this for the
-    # server user, run `sudo visudo` and add the following line:
-    #
-    #   `user ALL=(ALL:ALL) NOPASSWD: /path_to_cset/cset`
-    #
-    # where `user` is replaced by the server user and `path_to_*` is the full path to the
-    # `cset` executable.
+    # CPU shielding runs `cset` as root, through the res/nanosoldier-cpuset wrapper that
+    # res/provision-worker.sh allows in sudoers: the server user may run all of it, and
+    # the benchmark process (as `nanosoldier-worker`) may only move itself.
+    cpuset = joinpath(pkgdir(Nanosoldier), "res", "nanosoldier-cpuset")
     #
     # Note that `cset` only allows `root` to run a process on the shielded CPU, but our
     # benchmark julia process needs to be executed as the server user, since the server
@@ -505,7 +501,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`)
+                          run(`sudo -n -- $cpuset move \$(getpid())`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
@@ -586,21 +582,10 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # make jlscript r-x
     chmod(jlscriptpath, 0o555)
 
-    # clean up old cpusets, if they exist
-    try
-        run(sudo(`$cset set -d /user/child`))
-    catch ex
-        @warn "(expected) removing old cset failed" _exception=ex
-    end
-    try
-        run(sudo(`$cset shield --reset`))
-    catch ex
-        @warn "(expected) removing old cset failed" _exception=ex
-    end
-    # shield our CPUs
+    # shield our CPUs (this also removes old cpusets, if they exist), and reserve the
+    # first one for the benchmark process
     cpus = mycpus(cfg)
-    run(sudo(`$cset shield -c $(join(cpus, ",")) -k on`))
-    run(sudo(`$cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`))
+    run(sudo(`$cpuset setup $(join(cpus, ","))`))
 
     # start every run from the same, defragmented memory state
     prep_memory!(cfg, node)
@@ -609,7 +594,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
     try
-        run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+        run(sudo(`$cpuset exec $(shscriptpath)`))
     finally
         # thp_fault_fallback should stay near 0; growth means huge pages are scarce again
         nodelog(cfg, node, "...vmstat changes during benchmarks: $(vmstat_delta(vmstat_before, read_vmstat()))")
@@ -617,8 +602,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
-    run(sudo(`$cset set -d /user/child`))
-    run(sudo(`$cset shield --reset`))
+    run(sudo(`$cpuset teardown`))
 
     minresults = BenchmarkTools.load(benchminimum)[1]
     errors = isfile(bencherrors) ? JSON.parsefile(bencherrors) : []

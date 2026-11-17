@@ -47,14 +47,10 @@ sudo useradd -m nanosoldier-worker || true
 sudo usermod -aG nanosoldier-worker `whoami`
 sudo usermod -aG nanosoldier-worker $NEWUSER
 
-echo "$NEWUSER ALL= NOPASSWD:\\
-        /nanosoldier/cset/bin/cset set *,\\
-        /nanosoldier/cset/bin/cset shield *,\\
-       !/nanosoldier/cset/bin/cset shield *-e*,\\
-        /nanosoldier/cset/bin/cset shield -e -- sudo -n -u nanosoldier-worker -- *
-$NEWUSER,nanosoldier-worker ALL= NOPASSWD:\\
-        /nanosoldier/cset/bin/cset proc *,\\
-       !/nanosoldier/cset/bin/cset proc *-e*
+# cset itself is only reachable through res/nanosoldier-cpuset, which validates its
+# arguments: cset's own options include --exec, which would run anything as root.
+echo "$NEWUSER ALL= NOPASSWD: $HERE/res/nanosoldier-cpuset
+nanosoldier-worker ALL= NOPASSWD: $HERE/res/nanosoldier-cpuset move *
 $NEWUSER ALL= NOPASSWD: $HERE/res/nanosoldier-prep-memory \"\"
 $NEWUSER ALL= (nanosoldier-worker) NOPASSWD: ALL
 `whoami` ALL= (nanosoldier-worker) NOPASSWD: ALL

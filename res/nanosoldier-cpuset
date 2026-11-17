@@ -1,0 +1,74 @@
+#!/bin/sh
+# The only way the server and the benchmark process get to run cset as root (allowed in
+# sudoers by provision-worker.sh). The users that run benchmarks must not be able to pass
+# options to cset themselves: `cset proc` and `cset shield` can --exec any command as
+# root, and sudoers wildcards can't reliably forbid that (`-le` parses as `-l -e`). So
+# every subcommand here takes a fixed shape of arguments, and each is validated.
+#
+#   nanosoldier-cpuset setup CPULIST   shield CPULIST; reserve its first CPU as /user/child
+#   nanosoldier-cpuset exec SCRIPT     run SCRIPT as nanosoldier-worker in the shield
+#   nanosoldier-cpuset move PID        move nanosoldier-worker's process PID to /user/child
+#   nanosoldier-cpuset teardown        remove /user/child and the shield
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+WORKER=nanosoldier-worker
+# the cset virtualenv that provision-worker.sh creates next to this checkout
+CSET="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd -P)/cset/bin/cset"
+
+die() {
+    echo "nanosoldier-cpuset: $*" >&2
+    exit 2
+}
+
+[ $# -ge 1 ] || die "missing subcommand"
+cmd=$1
+shift
+case $cmd in
+setup)
+    [ $# -eq 1 ] || die "usage: setup CPULIST"
+    cpus=$1
+    # rule out anything but digits, ',' and '-' first (this also rejects newlines,
+    # which a line-based grep would not), then check the shape of the list
+    case $cpus in
+    '' | *[!0-9,-]*) die "invalid CPU list: $cpus" ;;
+    esac
+    printf '%s\n' "$cpus" | grep -Eqx '[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*' ||
+        die "invalid CPU list: $cpus"
+    first=${cpus%%[,-]*}
+    # clean up after a previous run that didn't get to teardown
+    "$CSET" set -d /user/child >/dev/null 2>&1 || true
+    "$CSET" shield --reset >/dev/null 2>&1 || true
+    "$CSET" shield -c "$cpus" -k on
+    "$CSET" set -c "$first" -s /user/child --cpu_exclusive
+    ;;
+exec)
+    [ $# -eq 1 ] || die "usage: exec SCRIPT"
+    script=$1
+    case $script in
+    /*) ;;
+    *) die "SCRIPT must be an absolute path: $script" ;;
+    esac
+    [ -f "$script" ] || die "no such file: $script"
+    exec "$CSET" shield -e -- sudo -n -u "$WORKER" -- "$script"
+    ;;
+move)
+    [ $# -eq 1 ] || die "usage: move PID"
+    pid=$1
+    case $pid in
+    '' | *[!0-9]*) die "invalid PID: $pid" ;;
+    esac
+    owner=$(stat -c %u "/proc/$pid") || die "no such process: $pid"
+    [ "$owner" = "$(id -u "$WORKER")" ] || die "process $pid is not owned by $WORKER"
+    exec "$CSET" proc -m -p "$pid" -t /user/child
+    ;;
+teardown)
+    [ $# -eq 0 ] || die "usage: teardown"
+    "$CSET" set -d /user/child
+    "$CSET" shield --reset
+    ;;
+*)
+    die "unknown subcommand: $cmd"
+    ;;
+esac

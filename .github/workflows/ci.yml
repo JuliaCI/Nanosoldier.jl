@@ -50,6 +50,7 @@ jobs:
           bash -n res/provision-server.sh
           bash -n res/provision-worker.sh
           sh -n res/nanosoldier-prep-memory
+          sh -n res/nanosoldier-cpuset
           bash -n res/run_base_ci
 
           # tmux installed
