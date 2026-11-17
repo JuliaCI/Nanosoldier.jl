@@ -38,11 +38,51 @@ function sync_srcs!(fromdir, todir, link::Bool)
     end
 end
 
+# Root directory for the per-build Julia trees. On the benchmark workers this is a
+# size-limited tmpfs (see res/provision-worker.sh), so that building Julia does not churn
+# the ZFS ARC, which fragments kernel memory and starves the benchmarks of huge pages.
+# It is detected on the host the job runs on, since workers may be started over ssh
+# without the server's environment; NANOSOLDIER_BUILDDIR overrides it. Persistent state
+# (mirrors/, srccache/) always stays on disk under `workdir`.
+const DEFAULT_BUILDROOT = "/nanosoldier-build"
+
+function buildroot(default=DEFAULT_BUILDROOT)
+    root = get(ENV, "NANOSOLDIER_BUILDDIR", "")
+    isempty(root) || return root
+    return ismount(default) ? default : workdir
+end
+
+# Delete a build tree created by `build_julia!`. Its `julia` subdirectory is owned by
+# `config.user` and was made read-only, so restore write permissions as that user first.
+function rm_build!(config::Config, dir)
+    ispath(dir) || return
+    srcdir = joinpath(dir, "julia")
+    ispath(srcdir) && run(sudo(config.user, `chmod -R ug+rwX $srcdir`)) # make it rwx
+    Base.Filesystem.prepare_for_deletion(dir)
+    rm(dir, recursive=true)
+    return
+end
+
 # TODO: re-use PkgEval's BinaryBuilder-based build?
 function build_julia!(config::Config, build::BuildRef, logpath)
     # make a temporary workdir for our build
     gid = parse(Int, readchomp(`id -g $(config.user)`))
-    tmpdir = mktempdir(workdir)
+    tmpdir = mktempdir(buildroot())
+    try
+        build_julia!(config, build, logpath, tmpdir, gid)
+    catch
+        # don't leave a partial build behind: on tmpfs it would hold on to RAM
+        try
+            rm_build!(config, tmpdir)
+        catch err
+            @error "failed to remove build directory $tmpdir" exception=(err, catch_backtrace())
+        end
+        rethrow()
+    end
+    return tmpdir
+end
+
+function build_julia!(config::Config, build::BuildRef, logpath, tmpdir, gid)
     chown(tmpdir, -1, gid)
     chmod(tmpdir, 0o775)
     srcdir = joinpath(tmpdir, "julia")
@@ -90,5 +130,5 @@ function build_julia!(config::Config, build::BuildRef, logpath)
     run(sudo(config.user, `rm -rf $srccache2 $srccache1`)) # erase the cloned files (which might have difficult permissions))
     run(sudo(config.user, `chmod -R a-w $srcdir`)) # make it r-x to all)
     # TODO: symlink("bin/julia", joinpath(tmpdir, "julia"))
-    return tmpdir
+    return
 end

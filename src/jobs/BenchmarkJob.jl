@@ -304,11 +304,7 @@ function Base.run(job::BenchmarkJob)
         end
     finally
         for dir in cleanup
-            if ispath(dir)
-                run(sudo(cfg.user, `chmod -R ug+rwX $dir/julia`)) # make it rwx
-                Base.Filesystem.prepare_for_deletion(dir)
-                rm(dir, recursive=true)
-            end
+            rm_build!(cfg, dir)
         end
     end
 
@@ -333,6 +329,46 @@ function build_benchmarksjulia!(job::BenchmarkJob, whichbuild::Symbol, cleanup::
         juliapath = joinpath(juliadir, "julia", "julia")
     end
     return juliapath
+end
+
+# `/proc/vmstat` counters that show whether page faults in `MADV_HUGEPAGE` regions got
+# huge pages. A rising `thp_fault_fallback` during a run means physical memory is too
+# fragmented for 2 MiB pages, which makes benchmarks that allocate large arrays much slower.
+const VMSTAT_COUNTERS = ("thp_fault_alloc", "thp_fault_fallback",
+                         "compact_stall", "compact_fail", "compact_success")
+
+function read_vmstat(path="/proc/vmstat")
+    counters = Dict{String,Int}()
+    isfile(path) || return counters
+    for line in eachline(path)
+        fields = split(line)
+        length(fields) == 2 || continue
+        name, value = fields
+        name in VMSTAT_COUNTERS || continue
+        counters[name] = parse(Int, value)
+    end
+    return counters
+end
+
+function vmstat_delta(before::Dict{String,Int}, after::Dict{String,Int})
+    return join(("$name=$(after[name] - before[name])" for name in VMSTAT_COUNTERS
+                 if haskey(before, name) && haskey(after, name)), " ")
+end
+
+# Drop the page cache and compact memory, so that the benchmark starts with as many free
+# 2 MiB blocks as possible and compaction does not stall inside a timed sample. The server
+# user may run this script through sudo (set up by res/provision-worker.sh). A failure is
+# not fatal: the results are just noisier.
+function prep_memory!(cfg::Config, node)
+    script = joinpath(pkgdir(Nanosoldier), "res", "nanosoldier-prep-memory")
+    nodelog(cfg, node, "...dropping caches and compacting memory...")
+    try
+        run(sudo(`$script`))
+    catch err
+        @warn "memory compaction failed; continuing without it" exception=err
+        nodelog(cfg, node, "...memory compaction failed ($(sprint(showerror, err))), continuing...")
+    end
+    return
 end
 
 function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
@@ -373,18 +409,14 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
         Pkg.status();
         Pkg.precompile();""")`))
 
-    cset = abspath("cset/bin/cset")
     # The following code sets up a CPU shield, then spins up a new julia process on the
     # shielded CPU that runs the benchmarks. The results from this new process are
     # then serialized to a JSON file so that we can retrieve them.
     #
-    # CPU shielding requires passwordless sudo access to `cset`. To enable this for the
-    # server user, run `sudo visudo` and add the following line:
-    #
-    #   `user ALL=(ALL:ALL) NOPASSWD: /path_to_cset/cset`
-    #
-    # where `user` is replaced by the server user and `path_to_*` is the full path to the
-    # `cset` executable.
+    # CPU shielding runs `cset` as root, through the res/nanosoldier-cpuset wrapper that
+    # res/provision-worker.sh allows in sudoers: the server user may run all of it, and
+    # the benchmark process (as `nanosoldier-worker`) may only move itself.
+    cpuset = joinpath(pkgdir(Nanosoldier), "res", "nanosoldier-cpuset")
     #
     # Note that `cset` only allows `root` to run a process on the shielded CPU, but our
     # benchmark julia process needs to be executed as the server user, since the server
@@ -469,7 +501,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
 
                           println("SETTING UP FOR RUN...")
                           # move ourselves onto the first CPU in the shielded set
-                          run(`sudo -n -- $cset proc -m -p \$(getpid()) -t /user/child`)
+                          run(`sudo -n -- $cpuset move \$(getpid())`)
                           BLAS.set_num_threads(1) # ensure BLAS threads do not trample each other
                           addprocs(1)             # add worker that can be used by parallel benchmarks
 
@@ -533,7 +565,7 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
                               JSON.print(io, [Dict("id" => ids, "error" => msg) for (ids, msg) in bencherrorlist])
                           end
 
-                          println("DONE!")
+                          println("DONE! (maxrss: ", Sys.maxrss() >> 20, " MiB)")
                           debuglog("run_finish")
                       finally
                           redirect_stdout(oldout)
@@ -550,30 +582,27 @@ function execute_benchmarks!(job::BenchmarkJob, juliapath, whichbuild::Symbol)
     # make jlscript r-x
     chmod(jlscriptpath, 0o555)
 
-    # clean up old cpusets, if they exist
-    try
-        run(sudo(`$cset set -d /user/child`))
-    catch ex
-        @warn "(expected) removing old cset failed" _exception=ex
-    end
-    try
-        run(sudo(`$cset shield --reset`))
-    catch ex
-        @warn "(expected) removing old cset failed" _exception=ex
-    end
-    # shield our CPUs
+    # shield our CPUs (this also removes old cpusets, if they exist), and reserve the
+    # first one for the benchmark process
     cpus = mycpus(cfg)
-    run(sudo(`$cset shield -c $(join(cpus, ",")) -k on`))
-    run(sudo(`$cset set -c $(first(cpus)) -s /user/child --cpu_exclusive`))
+    run(sudo(`$cpuset setup $(join(cpus, ","))`))
+
+    # start every run from the same, defragmented memory state
+    prep_memory!(cfg, node)
+    vmstat_before = read_vmstat()
 
     # execute our script as the server user on the shielded CPU
     nodelog(cfg, node, "...executing benchmarks...")
-    run(sudo(`$cset shield -e -- sudo -n -u $(cfg.user) -- $(shscriptpath)`))
+    try
+        run(sudo(`$cpuset exec $(shscriptpath)`))
+    finally
+        # thp_fault_fallback should stay near 0; growth means huge pages are scarce again
+        nodelog(cfg, node, "...vmstat changes during benchmarks: $(vmstat_delta(vmstat_before, read_vmstat()))")
+    end
 
     # clean up the cpusets
     nodelog(cfg, node, "...post processing/environment cleanup...")
-    run(sudo(`$cset set -d /user/child`))
-    run(sudo(`$cset shield --reset`))
+    run(sudo(`$cpuset teardown`))
 
     minresults = BenchmarkTools.load(benchminimum)[1]
     errors = isfile(bencherrors) ? JSON.parsefile(bencherrors) : []
